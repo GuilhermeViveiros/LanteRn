@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# model configs
+MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
+export WANDB_PROJECT="LantErn-SFT-Qwen2.5VL-3B"
+
+
+
+RANDOM_SEED=42
+DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+BATCH_PER_DEVICE=8
+NUM_DEVICES=1
+GLOBAL_BATCH_SIZE=8
+# must be a multiple of BATCH_PER_DEVICE
+if [ $((GLOBAL_BATCH_SIZE % BATCH_PER_DEVICE)) -ne 0 ]; then
+    echo "GLOBAL_BATCH_SIZE must be a multiple of BATCH_PER_DEVICE"
+    exit 1
+fi
+GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
+
+# LLM-related params
+LR=1e-5
+LVR_HEAD=False
+
+# LantErn-related params
+LANTERN_LOSS_FCT=mse
+LAMBDA_LANTERN=0.1
+
+
+RUN_NAME="Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}"
+# ONLINE=True to enable online checkpointing with OCI
+OUTPUT_DIR="stage1_checkpoints/"
+
+
+# if continue training, set checkpoint_name = checkpoint to continue;
+# --checkpoint_name checkpoint-1400
+
+python src/train.py \
+    --model Qwen/Qwen2.5-VL-3B-Instruct --epochs 10 \
+    --task vsp-spatial-reasoning \
+    --latent_size 4 \
+    --stage stage1 \
+    --data_path ./data/examples/sample.jsonl \
+    --save_model_path /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 
+
+
+
+# deepspeed src/train/train_lvr.py \
+#     --run_name "$RUN_NAME" \
+#     --coconut True \
+#     --loss_lvr_fct $LVR_LOSS_FCT\
+#     --deepspeed scripts/zero3_offload.json \
+#     --model_id $MODEL_NAME \
+#     --data_path "$DATA_PATH" \
+#     --remove_unused_columns False \
+#     --lvr_head $LVR_HEAD \
+#     --freeze_vision_tower True \
+#     --freeze_merger True \
+#     --freeze_llm False \
+#     --max_steps $MAX_STEPS \
+#     --learning_rate $LR \
+#     --loss_lvr_lambda $LAMBDA_LVR \
+#     --bf16 True \
+#     --fp16 False \
+#     --disable_flash_attn2 False \
+#     --online_checkpoint $ONLINE \
+#     --output_dir "$OUTPUT_DIR" \
+#     --num_train_epochs 1 \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --weight_decay 0.1 \
+#     --warmup_ratio 0.03 \
+#     --lr_scheduler_type "cosine" \
+#     --logging_steps 1 \
+#     --tf32 False \
+#     --gradient_checkpointing True \
+#     --report_to wandb \
+#     --lazy_preprocess True \
+#     --save_strategy "steps" \
+#     --save_steps 500 \
+#     --save_total_limit 10 \
+#     --dataloader_num_workers 8 \
+#     --enable_data_packing $DATA_PACKING \
+#     --max_packed_tokens $MAX_PACKED_TOKENS \
+#     --random_seed $RANDOM_SEED \
+#     --long_seq_threshold $LST \
+#     --max_instance_per_batch $MAX_INSTANCE_PER_BATCH \
+#     # save_total_limit is for local storage only, no limit for online checkpointing
