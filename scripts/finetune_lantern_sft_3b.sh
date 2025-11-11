@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#conda activate lantern
+
 # model configs
 MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
 export WANDB_PROJECT="LantErn-SFT-Qwen2.5VL-3B"
@@ -35,13 +37,12 @@ OUTPUT_DIR="stage1_checkpoints/"
 # if continue training, set checkpoint_name = checkpoint to continue;
 # --checkpoint_name checkpoint-1400
 
-python src/train.py \
-    --model Qwen/Qwen2.5-VL-3B-Instruct --epochs 10 \
-    --task vsp-spatial-reasoning \
+python -m src.train.train \
+    --model_id Qwen/Qwen2.5-VL-3B-Instruct \
+    --num_train_epochs 10 \
     --latent_size 4 \
-    --stage stage1 \
-    --data_path ./data/examples/sample.jsonl \
-    --save_model_path /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 
+    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+    --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 
 
 
 

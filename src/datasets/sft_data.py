@@ -24,6 +24,7 @@ class SFTDataset(Dataset):
         self.processor = processor
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
+        self.column_names = []  # TRL check bypass
     
     def __len__(self):
         return len(self.dataset)
@@ -76,18 +77,17 @@ class SFTDataset(Dataset):
         # Add the final answer
         assistant_content.append({"type": "text", "text": answer})
 
-        # Create the message
-        message = [{
+        # return the message
+        return [{
             "role": "user",
             "content": user_content,
         }, {
             "role": "assistant",
             "content": assistant_content,
         }]
+    
 
-        return message
-
-def collate_fn(samples: List[str], processor: AutoProcessor):
+def collate_fn(samples: List[dict], processor: AutoProcessor):
     # apply the tokenizer
     text = processor.apply_chat_template(samples, tokenize=False)
     # process the vision info
@@ -99,7 +99,6 @@ def collate_fn(samples: List[str], processor: AutoProcessor):
         padding=True,
         return_tensors="pt",
     )
-    import pdb; pdb.set_trace()
     return inputs
     
 def make_sft_data_module(vision_model, processor, data_path):
