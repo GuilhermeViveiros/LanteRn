@@ -38,6 +38,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
+    model.config.latent_size = model_params.latent_size
 
     #resize the model
     model.resize_token_embeddings(len(processor.tokenizer))
