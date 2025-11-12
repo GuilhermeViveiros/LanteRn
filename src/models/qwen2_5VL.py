@@ -1,18 +1,59 @@
-from transformers import CrossEntropyLoss
-from transformers import Qwen2_5_VLCausalLMOutputWithPast
-from typing import Optional, Union, Any, Tuple, List, Dict, Unpack
-from transformers.modeling_utils import Cache
+from typing import Optional, Union, Any, Tuple, List, Dict
+from dataclasses import dataclass
 import torch
+from torch.nn import CrossEntropyLoss
+from transformers.cache_utils import Cache
+from transformers.utils import is_torchdynamo_compiling
+from transformers.modeling_outputs import ModelOutput
+from transformers.processing_utils import Unpack
 
 
+@dataclass
+class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
+    """
+    Base class for Qwen2_5_VL causal language model (or autoregressive) outputs.
 
+    Args:
+        loss (`torch.FloatTensor` of shape `(1,)`, *optional*, returned when `labels` is provided):
+            Language modeling loss (for next-token prediction).
+        logits (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.vocab_size)`):
+            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
+        past_key_values (`tuple(tuple(torch.FloatTensor))`, *optional*, returned when `use_cache=True` is passed or when `config.use_cache=True`):
+            Tuple of `tuple(torch.FloatTensor)` of length `config.n_layers`, with each tuple having 2 tensors of shape
+            `(batch_size, num_heads, sequence_length, embed_size_per_head)`)
+
+            Contains pre-computed hidden-states (key and values in the self-attention blocks) that can be used (see
+            `past_key_values` input) to speed up sequential decoding.
+        hidden_states (`tuple(torch.FloatTensor)`, *optional*, returned when `output_hidden_states=True` is passed or when `config.output_hidden_states=True`):
+            Tuple of `torch.FloatTensor` (one for the output of the embeddings, if the model has an embedding layer, +
+            one for the output of each layer) of shape `(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the optional initial embedding outputs.
+        attentions (`tuple(torch.FloatTensor)`, *optional*, returned when `output_attentions=True` is passed or when `config.output_attentions=True`):
+            Tuple of `torch.FloatTensor` (one for each layer) of shape `(batch_size, num_heads, sequence_length,
+            sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+        rope_deltas (`torch.LongTensor` of shape `(batch_size, )`, *optional*):
+            The rope index difference between sequence length and multimodal rope.
+    """
+
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    past_key_values: Optional[List[torch.FloatTensor]] = None
+    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    attentions: Optional[Tuple[torch.FloatTensor]] = None
+    rope_deltas: Optional[torch.LongTensor] = None
+    inputs_embeds: Optional[torch.FloatTensor] = None
+    latent_mask: Optional[torch.BoolTensor] = None
 
 '''
     Coconut mode
     No additional Head
     Custom implementation of LantErn on Qwen2.5VL model
 '''
-def lantern_forward(
+def qwen2_5_mixed_modality_forward_lantern(
     self,
     input_ids: Optional[torch.LongTensor] = None,
     attention_mask: Optional[torch.Tensor] = None,
@@ -31,7 +72,7 @@ def lantern_forward(
     rope_deltas: Optional[torch.LongTensor] = None,
     cache_position: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
-    lantent_values: Optional[torch.Tensor] = None, # Custom LantErn feature: latent values for the visual reasoning
+    latent_values: Optional[torch.Tensor] = None, # Custom LantErn feature: latent values for the visual reasoning
     latent_grid_thw: Optional[torch.LongTensor] = None, # Custom LantErn feature: latent grid dim for the visual reasoning
     latent_hidden_states: Optional[torch.Tensor] = None, # Custom LantErn feature: latent hidden states for the visual reasoning
     **kwargs: Unpack[Any],
@@ -46,7 +87,7 @@ def lantern_forward(
     second_per_grid_ts (`torch.Tensor` of shape `(num_videos)`, *optional*):
         The time interval (in seconds) for each grid along the temporal dimension in the 3D position IDs.
     """
-
+   
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
     output_hidden_states = (
         output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -56,61 +97,57 @@ def lantern_forward(
     if inputs_embeds is None:
         inputs_embeds = self.get_input_embeddings()(input_ids)
 
-    if pixel_values is not None:
-        image_embeds = self.get_image_features(pixel_values, image_grid_thw)
-        image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
-        image_mask, _ = self.get_placeholder_mask(
-            input_ids, inputs_embeds=inputs_embeds, image_features=image_embeds
-        )
-        inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+    # if pixel_values is not None:
+    #     image_embeds = self.get_image_features(pixel_values, image_grid_thw)
+    #     image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
+    #     image_mask, _ = self.model.get_placeholder_mask(
+    #         input_ids, inputs_embeds=inputs_embeds, image_features=image_embeds
+    #     )
+    #     inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
-    if lantent_values is not None:
+    if latent_values is not None:
         # Get batch_size early to avoid repeated shape access
         batch_size = inputs_embeds.shape[0]
         # Ensure dtype conversion happens early and only once
-        latent_visual_embeds = lantent_values.to(dtype=self.visual.dtype, device=inputs_embeds.device)
-        latent_image_embeds = self.visual(latent_visual_embeds, latent_grid_thw)
+        latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)
         
+        latent_avg_embeds = []
         n_latent_tokens = (input_ids == self.config.lvr_sep_id).sum().item()
-        n_latent_features = latent_visual_embeds.shape[0]
-        hidden_states = latent_image_embeds.shape[-1]
         
-        # for now we assume a fixed size for latent reasoning tokens (4)
-        # so the latent features (reallty the patch features) should be reduce to 4 patches
-        if n_latent_tokens != n_latent_features:
-            assert n_latent_tokens < n_latent_features
-            # we will average the latent features to get the 4 patches
-            latent_image_embeds = latent_image_embeds.view(batch_size, -1, hidden_states)
-            # TODO: we need better ways to encode the latent tokens, for now just use 4
-            # 1. ensure its divisible by 4
-            leave_out_patches = latent_image_embeds.shape[1] % self.model.config.latent_size
-            if leave_out_patches > 0:
-                latent_image_embeds = latent_image_embeds[:, :-leave_out_patches, :]
-            # 2. group the latent features into 4 patches - optimized using reshape + mean
-            group_size = latent_image_embeds.shape[1] // self.model.config.latent_size
-            # Reshape to group patches together, then compute mean along the group dimension
-            # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
-            latent_image_embeds = latent_image_embeds.view(
-                batch_size, self.model.config.latent_size, group_size, hidden_states
-            ).mean(dim=2, keepdim=False).contiguous()
-            latent_image_embeds = latent_image_embeds.view(-1, hidden_states)
+        # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
+        for le in latent_image_embeds:
+            n_latent_features = le.shape[0]
+            # TODO: for now we assume a fixed size for latent reasoning tokens (4)
+            # so the latent features (reallty the patch features) should be reduce to 4 patches
+            n_le_features = le.shape[0]
+            if n_latent_tokens != n_le_features:
+                assert n_latent_tokens < n_le_features
+                # TODO: we need better ways to encode the latent tokens, for now just use 4
+                # 1. ensure its divisible by 4
+                leave_out_patches = n_le_features % self.model.config.latent_size
+                if leave_out_patches > 0:
+                    le = le[:-leave_out_patches, :]
+                # 2. group the latent features into 4 patches - optimized using reshape + mean
+                group_size = n_le_features // self.model.config.latent_size
+                # Reshape to group patches together, then compute mean along the group dimension
+                # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
+                le = le.view(
+                    1, self.model.config.latent_size, group_size, self.config.hidden_size
+                ).mean(dim=2, keepdim=False)
+                latent_avg_embeds.append(le)
 
-        n_latent_features = latent_image_embeds.shape[0]
-
-        if n_latent_tokens != n_latent_features:
-            raise ValueError(
-                f"LantErn latent features and visual tokens do not match: tokens: {n_latent_tokens}, features {n_latent_features}"
-            )
+        del latent_image_embeds
+        latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
         
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
-        # Use expand_as instead of expand with shape tuple - more efficient
-        latent_mask = mask.unsqueeze(-1).expand_as(inputs_embeds)
-        
-        # Ensure dtype matches before masked_scatter
-        latent_image_embeds = latent_image_embeds.to(dtype=inputs_embeds.dtype)
-        inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_image_embeds)
+        mask_unsqueezed = mask.unsqueeze(-1)
+        mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
+        latent_mask = mask_expanded.to(inputs_embeds.device)
+
+        latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+        inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
         
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
@@ -134,7 +171,7 @@ def lantern_forward(
             or (past_key_values is None or past_key_values.get_seq_length() == 0)
         )
         if (prefill_compiled_stage or prefill_noncompiled_stage) or self.rope_deltas is None:
-            position_ids, rope_deltas = self.get_rope_index(
+            position_ids, rope_deltas = self.model.get_rope_index(
                 input_ids,
                 image_grid_thw,
                 video_grid_thw,
@@ -153,7 +190,8 @@ def lantern_forward(
             delta = delta.repeat_interleave(batch_size // delta.shape[0], dim=1)
             position_ids = position_ids + delta.to(position_ids.device)
 
-    outputs = self.model(
+   
+    outputs = self.language_model(
         input_ids=None,
         position_ids=position_ids,
         attention_mask=attention_mask,
@@ -190,4 +228,5 @@ def lantern_forward(
         attentions=outputs.attentions,
         rope_deltas=self.rope_deltas,
         inputs_embeds=inputs_embeds,
+        latent_mask=latent_mask,
     )

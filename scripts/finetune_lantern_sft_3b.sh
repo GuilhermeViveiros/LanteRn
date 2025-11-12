@@ -3,9 +3,9 @@
 #conda activate lantern
 
 # model configs
-MODEL_NAME="Qwen/Qwen2.5-VL-3B-Instruct"
-export WANDB_PROJECT="LantErn-SFT-Qwen2.5VL-3B"
-
+MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
+export WANDB_PROJECT="LantErn-SFT"
+export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
 
 
 RANDOM_SEED=42
@@ -37,12 +37,28 @@ OUTPUT_DIR="stage1_checkpoints/"
 # if continue training, set checkpoint_name = checkpoint to continue;
 # --checkpoint_name checkpoint-1400
 
-python -m src.train.train \
-    --model_id Qwen/Qwen2.5-VL-3B-Instruct \
+#deepspeed --num_gpus 2 --module src.train.train \
+
+DEEPSPEED=scripts/zero3_offload.json
+
+torchrun --nproc_per_node=2 --master_port=29501 src.train.train \
+    --run_name "$RUN_NAME" \
+    --model_id $MODEL_ID \
     --num_train_epochs 10 \
     --latent_size 4 \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 
+    --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+    --dummy True
+
+
+# python -m src.train.train \
+#     --run_name "$RUN_NAME" \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 10 \
+#     --latent_size 4 \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+#     --dummy True
 
 
 

@@ -1,16 +1,16 @@
 import logging
+import torch
 from transformers import HfArgumentParser
 from src.params import (TrainingParams, ModelParams, DataParams)
 from src.datasets.sft_data import make_sft_data_module
-
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
-from src.trainer.trainer import LantErnSFTrainer
-
+from src.models import load_model
+from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
 
 def train(training_params: TrainingParams, model_params: ModelParams, data_params: DataParams):
+    global local_rank
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
     from termcolor import colored
     logger.info(colored(f"🚀 Training LantErn SFT model", "green"))
@@ -21,8 +21,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
 
 
     # Load Model
-    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_params.model_id)
-    processor = AutoProcessor.from_pretrained(model_params.model_id)
+    model, processor = load_model(model_params.model_id, fp16=training_params.fp16, bf16=training_params.bf16)
 
     # add special tokens for LantErn
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -43,17 +42,36 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     #resize the model
     model.resize_token_embeddings(len(processor.tokenizer))
     
+
+    # ⚡ Initialize DeepSpeed (if enabled)
+    if hasattr(training_params, "deepspeed") and training_params.deepspeed:
+        logger.info(colored("Initializing DeepSpeed...", "yellow"))
+        model, optimizer, _, _ = deepspeed.initialize(
+            model=model,
+            model_parameters=model.parameters(),
+            config=training_params.deepspeed
+        )
+    else:
+        logger.info(colored("Running in standard (non-DeepSpeed) mode", "yellow"))
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model.to(device)
+
+    # Gradient Checkpointing
+    if training_params.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+
     # Load data
     data_module = make_sft_data_module(
-        vision_model=model.visual,
         processor=processor,
-        data_path=data_params.data_path
+        data_path=data_params.data_path,
+        dummy=data_params.dummy,
     )
 
     # Train
     trainer = LantErnSFTrainer(
         model=model,
         args=training_params,
+        callbacks=[ProgressBarLossLogger()],
         **data_module
     )
 

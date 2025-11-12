@@ -2,6 +2,7 @@
 Dataset for supervised fine-tuning (SFT)
 """
 from functools import partial
+import torch
 import json
 import os
 from PIL import Image
@@ -16,14 +17,26 @@ class SFTDataset(Dataset):
     def __init__(
         self,
         data_path: str,
-        processor: AutoProcessor
+        processor: AutoProcessor,
+        dummy: bool = False,
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
-        self.column_names = []  # TRL check bypass
+        # if dummy, we only use the first 1000 examples
+        if dummy:
+            import random
+            self.dataset = random.sample(self.dataset, min(100, len(self.dataset)))
+            # self.dataset = self.dataset[:1000]
     
+        def pre_validation(data):
+            # ignore samples with more than 1 bbox
+            if len(data["bboxs"]) > 1:
+                return False
+            return True
+        self.dataset = [data for data in self.dataset if pre_validation(data)]
+
     def __len__(self):
         return len(self.dataset)
 
@@ -63,7 +76,7 @@ class SFTDataset(Dataset):
             img_bboxs = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]
             # Validate bbox count matches post_reasoning_trace count
             assert len(img_bboxs) == len(post_visual_latent_reasoning), \
-                f"The number of bboxs ({len(img_bboxs)}) and post_visual_latent_reasoning ({len(post_visual_latent_reasoning)}) must be the same"
+                f"The number of bboxs ({len(img_bboxs)}) and post_visual_latent_reasoning ({len(post_visual_latent_reasoning)}) must be the same for example {idx}"
 
 
             # Build assistant content by adding pre_visual_latent_reasoning, and interleaving bbox images with post_visual_latent_reasoning
@@ -90,6 +103,7 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     text = processor.apply_chat_template(samples, tokenize=False)
+
     image_inputs, video_inputs = process_vision_info(samples)
     inputs = processor(
         text=text,
@@ -98,6 +112,20 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         padding=True,
         return_tensors="pt",
     )
+
+    labels = torch.ones_like(inputs["input_ids"]) * -100
+    for i, t in enumerate(text):
+        assistant_start = t.find("<|im_start|>assistant")
+        if assistant_start >= 0:
+            assistant_part = t[assistant_start:]
+            assistant_ids = processor.tokenizer(assistant_part).input_ids
+            labels[i, -len(assistant_ids):] = torch.tensor(assistant_ids, dtype=torch.long)
+    
+    labels[labels == processor.tokenizer.pad_token_id] = -100
+    lvr_sep_id = processor.tokenizer.encode("<|lvr_sep|>")[0]
+    labels[labels == lvr_sep_id] = -100
+    inputs["labels"] = labels
+    
 
     # process the latent images
     latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
@@ -110,15 +138,15 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         return_tensors="pt",
     )
     # we are only interested in the latent images, so we return the latent inputs
-    inputs["latent_pixel_values"] = latent_inputs["pixel_values"]
-    inputs["latent_image_grid_thw"] = latent_inputs["image_grid_thw"]
+    inputs["latent_values"] = latent_inputs["pixel_values"]
+    inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
     
     return inputs
     
-def make_sft_data_module(processor, data_path):
+def make_sft_data_module(processor, data_path, dummy: bool = False, **kwargs):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor
+        data_path=data_path, processor=processor, dummy=dummy
     )
 
     return {
