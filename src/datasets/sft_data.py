@@ -6,9 +6,8 @@ import json
 import os
 from PIL import Image
 from torch.utils.data import Dataset
-from typing import Any, Dict, List, Optional, Union
-import torch
-from src.utils import center_and_crop_image
+from typing import List
+from src.utils import center_and_crop_image, measure_time
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 
@@ -17,7 +16,6 @@ class SFTDataset(Dataset):
     def __init__(
         self,
         data_path: str,
-        vision_model: torch.nn.Module,
         processor: AutoProcessor
     ):
         super(SFTDataset, self).__init__()
@@ -56,11 +54,12 @@ class SFTDataset(Dataset):
 
         # Build assistant content
         assistant_content = []
+        latent_visuals = []
         if text_only_reasoning is not None:
             # just text without latent visual reasoning
-            assistant_content.append({"type": "text", "text": text_only_reasoning})
+            assistant_content = "<think>" + text_only_reasoning + "</think>"
         else:
-
+            assistant_content = "<think>"
             img_bboxs = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]
             # Validate bbox count matches post_reasoning_trace count
             assert len(img_bboxs) == len(post_visual_latent_reasoning), \
@@ -69,28 +68,28 @@ class SFTDataset(Dataset):
 
             # Build assistant content by adding pre_visual_latent_reasoning, and interleaving bbox images with post_visual_latent_reasoning
             if pre_visual_latent_reasoning is not None:
-                assistant_content.append({"type": "text", "text": pre_visual_latent_reasoning})
+                assistant_content += pre_visual_latent_reasoning
             for img_bbox, post_visual_latent_reasoning in zip(img_bboxs, post_visual_latent_reasoning, strict=True):
-                assistant_content.append({"type": "image", "image": img_bbox})
-                assistant_content.append({"type": "text", "text": post_visual_latent_reasoning})
+                latent_visuals.append(img_bbox)
+                # TODO: change different choices of latent tokens in the future
+                # lets inject the custom tokens - at this always inject 4 latent tokens
+                assistant_content += f"<|lvr_start|><|lvr_sep|><|lvr_sep|><|lvr_sep|><|lvr_sep|><|lvr_end|>"
+                assistant_content += post_visual_latent_reasoning
             
         # Add the final answer
-        assistant_content.append({"type": "text", "text": answer})
+        assistant_content += "</think>" + "<answer>" + answer + "</answer>"
 
-        # return the message
-        return [{
-            "role": "user",
-            "content": user_content,
-        }, {
-            "role": "assistant",
-            "content": assistant_content,
-        }]
-    
+        # user, assistant, and latent images
+        return [
+            {"role": "user","content": user_content},
+            {"role": "assistant","content": [{"type": "text", "text": assistant_content}]},
+            {"role": "assistant","content": [{"type": "image", "image": img} for img in latent_visuals]} # latent images to be removed afer
+        ]
 
 def collate_fn(samples: List[dict], processor: AutoProcessor):
-    # apply the tokenizer
+    # pop the last dict from the samples
+    latent_visuals = [s.pop(-1) for s in samples]
     text = processor.apply_chat_template(samples, tokenize=False)
-    # process the vision info
     image_inputs, video_inputs = process_vision_info(samples)
     inputs = processor(
         text=text,
@@ -99,12 +98,27 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         padding=True,
         return_tensors="pt",
     )
+
+    # process the latent images
+    latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
+    latent_image_inputs, latent_video_inputs = process_vision_info(latent_visuals)
+    latent_inputs = processor(
+        text=latent_text,
+        images=latent_image_inputs,
+        videos=latent_video_inputs,
+        padding=True,
+        return_tensors="pt",
+    )
+    # we are only interested in the latent images, so we return the latent inputs
+    inputs["latent_pixel_values"] = latent_inputs["pixel_values"]
+    inputs["latent_image_grid_thw"] = latent_inputs["image_grid_thw"]
+    
     return inputs
     
-def make_sft_data_module(vision_model, processor, data_path):
+def make_sft_data_module(processor, data_path):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, vision_model=vision_model
+        data_path=data_path, processor=processor
     )
 
     return {
@@ -119,23 +133,23 @@ if __name__ == "__main__":
     
 
     # load the visual model
-    from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+    from transformers import AutoProcessor
     model_id = "Qwen/Qwen2.5-VL-3B-Instruct"
-    #model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-    #    model_id, torch_dtype="auto", device_map="auto"
-    #)
     processor = AutoProcessor.from_pretrained(model_id)
+    # add special tokens for LantErn
+    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
+    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True)
+
     data_module = make_sft_data_module(
-        vision_model=None, 
         processor=processor, 
         data_path=data_path
     )
 
     # test with the dataloader
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(data_module["train_dataset"], batch_size=8, collate_fn=data_module["data_collator"])
+    dataloader = DataLoader(data_module["train_dataset"], batch_size=1, collate_fn=data_module["data_collator"])
     for batch in dataloader:
         print(batch.keys())
         break
     
-    import pdb; pdb.set_trace()

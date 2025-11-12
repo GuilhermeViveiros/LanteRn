@@ -13,12 +13,10 @@ class LantErnSFTrainer(Trainer):
         import pdb; pdb.set_trace()
         outputs = model(
             **inputs,
-            #output_hidden_states=True,
-            return_dict=True,
+            return_dict=True
         )
-        # clear
-        torch.cuda.empty_cache()
-        # compute the distance between the predicted and ground truth latents
+        loss = outputs.loss
+        hidden_states = outputs.hidden_states
         import pdb; pdb.set_trace()
 
         pass
