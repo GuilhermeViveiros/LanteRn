@@ -20,7 +20,7 @@ class TrainingParams(HFTrainingArguments):
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)
     bf16: bool = field(default=True)
-    #report_to: str = field(default="wandb")
+    report_to: str = field(default="wandb")
     wandb_project: str = field(default="LantErn-SFT")
     wandb_entity: str = field(default="gviveiros")
     deepspeed: Optional[str] = field(default=None)

@@ -126,20 +126,22 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
     labels[labels == lvr_sep_id] = -100
     inputs["labels"] = labels
     
-
-    # process the latent images
-    latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
-    latent_image_inputs, latent_video_inputs = process_vision_info(latent_visuals)
-    latent_inputs = processor(
-        text=latent_text,
-        images=latent_image_inputs,
-        videos=latent_video_inputs,
-        padding=True,
-        return_tensors="pt",
-    )
-    # we are only interested in the latent images, so we return the latent inputs
-    inputs["latent_values"] = latent_inputs["pixel_values"]
-    inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
+    nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
+    if nb_latent_visuals > 0:
+        # process the latent images
+        latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
+        latent_image_inputs, latent_video_inputs = process_vision_info(latent_visuals)
+        latent_inputs = processor(
+            text=latent_text,
+            images=latent_image_inputs,
+            videos=latent_video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        # we are only interested in the latent images, so we return the latent inputs
+        inputs["latent_values"] = latent_inputs["pixel_values"]
+        inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
+    
     
     return inputs
     

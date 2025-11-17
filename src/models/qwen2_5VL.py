@@ -94,6 +94,9 @@ def qwen2_5_mixed_modality_forward_lantern(
     )
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+    # not every sample will have latent images, so we need to handle this case
+    latent_mask = None
+
     if inputs_embeds is None:
         inputs_embeds = self.get_input_embeddings()(input_ids)
 
@@ -106,57 +109,59 @@ def qwen2_5_mixed_modality_forward_lantern(
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     if latent_values is not None:
-        # Get batch_size early to avoid repeated shape access
-        batch_size = inputs_embeds.shape[0]
-        # Ensure dtype conversion happens early and only once
-        latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)
+        with torch.no_grad():
+            # Get batch_size early to avoid repeated shape access
+            batch_size = inputs_embeds.shape[0]
+            # Ensure dtype conversion happens early and only once
+            latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)
 
-        
-        latent_avg_embeds = []
-        n_latent_tokens = (input_ids == self.config.lvr_sep_id).sum().item()
-        
-        # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
-        for le in latent_image_embeds:
-            # TODO: for now we assume a fixed size for latent reasoning tokens (4)
-            # so the latent features (reallty the patch features) should be reduce to 4 patches
-            # import pdb; pdb.set_trace()
-            n_le_features = le.shape[0]
-            if n_latent_tokens != n_le_features:
-                #print(f"n_latent_tokens: {n_latent_tokens}, n_le_features: {le.shape}")
-                #assert n_latent_tokens < n_le_features
-                # TODO: we need better ways to encode the latent tokens, for now just use 4
-                # 1. ensure its divisible by 4
-                leave_out_patches = n_le_features % self.model.config.latent_size
-                if leave_out_patches > 0:
-                    le = le[:-leave_out_patches, :]
-                # 2. group the latent features into 4 patches - optimized using reshape + mean
-                group_size = n_le_features // self.model.config.latent_size
-                # Reshape to group patches together, then compute mean along the group dimension
-                # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
-                le = le.view(
-                    1, self.model.config.latent_size, group_size, self.config.hidden_size
-                ).mean(dim=2, keepdim=False)
-                latent_avg_embeds.append(le)
+            
+            latent_avg_embeds = []
+            n_latent_tokens = (input_ids == self.config.lvr_sep_id).sum().item()
+            
 
-        del latent_image_embeds
-        latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
-        
-        # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
-        # Create mask directly on the correct device to avoid device transfer
-        mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
-        mask_unsqueezed = mask.unsqueeze(-1)
-        mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
-        latent_mask = mask_expanded.to(inputs_embeds.device)
 
-        latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+            # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
+            for le in latent_image_embeds:
+                # TODO: for now we assume a fixed size for latent reasoning tokens (4)
+                # so the latent features (reallty the patch features) should be reduce to 4 patches
+                n_le_features = le.shape[0]
+                if n_latent_tokens != n_le_features:
+                    #print(f"n_latent_tokens: {n_latent_tokens}, n_le_features: {le.shape}")
+                    #assert n_latent_tokens < n_le_features
+                    # TODO: we need better ways to encode the latent tokens, for now just use 4
+                    # 1. ensure its divisible by 4
+                    leave_out_patches = n_le_features % self.model.config.latent_size
+                    if leave_out_patches > 0:
+                        le = le[:-leave_out_patches, :]
+                    # 2. group the latent features into 4 patches - optimized using reshape + mean
+                    group_size = n_le_features // self.model.config.latent_size
+                    # Reshape to group patches together, then compute mean along the group dimension
+                    # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
+                    le = le.view(
+                        1, self.model.config.latent_size, group_size, self.config.hidden_size
+                    ).mean(dim=2, keepdim=False)
+                    latent_avg_embeds.append(le)
 
-        print("inputs_embeds.shape:", inputs_embeds.shape)
-        print("mask.shape:", mask_expanded.shape)
-        print("mask_true_count:", mask_expanded.sum().item())
-        print("latent_avg_embeds.shape:", latent_avg_embeds.shape)
-        print("latent_avg_embeds.numel():", latent_avg_embeds.numel())
+            del latent_image_embeds
+            latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
+            
+            # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
+            # Create mask directly on the correct device to avoid device transfer
+            mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
+            mask_unsqueezed = mask.unsqueeze(-1)
+            mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
+            latent_mask = mask_expanded.to(inputs_embeds.device)
 
-        inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
+            latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+
+            # print("inputs_embeds.shape:", inputs_embeds.shape)
+            # print("mask.shape:", mask_expanded.shape)
+            # print("mask_true_count:", mask_expanded.sum().item())
+            # print("latent_avg_embeds.shape:", latent_avg_embeds.shape)
+            # print("latent_avg_embeds.numel():", latent_avg_embeds.numel())
+            
+            inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
         
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
@@ -192,7 +197,7 @@ def qwen2_5_mixed_modality_forward_lantern(
                 self.rope_deltas = rope_deltas
             except Exception as e:
                 print(f"Error getting rope index: {e}")
-                import pdb; pdb.set_trace()
+                #import pdb; pdb.set_trace()
         else:
             batch_size, seq_length, _ = inputs_embeds.shape
             position_ids = torch.arange(seq_length, device=inputs_embeds.device)

@@ -56,6 +56,12 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.to(device)
 
+    # we will just train the llm and freeze the vision tower
+    for param in model.visual.parameters():
+        param.requires_grad = False
+    for param in model.language_model.parameters():
+        param.requires_grad = True
+    
     # Gradient Checkpointing
     if training_params.gradient_checkpointing:
         model.gradient_checkpointing_enable()
@@ -66,6 +72,16 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         data_path=data_params.data_path,
         dummy=data_params.dummy,
     )
+
+    # check if wandb is enabled
+    if training_params.report_to == "wandb":
+        logger.info(colored("Initializing WandB...", "yellow"))
+        import wandb
+        wandb.init(
+            project=training_params.wandb_project, 
+            name=training_params.run_name,
+            config=training_params
+        )
 
     # Train
     trainer = LantErnSFTrainer(
