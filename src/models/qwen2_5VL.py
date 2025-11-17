@@ -97,31 +97,33 @@ def qwen2_5_mixed_modality_forward_lantern(
     if inputs_embeds is None:
         inputs_embeds = self.get_input_embeddings()(input_ids)
 
-    # if pixel_values is not None:
-    #     image_embeds = self.get_image_features(pixel_values, image_grid_thw)
-    #     image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
-    #     image_mask, _ = self.model.get_placeholder_mask(
-    #         input_ids, inputs_embeds=inputs_embeds, image_features=image_embeds
-    #     )
-    #     inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
+    if pixel_values is not None:
+        image_embeds = self.get_image_features(pixel_values, image_grid_thw)
+        image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
+        image_mask, _ = self.model.get_placeholder_mask(
+            input_ids, inputs_embeds=inputs_embeds, image_features=image_embeds
+        )
+        inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     if latent_values is not None:
         # Get batch_size early to avoid repeated shape access
         batch_size = inputs_embeds.shape[0]
         # Ensure dtype conversion happens early and only once
         latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)
+
         
         latent_avg_embeds = []
         n_latent_tokens = (input_ids == self.config.lvr_sep_id).sum().item()
         
         # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
         for le in latent_image_embeds:
-            n_latent_features = le.shape[0]
             # TODO: for now we assume a fixed size for latent reasoning tokens (4)
             # so the latent features (reallty the patch features) should be reduce to 4 patches
+            # import pdb; pdb.set_trace()
             n_le_features = le.shape[0]
             if n_latent_tokens != n_le_features:
-                assert n_latent_tokens < n_le_features
+                #print(f"n_latent_tokens: {n_latent_tokens}, n_le_features: {le.shape}")
+                #assert n_latent_tokens < n_le_features
                 # TODO: we need better ways to encode the latent tokens, for now just use 4
                 # 1. ensure its divisible by 4
                 leave_out_patches = n_le_features % self.model.config.latent_size
@@ -147,6 +149,13 @@ def qwen2_5_mixed_modality_forward_lantern(
         latent_mask = mask_expanded.to(inputs_embeds.device)
 
         latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+
+        print("inputs_embeds.shape:", inputs_embeds.shape)
+        print("mask.shape:", mask_expanded.shape)
+        print("mask_true_count:", mask_expanded.sum().item())
+        print("latent_avg_embeds.shape:", latent_avg_embeds.shape)
+        print("latent_avg_embeds.numel():", latent_avg_embeds.numel())
+
         inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
         
     if pixel_values_videos is not None:
@@ -170,15 +179,20 @@ def qwen2_5_mixed_modality_forward_lantern(
             (cache_position is not None and cache_position[0] == 0)
             or (past_key_values is None or past_key_values.get_seq_length() == 0)
         )
+
         if (prefill_compiled_stage or prefill_noncompiled_stage) or self.rope_deltas is None:
-            position_ids, rope_deltas = self.model.get_rope_index(
-                input_ids,
-                image_grid_thw,
-                video_grid_thw,
-                second_per_grid_ts=second_per_grid_ts,
-                attention_mask=attention_mask,
-            )
-            self.rope_deltas = rope_deltas
+            try:
+                position_ids, rope_deltas = self.model.get_rope_index(
+                    input_ids,
+                    image_grid_thw,
+                    video_grid_thw,
+                    second_per_grid_ts=second_per_grid_ts,
+                    attention_mask=attention_mask,
+                )
+                self.rope_deltas = rope_deltas
+            except Exception as e:
+                print(f"Error getting rope index: {e}")
+                import pdb; pdb.set_trace()
         else:
             batch_size, seq_length, _ = inputs_embeds.shape
             position_ids = torch.arange(seq_length, device=inputs_embeds.device)

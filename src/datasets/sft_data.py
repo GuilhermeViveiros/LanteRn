@@ -112,7 +112,7 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         padding=True,
         return_tensors="pt",
     )
-
+    
     labels = torch.ones_like(inputs["input_ids"]) * -100
     for i, t in enumerate(text):
         assistant_start = t.find("<|im_start|>assistant")
@@ -176,7 +176,7 @@ if __name__ == "__main__":
 
     # test with the dataloader
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(data_module["train_dataset"], batch_size=1, collate_fn=data_module["data_collator"])
+    dataloader = DataLoader(data_module["train_dataset"], batch_size=6, collate_fn=data_module["data_collator"])
     for batch in dataloader:
         print(batch.keys())
         break
