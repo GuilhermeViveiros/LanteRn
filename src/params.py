@@ -19,6 +19,7 @@ class TrainingParams(HFTrainingArguments):
     gamma: float = field(default=0.1) # weight for the latent similarity loss
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)
+    max_steps: int = field(default=-1) # -1 for no max steps
     bf16: bool = field(default=True)
     report_to: str = field(default="wandb")
     wandb_project: str = field(default="LantErn-SFT")

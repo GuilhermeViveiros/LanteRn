@@ -4,6 +4,8 @@
 
 # model configs
 MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
+export WANDB_PROJECT="LantErn-SFT"
+#export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
 
 # dont use wandb for now
 #export WANDB_DISABLED=True
@@ -56,12 +58,11 @@ DEEPSPEED=scripts/zero3_offload.json
 python -m src.train.train \
     --run_name "$RUN_NAME" \
     --model_id $MODEL_ID \
-    --num_train_epochs 10 \
     --latent_size 4 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 4 \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-    #--dummy True
+    --dummy True
 
 
 

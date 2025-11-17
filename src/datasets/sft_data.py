@@ -27,7 +27,7 @@ class SFTDataset(Dataset):
         # if dummy, we only use the first 1000 examples
         if dummy:
             import random
-            self.dataset = random.sample(self.dataset, min(100, len(self.dataset)))
+            self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
             # self.dataset = self.dataset[:1000]
     
         def pre_validation(data):
@@ -141,7 +141,6 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         # we are only interested in the latent images, so we return the latent inputs
         inputs["latent_values"] = latent_inputs["pixel_values"]
         inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
-    
     
     return inputs
     

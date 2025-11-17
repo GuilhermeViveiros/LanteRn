@@ -14,9 +14,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
     from termcolor import colored
     logger.info(colored(f"🚀 Training LantErn SFT model", "green"))
-    # logger.info(colored(f"Training parameters: {training_params}", "cyan"))
+    logger.info(colored(f"Training parameters: {training_params}", "cyan"))
     model_str = colored(f"🚀 Model parameters: {model_params}", "cyan")
-    # logger.info(model_str)
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
 
@@ -79,7 +78,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         import wandb
         wandb.init(
             project=training_params.wandb_project, 
-            name=training_params.run_name,
+            #name=training_params.run_name,
             config=training_params
         )
 
