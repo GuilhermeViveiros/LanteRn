@@ -26,7 +26,10 @@ class TrainingParams(HFTrainingArguments):
     wandb_project: str = field(default="LantErn-SFT")
     wandb_entity: str = field(default="gviveiros")
     deepspeed: Optional[str] = field(default=None)
-    ddp_find_unused_parameters: bool = field(default=False)
+    #ddp_find_unused_parameters: bool = field(default=False)
+    freeze_vision_tower: bool = field(default=True)
+    freeze_merger: bool = field(default=True)
+    freeze_llm: bool = field(default=False)
 
 
 

@@ -8,7 +8,7 @@ export WANDB_PROJECT="LantErn-SFT"
 #export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
 
 # dont use wandb for now
-export WANDB_DISABLED=True
+#export WANDB_DISABLED=True
 
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
@@ -59,7 +59,6 @@ deepspeed src/train/train.py \
     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
     --dummy False \
     --learning_rate $LR \
-    --ddp_find_unused_parameters True \
     --report_to wandb \
 
 

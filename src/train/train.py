@@ -9,6 +9,30 @@ from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
 
+def set_requires_grad(parameters, requires_grad):
+    for p in parameters:
+        p.requires_grad = requires_grad
+
+def configure_vision_tower(model, training_args, compute_dtype, device):
+    vision_tower = model.visual
+    vision_tower.to(dtype=compute_dtype, device=device)
+
+    vision_model_params = model.visual.parameters()
+    set_requires_grad(vision_model_params, not training_params.freeze_vision_tower)
+    
+    # Handle merger specifically
+    merger_params = model.visual.merger.parameters()
+    set_requires_grad(merger_params, not training_params.freeze_merger)
+
+def configure_llm(model, training_args):
+    lm_head = model.lm_head.parameters()
+    set_requires_grad(lm_head, not training_params.freeze_llm)
+
+    llm_params = model.model.parameters()
+    set_requires_grad(llm_params, not training_params.freeze_llm)
+
+
+
 def train(training_params: TrainingParams, model_params: ModelParams, data_params: DataParams):
     global local_rank
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
