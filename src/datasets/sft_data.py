@@ -18,12 +18,16 @@ class SFTDataset(Dataset):
         self,
         data_path: str,
         processor: AutoProcessor,
+        shuffle: bool = False,
         dummy: bool = False,
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
+        # randomize
+        if shuffle:
+            self.dataset = self.dataset.shuffle(seed=42)
         # if dummy, we only use the first 1000 examples
         if dummy:
             import random
@@ -92,12 +96,13 @@ class SFTDataset(Dataset):
         # Add the final answer
         assistant_content += "</think>" + "<answer>" + answer + "</answer>"
 
-        # user, assistant, and latent images
+        
         return [
             {"role": "user","content": user_content},
             {"role": "assistant","content": [{"type": "text", "text": assistant_content}]},
-            {"role": "assistant","content": [{"type": "image", "image": img} for img in latent_visuals]} # latent images to be removed afer
+            {"role": "assistant","content": [{"type": "image", "image": img} for img in latent_visuals]}, # latent images to be removed afer
         ]
+
 
 def collate_fn(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
@@ -141,7 +146,7 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         # we are only interested in the latent images, so we return the latent inputs
         inputs["latent_values"] = latent_inputs["pixel_values"]
         inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
-    
+
     return inputs
     
 def make_sft_data_module(processor, data_path, dummy: bool = False, **kwargs):
@@ -157,9 +162,10 @@ def make_sft_data_module(processor, data_path, dummy: bool = False, **kwargs):
     }   
 
 if __name__ == "__main__":
-    
+    import time
+    from tqdm import tqdm
     data_path="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
-    
+
 
     # load the visual model
     from transformers import AutoProcessor
@@ -177,8 +183,20 @@ if __name__ == "__main__":
 
     # test with the dataloader
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(data_module["train_dataset"], batch_size=6, collate_fn=data_module["data_collator"])
-    for batch in dataloader:
-        print(batch.keys())
-        break
+    dataloader = DataLoader(data_module["train_dataset"], batch_size=100, collate_fn=data_module["data_collator"], shuffle=True)
+    sizes = []
+    for batch in tqdm(dataloader):
+        # if second dimension is higher than 2000 wait
+        sizes.append(batch["input_ids"].shape[1])
+        
+    # printo some stats about the sizes, the quantiles, the mean, the std, the max, the min
+    import numpy as np
+    print(f"Sizes: {sizes}")
+    print(f"Quantiles: {np.quantile(sizes, [0.25, 0.5, 0.75])}")
+    print(f"Mean: {np.mean(sizes)}")
+    print(f"Std: {np.std(sizes)}")
+    print(f"Max: {np.max(sizes)}")
+    print(f"Min: {np.min(sizes)}")
+
+    import pdb; pdb.set_trace()
     

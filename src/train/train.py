@@ -19,8 +19,11 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
 
+    compute_dtype = (torch.float16 if training_params.fp16 else (torch.bfloat16 if training_params.bf16 else torch.float32))
+    logger.info(colored(f"Compute dtype: {compute_dtype}", "cyan"))
+
     # Load Model
-    model, processor = load_model(model_params.model_id, fp16=training_params.fp16, bf16=training_params.bf16)
+    model, processor = load_model(model_params.model_id, compute_dtype=compute_dtype, use_cache=model_params.use_cache)
 
     # add special tokens for LantErn
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -41,20 +44,6 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     #resize the model
     model.resize_token_embeddings(len(processor.tokenizer))
     
-
-    # ⚡ Initialize DeepSpeed (if enabled)
-    if hasattr(training_params, "deepspeed") and training_params.deepspeed:
-        logger.info(colored("Initializing DeepSpeed...", "yellow"))
-        model, optimizer, _, _ = deepspeed.initialize(
-            model=model,
-            model_parameters=model.parameters(),
-            config=training_params.deepspeed
-        )
-    else:
-        logger.info(colored("Running in standard (non-DeepSpeed) mode", "yellow"))
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
-
     # we will just train the llm and freeze the vision tower
     for param in model.visual.parameters():
         param.requires_grad = False

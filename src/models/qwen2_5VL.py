@@ -182,18 +182,16 @@ def qwen2_5_mixed_modality_forward_lantern(
         )
 
         if (prefill_compiled_stage or prefill_noncompiled_stage) or self.rope_deltas is None:
-            try:
-                position_ids, rope_deltas = self.model.get_rope_index(
-                    input_ids,
-                    image_grid_thw,
-                    video_grid_thw,
-                    second_per_grid_ts=second_per_grid_ts,
-                    attention_mask=attention_mask,
-                )
-                self.rope_deltas = rope_deltas
-            except Exception as e:
-                print(f"Error getting rope index: {e}")
-                #import pdb; pdb.set_trace()
+            
+            position_ids, rope_deltas = self.model.get_rope_index(
+                input_ids,
+                image_grid_thw,
+                video_grid_thw,
+                second_per_grid_ts=second_per_grid_ts,
+                attention_mask=attention_mask,
+            )
+            self.rope_deltas = rope_deltas
+            
         else:
             batch_size, seq_length, _ = inputs_embeds.shape
             position_ids = torch.arange(seq_length, device=inputs_embeds.device)
@@ -205,6 +203,7 @@ def qwen2_5_mixed_modality_forward_lantern(
             delta = delta.repeat_interleave(batch_size // delta.shape[0], dim=1)
             position_ids = position_ids + delta.to(position_ids.device)
 
+    print("input embeds shape:", inputs_embeds.shape)
    
     outputs = self.language_model(
         input_ids=None,

@@ -6,6 +6,7 @@ from transformers import TrainingArguments as HFTrainingArguments
 class ModelParams:
     model_id: str = field(default="Qwen/Qwen2.5-VL-3B-Instruct")
     latent_size: int = field(default=4)
+    use_cache: bool = field(default=False)
 
 @dataclass
 class TrainingParams(HFTrainingArguments):
@@ -13,7 +14,7 @@ class TrainingParams(HFTrainingArguments):
     output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
     save_steps: int = field(default=5000)
-    per_device_train_batch_size: int = field(default=4)
+    per_device_train_batch_size: int = field(default=8)
     gradient_accumulation_steps: int = field(default=1)
     learning_rate: float = field(default=1e-5)
     gamma: float = field(default=0.1) # weight for the latent similarity loss
@@ -21,10 +22,11 @@ class TrainingParams(HFTrainingArguments):
     fp16: bool = field(default=False)
     max_steps: int = field(default=-1) # -1 for no max steps
     bf16: bool = field(default=True)
-    report_to: str = field(default="wandb")
+    report_to: str = field(default="none")
     wandb_project: str = field(default="LantErn-SFT")
     wandb_entity: str = field(default="gviveiros")
     deepspeed: Optional[str] = field(default=None)
+    ddp_find_unused_parameters: bool = field(default=False)
 
 
 

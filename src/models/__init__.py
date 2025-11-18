@@ -3,7 +3,7 @@ import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from src.models.qwen2_5VL import qwen2_5_mixed_modality_forward_lantern
 
-def load_model(model_id, fp16: bool = True, bf16: bool = False):
+def load_model(model_id, compute_dtype: torch.dtype, use_cache: bool = False, **kwargs):
     """
     Load the model and processor from the model id
     TODO: for now, we only support Qwen2.5-VL
@@ -16,8 +16,8 @@ def load_model(model_id, fp16: bool = True, bf16: bool = False):
         transformers.models.qwen2_5_vl.modeling_qwen2_5_vl.Qwen2_5_VLForConditionalGeneration.forward = qwen2_5_mixed_modality_forward_lantern
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             model_id,
-            dtype=torch.float16
-            if fp16 else (torch.bfloat16 if bf16 else None)
+            torch_dtype=compute_dtype,
+            use_cache=use_cache
         )
         processor = AutoProcessor.from_pretrained(model_id)
 

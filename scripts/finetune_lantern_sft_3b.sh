@@ -8,7 +8,7 @@ export WANDB_PROJECT="LantErn-SFT"
 #export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
 
 # dont use wandb for now
-#export WANDB_DISABLED=True
+export WANDB_DISABLED=True
 
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
@@ -41,28 +41,33 @@ OUTPUT_DIR="stage1_checkpoints/"
 
 #deepspeed --num_gpus 2 --module src.train.train \
 
-DEEPSPEED=scripts/zero3_offload.json
+DEEPSPEED=scripts/zero3.json
 
-# torchrun --nproc_per_node=1 --master_port=29501 -m src.train.train \
+export OMP_NUM_THREADS=1
+
+deepspeed src/train/train.py \
+    --run_name "Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}" \
+    --deepspeed scripts/zero3.json \
+    --model_id $MODEL_ID \
+    --num_train_epochs 1 \
+    --latent_size 4 \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 1 \
+    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+    --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+    --dummy True \
+    --ddp_find_unused_parameters True \
+    --report_to none \
+
+
+# python -m src.train.train \
 #     --run_name "$RUN_NAME" \
 #     --model_id $MODEL_ID \
-#     --num_train_epochs 3 \
 #     --latent_size 4 \
-#     --per_device_train_batch_size 1 \
-#     --gradient_accumulation_steps 1 \
+#     --per_device_train_batch_size 8 \
 #     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
 #     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
 #     #--dummy True
-
-
-python -m src.train.train \
-    --run_name "$RUN_NAME" \
-    --model_id $MODEL_ID \
-    --latent_size 4 \
-    --per_device_train_batch_size 4 \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-    --dummy True
 
 
 
