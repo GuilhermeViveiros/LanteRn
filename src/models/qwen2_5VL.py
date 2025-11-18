@@ -203,7 +203,6 @@ def qwen2_5_mixed_modality_forward_lantern(
             delta = delta.repeat_interleave(batch_size // delta.shape[0], dim=1)
             position_ids = position_ids + delta.to(position_ids.device)
 
-    print("input embeds shape:", inputs_embeds.shape)
    
     outputs = self.language_model(
         input_ids=None,

@@ -12,9 +12,11 @@ export WANDB_DISABLED=True
 
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
-BATCH_PER_DEVICE=8
-NUM_DEVICES=1
-GLOBAL_BATCH_SIZE=8
+
+GLOBAL_BATCH_SIZE=256
+BATCH_PER_DEVICE=2
+NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "Number of GPUs: $NUM_DEVICES"
 # must be a multiple of BATCH_PER_DEVICE
 if [ $((GLOBAL_BATCH_SIZE % BATCH_PER_DEVICE)) -ne 0 ]; then
     echo "GLOBAL_BATCH_SIZE must be a multiple of BATCH_PER_DEVICE"
@@ -34,7 +36,7 @@ LAMBDA_LANTERN=0.1
 RUN_NAME="Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}"
 # ONLINE=True to enable online checkpointing with OCI
 OUTPUT_DIR="stage1_checkpoints/"
-
+LR=1e-5
 
 # if continue training, set checkpoint_name = checkpoint to continue;
 # --checkpoint_name checkpoint-1400
@@ -51,13 +53,14 @@ deepspeed src/train/train.py \
     --model_id $MODEL_ID \
     --num_train_epochs 1 \
     --latent_size 4 \
-    --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 1 \
+    --per_device_train_batch_size $BATCH_PER_DEVICE \
+    --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-    --dummy True \
+    --dummy False \
+    --learning_rate $LR \
     --ddp_find_unused_parameters True \
-    --report_to none \
+    --report_to wandb \
 
 
 # python -m src.train.train \
