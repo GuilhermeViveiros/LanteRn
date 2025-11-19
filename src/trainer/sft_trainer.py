@@ -57,7 +57,6 @@ class LantErnSFTrainer(Trainer):
         Compute training loss and additionally compute token accuracies
         For LantErn, we also need to compute the distance between the predicted and ground truth latents
         """
-        
         outputs = model(
             **inputs,
             return_dict=True
