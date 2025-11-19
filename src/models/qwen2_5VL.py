@@ -106,58 +106,59 @@ def qwen2_5_mixed_modality_forward_lantern(
         image_mask, _ = self.model.get_placeholder_mask(
             input_ids, inputs_embeds=inputs_embeds, image_features=image_embeds
         )
+        # TODO: what is this get_placeholder_mask doing?
+        #import pdb; pdb.set_trace()
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     if latent_values is not None:
-        with torch.no_grad():
-            # Get batch_size early to avoid repeated shape access
-            batch_size = inputs_embeds.shape[0]
-            # Ensure dtype conversion happens early and only once
-            latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)    
-            latent_avg_embeds = []
-            
+        # Get batch_size early to avoid repeated shape access
+        batch_size = inputs_embeds.shape[0]
+        # Ensure dtype conversion happens early and only once
+        latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)    
+        latent_avg_embeds = []
         
-            # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
-            for i, le in enumerate(latent_image_embeds):
-                # TODO: for now we assume a fixed size for latent reasoning tokens (4)
-                # so the latent features (reallty the patch features) should be reduce to 4 patches
-                n_latent_tokens = (input_ids[i] == self.config.lvr_sep_id).sum().item()
-                n_le_features = le.shape[0]
-                if n_latent_tokens != n_le_features:
-                    #print(f"n_latent_tokens: {n_latent_tokens}, n_le_features: {le.shape}")
-                    #assert n_latent_tokens < n_le_features
-                    # TODO: we need better ways to encode the latent tokens, for now just use 4
-                    # 1. ensure its divisible by 4
-                    leave_out_patches = n_le_features % self.model.config.latent_size
-                    if leave_out_patches > 0:
-                        le = le[:-leave_out_patches, :]
-                    # 2. group the latent features into 4 patches - optimized using reshape + mean
-                    group_size = n_le_features // self.model.config.latent_size
-                    # Reshape to group patches together, then compute mean along the group dimension
-                    # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
-                    le = le.view(
-                        1, self.model.config.latent_size, group_size, self.config.hidden_size
-                    ).mean(dim=2, keepdim=False)
-                    latent_avg_embeds.append(le)
+    
+        # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
+        for i, le in enumerate(latent_image_embeds):
+            # TODO: for now we assume a fixed size for latent reasoning tokens (4)
+            # so the latent features (reallty the patch features) should be reduce to 4 patches
+            n_latent_tokens = (input_ids[i] == self.config.lvr_sep_id).sum().item()
+            n_le_features = le.shape[0]
+            if n_latent_tokens != n_le_features:
+                #print(f"n_latent_tokens: {n_latent_tokens}, n_le_features: {le.shape}")
+                #assert n_latent_tokens < n_le_features
+                # TODO: we need better ways to encode the latent tokens, for now just use 4
+                # 1. ensure its divisible by 4
+                leave_out_patches = n_le_features % self.model.config.latent_size
+                if leave_out_patches > 0:
+                    le = le[:-leave_out_patches, :]
+                # 2. group the latent features into 4 patches - optimized using reshape + mean
+                group_size = n_le_features // self.model.config.latent_size
+                # Reshape to group patches together, then compute mean along the group dimension
+                # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
+                le = le.view(
+                    1, self.model.config.latent_size, group_size, self.config.hidden_size
+                ).mean(dim=2, keepdim=False)
+                latent_avg_embeds.append(le)
 
-            del latent_image_embeds
-            latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
-            
-            # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
-            # Create mask directly on the correct device to avoid device transfer
-            mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
-            mask_unsqueezed = mask.unsqueeze(-1)
-            mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
-            latent_mask = mask_expanded.to(inputs_embeds.device)
-            
-            latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+        del latent_image_embeds
+        latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
+        
+        # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
+        # Create mask directly on the correct device to avoid device transfer
+        mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
+        mask_unsqueezed = mask.unsqueeze(-1)
+        mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
+        latent_mask = mask_expanded.to(inputs_embeds.device)
+        
+        latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
 
-            # print("inputs_embeds.shape:", inputs_embeds.shape)
-            # print("mask.shape:", mask_expanded.shape)
-            # print("mask_true_count:", mask_expanded.sum().item())
-            # print("latent_avg_embeds.shape:", latent_avg_embeds.shape)
-            # print("latent_avg_embeds.numel():", latent_avg_embeds.numel())
-            inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
+        # print("inputs_embeds.shape:", inputs_embeds.shape)
+        # print("mask.shape:", mask_expanded.shape)
+        # print("mask_true_count:", mask_expanded.sum().item())
+        # print("latent_avg_embeds.shape:", latent_avg_embeds.shape)
+        # print("latent_avg_embeds.numel():", latent_avg_embeds.numel())
+        inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
         
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)

@@ -4,7 +4,6 @@ Dataset for supervised fine-tuning (SFT)
 from functools import partial
 import torch
 import json
-import os
 from PIL import Image
 from torch.utils.data import Dataset
 from typing import List
@@ -25,21 +24,45 @@ class SFTDataset(Dataset):
         self.processor = processor
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
+
+        # read json file sample_idxs_and_sizes.json
+        with open("sample_idxs_and_sizes.json", "r") as f:
+            sample_idxs_and_sizes = json.load(f)
+
+        def pre_validation(data, idx):
+            # ignore samples with more than 1 bbox
+            if len(data["bboxs"]) > 1:
+                return False
+            return True
+        
+        def filter_too_large_images(data, idx):
+            # get size from sample_idxs_and_sizes
+            size = sample_idxs_and_sizes["sizes"][idx]
+            # for now ignore cases where the image is too large (for 9k tokens this is 3kx4k images)
+            if size > 9000:
+                return False
+            return True
+        
+        print(f"Number of examples before filtering: {len(self.dataset)}")
+        # remove cases where the image is too large and bboxs are more than 1
+        self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
+        print(f"Number of examples after removing bboxs > 1: {len(self.dataset)}")
+        self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
+        print(f"Number of examples after removing too large images: {len(self.dataset)}")
+
         # randomize
         if shuffle:
             self.dataset = self.dataset.shuffle(seed=42)
+
         # if dummy, we only use the first 1000 examples
         if dummy:
             import random
             self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
             # self.dataset = self.dataset[:1000]
-    
-        def pre_validation(data):
-            # ignore samples with more than 1 bbox
-            if len(data["bboxs"]) > 1:
-                return False
-            return True
-        self.dataset = [data for data in self.dataset if pre_validation(data)]
+        
+        self.dataset = self.dataset[:100]
+
+
 
     def __len__(self):
         return len(self.dataset)
@@ -103,7 +126,6 @@ class SFTDataset(Dataset):
             {"role": "assistant","content": [{"type": "image", "image": img} for img in latent_visuals]}, # latent images to be removed afer
         ]
 
-
 def collate_fn(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
@@ -162,7 +184,6 @@ def make_sft_data_module(processor, data_path, dummy: bool = False, **kwargs):
     }   
 
 if __name__ == "__main__":
-    import time
     from tqdm import tqdm
     data_path="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
@@ -183,13 +204,12 @@ if __name__ == "__main__":
 
     # test with the dataloader
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(data_module["train_dataset"], batch_size=100, collate_fn=data_module["data_collator"], shuffle=True)
+    dataloader = DataLoader(data_module["train_dataset"], batch_size=1, collate_fn=data_module["data_collator"], shuffle=False)
     sizes = []
     for batch in tqdm(dataloader):
-        # if second dimension is higher than 2000 wait
         sizes.append(batch["input_ids"].shape[1])
-        
-    # printo some stats about the sizes, the quantiles, the mean, the std, the max, the min
+    
+    # print some stats about the sizes, the quantiles, the mean, the std, the max, the min
     import numpy as np
     print(f"Sizes: {sizes}")
     print(f"Quantiles: {np.quantile(sizes, [0.25, 0.5, 0.75])}")
@@ -197,6 +217,3 @@ if __name__ == "__main__":
     print(f"Std: {np.std(sizes)}")
     print(f"Max: {np.max(sizes)}")
     print(f"Min: {np.min(sizes)}")
-
-    import pdb; pdb.set_trace()
-    

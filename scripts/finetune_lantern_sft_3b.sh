@@ -5,6 +5,7 @@
 # model configs
 MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
 export WANDB_PROJECT="LantErn-SFT"
+REPO="/home/gviveiros/LantErn"
 #export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
 
 # dont use wandb for now
@@ -13,8 +14,8 @@ export WANDB_PROJECT="LantErn-SFT"
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
-GLOBAL_BATCH_SIZE=256
-BATCH_PER_DEVICE=2
+GLOBAL_BATCH_SIZE=12
+BATCH_PER_DEVICE=12
 NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "Number of GPUs: $NUM_DEVICES"
 # must be a multiple of BATCH_PER_DEVICE
@@ -47,16 +48,16 @@ DEEPSPEED=scripts/zero3.json
 
 export OMP_NUM_THREADS=1
 
-deepspeed src/train/train.py \
+deepspeed $REPO/src/train/train.py \
     --run_name "Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}" \
     --deepspeed scripts/zero3.json \
     --model_id $MODEL_ID \
-    --num_train_epochs 1 \
+    --num_train_epochs 100 \
     --latent_size 4 \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1 \
     --dummy False \
     --learning_rate $LR \
     --report_to wandb \
