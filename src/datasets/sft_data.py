@@ -172,10 +172,9 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
     labels[labels == processor.tokenizer.pad_token_id] = -100
     lvr_sep_id = processor.tokenizer.encode("<|lvr_sep|>")[0]
     labels[labels == lvr_sep_id] = -100
-    
     inputs["labels"] = labels
     latent_mask_out = mask_image_output_tokens(inputs["input_ids"], lvr_sep_id)
-    inputs["latent_mask_out"] = latent_mask_out
+    inputs["latent_mask_out"] = latent_mask_out * 1
     
     nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
     if nb_latent_visuals > 0:

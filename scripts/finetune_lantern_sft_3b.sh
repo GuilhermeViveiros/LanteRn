@@ -48,19 +48,19 @@ DEEPSPEED=scripts/zero3.json
 
 export OMP_NUM_THREADS=1
 
-deepspeed $REPO/src/train/train.py \
-    --run_name "Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}" \
-    --deepspeed scripts/zero3.json \
-    --model_id $MODEL_ID \
-    --num_train_epochs 100 \
-    --latent_size 4 \
-    --per_device_train_batch_size $BATCH_PER_DEVICE \
-    --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-    --dummy False \
-    --learning_rate $LR \
-    --report_to wandb \
+# deepspeed $REPO/src/train/train.py \
+#     --run_name "Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}" \
+#     --deepspeed scripts/zero3.json \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 100 \
+#     --latent_size 4 \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+#     --dummy False \
+#     --learning_rate $LR \
+#     --report_to wandb \
 
 
 # python -m src.train.train \
