@@ -39,7 +39,7 @@ class SFTDataset(Dataset):
             # get size from sample_idxs_and_sizes
             size = sample_idxs_and_sizes["sizes"][idx]
             # for now ignore cases where the image is too large (for 9k tokens this is 3kx4k images)
-            if size > 9000:
+            if size > 5000:
                 return False
             return True
         
@@ -60,7 +60,7 @@ class SFTDataset(Dataset):
             self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
             # self.dataset = self.dataset[:1000]
         
-        self.dataset = self.dataset[:100]
+        #self.dataset = self.dataset[:100]
 
 
 

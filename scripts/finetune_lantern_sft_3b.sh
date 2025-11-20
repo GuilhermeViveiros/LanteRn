@@ -14,8 +14,8 @@ REPO="/home/gviveiros/LantErn"
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
-GLOBAL_BATCH_SIZE=12
-BATCH_PER_DEVICE=12
+GLOBAL_BATCH_SIZE=66
+BATCH_PER_DEVICE=6
 NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "Number of GPUs: $NUM_DEVICES"
 # must be a multiple of BATCH_PER_DEVICE

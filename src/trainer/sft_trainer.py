@@ -1,7 +1,6 @@
 from tqdm.auto import tqdm
 import torch
 import wandb
-import logging
 from transformers import Trainer
 from transformers import TrainerCallback
 
@@ -19,7 +18,8 @@ class ProgressBarLossLogger(TrainerCallback):
             ce = logs.get("ce_loss")
             cos = logs.get("cosine_loss")
             tot = logs.get("total_loss")
-            if ce is not None and cos is not None and tot is not None:
+            mse = logs.get("mse_loss")
+            if ce is not None and cos is not None and tot is not None and mse is not None:
                 self.pbar.set_postfix({
                     "ce": f"{ce:.4f}",
                     "lvr": f"{cos:.4f}",
@@ -36,11 +36,11 @@ class ProgressBarLossLogger(TrainerCallback):
             wandb.log({
                 "ce_loss": ce,
                 "lvr_loss": cos,
+                "mse_loss": mse,
                 "total_loss": tot,
                 "lr": kwargs["lr_scheduler"].get_last_lr()[0],
                 "epoch": state.epoch,
             }, step=state.global_step)
-
 
     def on_train_end(self, args, state, control, **kwargs):
         if self.pbar:
@@ -72,14 +72,16 @@ class LantErnSFTrainer(Trainer):
             return (ce_loss, outputs) if return_outputs else ce_loss
         # get predicted latent visuals
         pred_embeddings = hidden_states[lvr_sep_idx]
+        # shift the predicted embeddings by 1
+        pred_embeddings = pred_embeddings[1:]
         # get ground truth latent visuals
         gt_embeddings = input_embeddings[lvr_sep_idx]
         # compute the distance between the predicted and ground truth latents
-        sim_loss = torch.nn.functional.cosine_similarity(gt_embeddings, pred_embeddings).mean()
-        sim_loss = 1 - sim_loss
+        sim_loss = 1-torch.nn.functional.cosine_similarity(gt_embeddings, pred_embeddings).mean()
+        mse_loss = torch.nn.functional.mse_loss(gt_embeddings, pred_embeddings)
         
         # compute the total loss
-        loss = self.gamma * ce_loss + sim_loss
+        loss = self.gamma * ce_loss + mse_loss
 
 
         # HF Trainer logging (no prog_bar)
@@ -87,6 +89,7 @@ class LantErnSFTrainer(Trainer):
         if hasattr(self, "state") and hasattr(self.state, "log_history"):
             self.state.log_history.append({
                 "ce_loss": ce_loss.item(),
+                "mse_loss": mse_loss.item(),
                 "cosine_loss": sim_loss.item(),
                 "total_loss": loss.item(),
             })
