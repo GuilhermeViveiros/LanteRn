@@ -5,6 +5,8 @@ from src.params import (TrainingParams, ModelParams, DataParams)
 from src.datasets.sft_data import make_sft_data_module
 from src.models import load_model
 from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger
+from termcolor import colored
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -13,30 +15,29 @@ def set_requires_grad(parameters, requires_grad):
     for p in parameters:
         p.requires_grad = requires_grad
 
-def configure_vision_tower(model, training_args, compute_dtype, device):
-    vision_tower = model.visual
-    vision_tower.to(dtype=compute_dtype, device=device)
-
+def configure_vision_tower(model):
     vision_model_params = model.visual.parameters()
     set_requires_grad(vision_model_params, not training_params.freeze_vision_tower)
+    logger.info(colored(f"Freezing vision tower: {training_params.freeze_vision_tower}", "cyan"))
     
     # Handle merger specifically
     merger_params = model.visual.merger.parameters()
     set_requires_grad(merger_params, not training_params.freeze_merger)
+    logger.info(colored(f"Freezing merger: {training_params.freeze_merger}", "cyan"))
 
-def configure_llm(model, training_args):
+def configure_llm(model):
     lm_head = model.lm_head.parameters()
     set_requires_grad(lm_head, not training_params.freeze_llm)
+    logger.info(colored(f"Freezing LLM Head: {training_params.freeze_llm}", "cyan"))
 
     llm_params = model.model.parameters()
     set_requires_grad(llm_params, not training_params.freeze_llm)
-
+    logger.info(colored(f"Freezing LLM: {training_params.freeze_llm}", "cyan"))
 
 
 def train(training_params: TrainingParams, model_params: ModelParams, data_params: DataParams):
     global local_rank
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
-    from termcolor import colored
     logger.info(colored(f"🚀 Training LantErn SFT model", "green"))
     logger.info(colored(f"Training parameters: {training_params}", "cyan"))
     model_str = colored(f"🚀 Model parameters: {model_params}", "cyan")
@@ -68,12 +69,10 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     #resize the model
     model.resize_token_embeddings(len(processor.tokenizer))
     
-    # we will just train the llm and freeze the vision tower
-    for param in model.visual.parameters():
-        param.requires_grad = False
-    for param in model.language_model.parameters():
-        param.requires_grad = True
-    
+    configure_vision_tower(model)
+    configure_llm(model)
+
+        
     # Gradient Checkpointing
     if training_params.gradient_checkpointing:
         model.gradient_checkpointing_enable()
