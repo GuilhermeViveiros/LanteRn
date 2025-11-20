@@ -3,6 +3,54 @@ import torch
 import wandb
 from transformers import Trainer
 from transformers import TrainerCallback
+from torch.utils.data import Dataset
+
+class VisCoTEvalLogger(TrainerCallback):
+    def __init__(self, dataset: Dataset):
+        self.dataset = dataset
+        self.pbar = None
+
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        import pdb; pdb.set_trace()
+        raise NotImplementedError("Not implemented")
+
+class EvalLossLogger(TrainerCallback):
+    def __init__(self):
+        self.pbar = None
+
+    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
+        # metrics comes from trainer.evaluate()
+        # metrics already contains 'eval_loss' if compute_loss returns a scalar
+
+        if metrics is None:
+            return
+
+        # Show custom losses if present
+        ce = metrics.get("ce_loss")
+        cos = metrics.get("cosine_loss")
+        mse = metrics.get("mse_loss")
+        tot = metrics.get("total_loss")
+
+        # TQDM bar
+        if self.pbar is None:
+            self.pbar = tqdm(total=1, desc="Evaluation", leave=True)
+        self.pbar.set_postfix({
+            "ce": f"{ce:.4f}" if ce is not None else "-",
+            "lvr": f"{cos:.4f}" if cos is not None else "-",
+            "mse": f"{mse:.4f}" if mse is not None else "-",
+            "loss": f"{tot:.4f}" if tot is not None else "-"
+        })
+        self.pbar.update(1)
+
+        # log to wandb
+        if wandb.run:
+            log_dict = {k: v for k, v in metrics.items() if v is not None}
+            log_dict["step"] = state.global_step
+            wandb.log(log_dict)
+
+        # close the bar after eval
+        self.pbar.close()
+        self.pbar = None
 
 class ProgressBarLossLogger(TrainerCallback):
     def __init__(self):

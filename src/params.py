@@ -22,7 +22,7 @@ class TrainingParams(HFTrainingArguments):
     fp16: bool = field(default=False)
     max_steps: int = field(default=-1) # -1 for no max steps
     bf16: bool = field(default=True)
-    report_to: str = field(default="none")
+    report_to: str = field(default="wandb")
     wandb_project: str = field(default="LantErn-SFT")
     wandb_entity: str = field(default="gviveiros")
     deepspeed: Optional[str] = field(default=None)
@@ -30,6 +30,8 @@ class TrainingParams(HFTrainingArguments):
     freeze_vision_tower: bool = field(default=True)
     freeze_merger: bool = field(default=True)
     freeze_llm: bool = field(default=False)
+    eval_strategy: str = field(default="steps")
+    eval_steps: int = field(default=500)
 
 
 

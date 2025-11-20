@@ -1,11 +1,12 @@
 """
 Dataset for supervised fine-tuning (SFT)
 """
+from typing import Optional
 from functools import partial
 import torch
 import json
 from PIL import Image
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, random_split
 from typing import List
 from src.utils import center_and_crop_image, measure_time
 from transformers import AutoProcessor
@@ -126,7 +127,6 @@ class SFTDataset(Dataset):
             {"role": "assistant","content": [{"type": "image", "image": img} for img in latent_visuals]}, # latent images to be removed afer
         ]
 
-
 def mask_image_output_tokens(
     input_ids: torch.Tensor,
     image_token: int
@@ -153,12 +153,15 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
     text = processor.apply_chat_template(samples, tokenize=False)
 
     image_inputs, video_inputs = process_vision_info(samples)
+    
     inputs = processor(
         text=text,
         images=image_inputs,
         videos=video_inputs,
-        padding=True,
         return_tensors="pt",
+        padding="max_length",
+        max_length=5000,
+        truncation=True
     )
     
     labels = torch.ones_like(inputs["input_ids"]) * -100
@@ -194,15 +197,33 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
 
     return inputs
     
-def make_sft_data_module(processor, data_path, dummy: bool = False, **kwargs):
+def make_sft_data_module(
+    processor,
+    data_path,
+    dummy: bool = False,
+    eval_split: Optional[float] = 0.05,
+    test_split: Optional[float] = 0.05,
+    **kwargs
+):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
         data_path=data_path, processor=processor, dummy=dummy
     )
+    # Split eval_split for eval, 1-eval_split for train
+    total_len = len(sft_dataset)
+    eval_size = int(total_len * eval_split)
+    test_size = int(total_len * test_split)
+    train_size = total_len - eval_size - test_size
+    # Use torch.utils.data.random_split for splitting
+    train_dataset, eval_dataset, test_dataset = random_split(
+        sft_dataset, [train_size, eval_size, test_size],
+        generator=torch.Generator().manual_seed(42)
+    )
 
     return {
-        "train_dataset": sft_dataset,
-        "eval_dataset": None,
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+        "test_dataset": test_dataset,
         "data_collator": partial(collate_fn, processor=processor)
     }   
 

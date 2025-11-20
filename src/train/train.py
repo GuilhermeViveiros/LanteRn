@@ -4,7 +4,7 @@ from transformers import HfArgumentParser
 from src.params import (TrainingParams, ModelParams, DataParams)
 from src.datasets.sft_data import make_sft_data_module
 from src.models import load_model
-from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger
+from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, EvalLossLogger, VisCoTEvalLogger
 from termcolor import colored
 
 
@@ -98,7 +98,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     trainer = LantErnSFTrainer(
         model=model,
         args=training_params,
-        callbacks=[ProgressBarLossLogger()],
+        callbacks=[ProgressBarLossLogger(), EvalLossLogger(), VisCoTEvalLogger(test_dataset=data_module["test_dataset"])],
         **data_module
     )
 

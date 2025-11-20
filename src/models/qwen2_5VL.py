@@ -142,7 +142,10 @@ def qwen2_5_mixed_modality_forward_lantern(
                 latent_avg_embeds.append(le)
 
         del latent_image_embeds
-        latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
+        try:
+            latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
+        except Exception as e:
+            import pdb; pdb.set_trace()
         
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
