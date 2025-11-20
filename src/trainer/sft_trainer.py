@@ -63,6 +63,7 @@ class LantErnSFTrainer(Trainer):
         ce_loss = outputs.loss
         hidden_states = outputs.hidden_states
         input_embeddings = outputs.inputs_embeds
+        latent_mask_out = inputs["latent_mask_out"]
         # extract the latent values for the visual reasoning process
         input_ids = inputs["input_ids"]
         # get idx where token is <|lvr_sep|>

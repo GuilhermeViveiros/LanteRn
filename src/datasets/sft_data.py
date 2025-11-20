@@ -104,6 +104,28 @@ class SFTDataset(Dataset):
         ]
 
 
+def mask_image_output_tokens(
+    input_ids: torch.Tensor,
+    image_token: int
+) -> torch.Tensor:
+    """
+    Creates a mask of the same shape as `input_ids`, with 1's wherever we want to
+    'mask out' <image_token> and 0's everywhere else.
+
+    Args:
+      input_ids: shape [batch_size, seq_len]
+      image_token: the token ID for image tokens
+
+    Returns:
+      A mask (torch.Tensor of the same shape) containing 0/1:
+        - 1 = this position should be masked
+        - 0 = this position is kept
+    """
+    mask = (input_ids == image_token)
+    return mask
+    
+
+
 def collate_fn(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
@@ -129,7 +151,12 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
     labels[labels == processor.tokenizer.pad_token_id] = -100
     lvr_sep_id = processor.tokenizer.encode("<|lvr_sep|>")[0]
     labels[labels == lvr_sep_id] = -100
+    
     inputs["labels"] = labels
+
+    # decode inputs into text
+    decoded_inputs = processor.batch_decode(inputs["input_ids"], skip_special_tokens=True)
+    latent_mask_out = mask_image_output_tokens(inputs["input_ids"], lvr_sep_id) * 1
     
     nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
     if nb_latent_visuals > 0:
