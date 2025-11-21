@@ -83,6 +83,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         data_path=data_params.data_path,
         dummy=data_params.dummy,
     )
+    # pop the test dataset
+    test_dataset = data_module.pop("test_dataset")
 
     # check if wandb is enabled
     if training_params.report_to == "wandb":
@@ -93,12 +95,15 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             #name=training_params.run_name,
             config=training_params
         )
+    callbacks = [ProgressBarLossLogger(), EvalLossLogger()]
+    if test_dataset is not None:
+        callbacks.append(VisCoTEvalLogger(test_dataset))
 
     # Train
     trainer = LantErnSFTrainer(
         model=model,
         args=training_params,
-        callbacks=[ProgressBarLossLogger(), EvalLossLogger(), VisCoTEvalLogger(test_dataset=data_module["test_dataset"])],
+        callbacks=callbacks,
         **data_module
     )
 
