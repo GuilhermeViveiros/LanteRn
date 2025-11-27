@@ -74,6 +74,7 @@ def viscot_test(
             output_ids = output.input_ids
             pred_latent_embeds = output.latent_pred_values            
             decoded_output = processor.tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
+            print(f"idx {idx} decoded_output: {decoded_output}")
             answer = decoded_output.split('<answer>')[-1].split('</answer>')[0].strip()
 
             if pred_latent_embeds is None:
@@ -101,8 +102,9 @@ def viscot_test(
                 invalid += 1
                 logging.error(f"Error judging answer: {e}")
 
+            
             #if (idx+1) % 20 == 0:
-            logging.info(f"[{idx+1}] Avg score: {total/(latent_samples):.3f}, Accuracy: ({correct/latent_samples:.3f}), Invalid: ({invalid/latent_samples:.3f}), latent ratio: ({latent_samples/total_samples:.3f})")
+            logging.info(f"[{idx+1}] Avg score: {total/(latent_samples):.3f}, Accuracy: ({correct/latent_samples:.3f}), Invalid: ({invalid/latent_samples:.3f}), latent ratio: ({latent_samples/(idx+1):.3f})")
             
 
 

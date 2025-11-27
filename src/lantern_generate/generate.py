@@ -159,16 +159,16 @@ def generate(
             latent_start = False
             # check if the next token is the latent end token
             if latent_num == MAX_LATENT_LEN:
-                logger.info(f"Latent mode ended")
+                #logger.info(f"Latent mode ended")
                 latent_end = True
                 latent_num = 0
                 in_latent_mode = False
             else:
-                logger.info(f"\033[90mlatent_num: {latent_num}\033[0m")
+                #logger.info(f"\033[90mlatent_num: {latent_num}\033[0m")
                 latent_num += 1
 
         if latent_start_idx == next_tokens[0]:
-            logger.info(f"Latent mode started")
+            #logger.info(f"Latent mode started")
             in_latent_mode = True
             latent_start = True        
 
@@ -184,17 +184,17 @@ def generate(
             next_tokens = next_tokens
         
 
-        logger.info(f"next_tokens: {next_tokens}")
+        #logger.info(f"next_tokens: {next_tokens}")
         for i, token_str in enumerate(next_tokens):
             # Print the token in color using ANSI escape codes (e.g., green)
             token_decoded = tokenizer.decode(token_str)
-            logger.info(f"next token: at index {i} -> \033[92m{token_decoded}\033[0m <-")
+            #logger.info(f"next token: at index {i} -> \033[92m{token_decoded}\033[0m <-")
         
     
         # get embedding of the next token
         if in_latent_mode and not latent_start and not latent_end:
         #if in_latent_mode and not latent_start and not latent_end:
-            logger.info(f"using latent hidden states")        
+            #logger.info(f"using latent hidden states")        
             nb_latent_tokens = len(latent_pred_values)
             # next_token_embed = outputs.hidden_states[..., -1, :].unsqueeze(0)
             # TODO: Debugging purposes, we the ground truth latent embeddings to the generate function
