@@ -1,7 +1,7 @@
 """
 Dataset for supervised fine-tuning (SFT)
 """
-from typing import Optional
+from typing import Optional, Tuple
 from functools import partial
 import torch
 import json
@@ -12,6 +12,9 @@ from src.utils import center_and_crop_image, measure_time
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 
+# import logger 
+import logging
+logger = logging.getLogger("LantErn-Dataset")
 
 class SFTDataset(Dataset):
     def __init__(
@@ -44,12 +47,12 @@ class SFTDataset(Dataset):
                 return False
             return True
         
-        print(f"Number of examples before filtering: {len(self.dataset)}")
+        logger.info(f"Number of examples of VisCoT data: {len(self.dataset)}")
         # remove cases where the image is too large and bboxs are more than 1
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
-        print(f"Number of examples after removing bboxs > 1: {len(self.dataset)}")
+        logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
-        print(f"Number of examples after removing too large images: {len(self.dataset)}")
+        logger.info(f"Number of examples of VisCoT data after removing examples with too large images: {len(self.dataset)}")
 
         # randomize
         if shuffle:
@@ -57,13 +60,11 @@ class SFTDataset(Dataset):
 
         # if dummy, we only use the first 1000 examples
         if dummy:
-            import random
-            self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
-            # self.dataset = self.dataset[:1000]
+            #import random
+            #self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
+            self.dataset = self.dataset[:1000]
         
         #self.dataset = self.dataset[:100]
-
-
 
     def __len__(self):
         return len(self.dataset)
@@ -71,7 +72,6 @@ class SFTDataset(Dataset):
     def __getitem__(self, idx):
         # retrieve the image
         data = self.dataset[idx]
-        
         # Extract data fields
         question = data["question"]
         reasoning_traces = data["reasoning_traces"]
@@ -119,7 +119,6 @@ class SFTDataset(Dataset):
             
         # Add the final answer
         assistant_content += "</think>" + "<answer>" + answer + "</answer>"
-
         
         return [
             {"role": "user","content": user_content},
@@ -147,7 +146,51 @@ def mask_image_output_tokens(
     mask = (input_ids == image_token)
     return mask
 
-def collate_fn(samples: List[dict], processor: AutoProcessor):
+def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
+    # pop the last dict from the samples
+    latent_visuals = [s.pop(-1) for s in samples]
+    user_samples = [s for bs in samples for s in bs if s["role"] == "user"]
+    labels = [s for bs in samples for s in bs if s["role"] == "assistant"]
+    labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>","") for l in labels]
+   
+    image_inputs, video_inputs = process_vision_info(user_samples)
+    text = processor.apply_chat_template(
+        user_samples,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    
+    inputs = processor(
+        text=text,
+        images=image_inputs,
+        videos=video_inputs,
+        return_tensors="pt",
+        #padding="max_length",
+        #max_length=5000,
+        #truncation=True
+    )
+
+    # ground truth latent images
+    nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
+    if nb_latent_visuals > 0:
+        # process the latent images
+        latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
+        latent_image_inputs, latent_video_inputs = process_vision_info(latent_visuals)
+        latent_inputs = processor(
+            text=latent_text,
+            images=latent_image_inputs,
+            videos=latent_video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        # we are only interested in the latent images, so we return the latent inputs
+        inputs["latent_values"] = latent_inputs["pixel_values"]
+        inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
+        #inputs["labels"] = labels
+
+    return (inputs, labels)
+
+def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     text = processor.apply_chat_template(samples, tokenize=False)
@@ -163,7 +206,7 @@ def collate_fn(samples: List[dict], processor: AutoProcessor):
         max_length=5000,
         truncation=True
     )
-    
+
     labels = torch.ones_like(inputs["input_ids"]) * -100
     for i, t in enumerate(text):
         assistant_start = t.find("<|im_start|>assistant")
@@ -201,24 +244,38 @@ def make_sft_data_module(
     processor,
     data_path,
     dummy: bool = False,
-    eval_split: Optional[float] = 0.05,
-    test_split: Optional[float] = 0.05,
+    generate: bool = False,
+    split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
+    seed: int = 42,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
         data_path=data_path, processor=processor, dummy=dummy
     )
-    # Split eval_split for eval, 1-eval_split for train
-    total_len = len(sft_dataset)
-    eval_size = int(total_len * eval_split)
-    test_size = int(total_len * test_split)
-    train_size = total_len - eval_size - test_size
-    # Use torch.utils.data.random_split for splitting
-    train_dataset, eval_dataset, test_dataset = random_split(
-        sft_dataset, [train_size, eval_size, test_size],
-        generator=torch.Generator().manual_seed(42)
-    )
+
+    # split the dataset into train, eval and test
+    # test and val may be empty if the split percentages are 0
+    assert sum(split_percentages) == 1, "Split percentages must sum to 1"
+    assert split_percentages[0] > 0, "Train percentage must be greater than 0"
+    
+    train_percentage, \
+        eval_percentage, \
+            test_percentage = split_percentages
+
+    train_size = int(train_percentage * len(sft_dataset))
+    eval_size = int(eval_percentage * len(sft_dataset))
+    test_size = int(test_percentage * len(sft_dataset))
+
+    train_dataset, eval_dataset, test_dataset = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
+
+    if eval_size == 0:
+        eval_dataset = None
+    if test_size == 0:
+        test_dataset = None
+
+    # set the collate function
+    collate_fn = collate_fn_sft if not generate else collate_fn_generate
 
     return {
         "train_dataset": train_dataset,
@@ -247,7 +304,7 @@ if __name__ == "__main__":
     )
 
     for sample in data_module["train_dataset"]:
-        print(sample)
+        logger.info(sample)
         break
 
     # test with the dataloader
@@ -257,11 +314,11 @@ if __name__ == "__main__":
     for batch in tqdm(dataloader):
         sizes.append(batch["input_ids"].shape[1])
     
-    # print some stats about the sizes, the quantiles, the mean, the std, the max, the min
+    # log some stats about the sizes, the quantiles, the mean, the std, the max, the min
     import numpy as np
-    print(f"Sizes: {sizes}")
-    print(f"Quantiles: {np.quantile(sizes, [0.25, 0.5, 0.75])}")
-    print(f"Mean: {np.mean(sizes)}")
-    print(f"Std: {np.std(sizes)}")
-    print(f"Max: {np.max(sizes)}")
-    print(f"Min: {np.min(sizes)}")
+    logger.info(f"Sizes: {sizes}")
+    logger.info(f"Quantiles: {np.quantile(sizes, [0.25, 0.5, 0.75])}")
+    logger.info(f"Mean: {np.mean(sizes)}")
+    logger.info(f"Std: {np.std(sizes)}")
+    logger.info(f"Max: {np.max(sizes)}")
+    logger.info(f"Min: {np.min(sizes)}")

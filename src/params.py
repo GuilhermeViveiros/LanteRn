@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Tuple, Optional
 from transformers import TrainingArguments as HFTrainingArguments
 
 @dataclass
@@ -13,8 +13,9 @@ class TrainingParams(HFTrainingArguments):
     run_name: str = field(default="LantErn-SFT-Qwen2.5VL-3B")
     output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
+    #save_steps: int = field(default=5000)
     save_steps: int = field(default=5000)
-    per_device_train_batch_size: int = field(default=8)
+    per_device_train_batch_size: int = field(default=1)
     gradient_accumulation_steps: int = field(default=1)
     learning_rate: float = field(default=1e-5)
     gamma: float = field(default=0.1) # weight for the latent similarity loss
@@ -22,7 +23,7 @@ class TrainingParams(HFTrainingArguments):
     fp16: bool = field(default=False)
     max_steps: int = field(default=-1) # -1 for no max steps
     bf16: bool = field(default=True)
-    report_to: str = field(default="wandb")
+    report_to: str = field(default="none")
     wandb_project: str = field(default="LantErn-SFT")
     wandb_entity: str = field(default="gviveiros")
     deepspeed: Optional[str] = field(default=None)
@@ -32,10 +33,11 @@ class TrainingParams(HFTrainingArguments):
     freeze_llm: bool = field(default=False)
     eval_strategy: str = field(default="steps")
     eval_steps: int = field(default=500)
-
+    test_steps: int = field(default=1)
 
 
 @dataclass
 class DataParams:
     data_path: str = field(default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json")
     dummy: bool = field(default=False)
+    split_percentages: Tuple[float, float, float] = field(default=(0.8, 0.15, 0.05))

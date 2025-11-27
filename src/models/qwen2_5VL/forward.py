@@ -6,7 +6,7 @@ from transformers.cache_utils import Cache
 from transformers.utils import is_torchdynamo_compiling
 from transformers.modeling_outputs import ModelOutput
 from transformers.processing_utils import Unpack
-
+from src.models.utils import apply_latent_compression
 
 @dataclass
 class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
@@ -47,6 +47,7 @@ class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
     rope_deltas: Optional[torch.LongTensor] = None
     inputs_embeds: Optional[torch.FloatTensor] = None
     latent_mask: Optional[torch.BoolTensor] = None
+    last_position_hidden_state: Optional[torch.FloatTensor] = None
 
 '''
     Coconut mode
@@ -72,9 +73,9 @@ def qwen2_5_mixed_modality_forward_lantern(
     rope_deltas: Optional[torch.LongTensor] = None,
     cache_position: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
-    latent_values: Optional[torch.Tensor] = None, # Custom LantErn feature: latent values for the visual reasoning
-    latent_grid_thw: Optional[torch.LongTensor] = None, # Custom LantErn feature: latent grid dim for the visual reasoning
-    latent_hidden_states: Optional[torch.Tensor] = None, # Custom LantErn feature: latent hidden states for the visual reasoning
+    latent_values: Optional[torch.Tensor] = None, # Custom LantErn feature for Training: latent values for the visual reasoning
+    latent_grid_thw: Optional[torch.LongTensor] = None, # Custom LantErn feature for Training: latent grid dim for the visual reasoning
+    last_position_hidden_state: Optional[torch.FloatTensor] = None, # Custom LantErn feature for Inference: last position hidden state for the visual reasoning
     **kwargs: Unpack[Any],
 ) -> Union[tuple, Qwen2_5_VLCausalLMOutputWithPast]:
     r"""
@@ -97,9 +98,8 @@ def qwen2_5_mixed_modality_forward_lantern(
     # not every sample will have latent images, so we need to handle this case
     latent_mask = None
 
-    if inputs_embeds is None:
-        inputs_embeds = self.get_input_embeddings()(input_ids)
-
+    inputs_embeds = self.get_input_embeddings()(input_ids)
+        
     if pixel_values is not None:
         image_embeds = self.get_image_features(pixel_values, image_grid_thw)
         image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
@@ -111,57 +111,22 @@ def qwen2_5_mixed_modality_forward_lantern(
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     if latent_values is not None:
-        # Get batch_size early to avoid repeated shape access
-        batch_size = inputs_embeds.shape[0]
-        # Ensure dtype conversion happens early and only once
-        latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)    
-        latent_avg_embeds = []
-        
-    
-        # TODO: this part needs to be optimized, transform it to a vectorized form instead of sequential operations
-        for i, le in enumerate(latent_image_embeds):
-            # TODO: for now we assume a fixed size for latent reasoning tokens (4)
-            # so the latent features (reallty the patch features) should be reduce to 4 patches
-            n_latent_tokens = (input_ids[i] == self.config.lvr_sep_id).sum().item()
-            n_le_features = le.shape[0]
-            if n_latent_tokens != n_le_features:
-                #print(f"n_latent_tokens: {n_latent_tokens}, n_le_features: {le.shape}")
-                #assert n_latent_tokens < n_le_features
-                # TODO: we need better ways to encode the latent tokens, for now just use 4
-                # 1. ensure its divisible by 4
-                leave_out_patches = n_le_features % self.model.config.latent_size
-                if leave_out_patches > 0:
-                    le = le[:-leave_out_patches, :]
-                # 2. group the latent features into 4 patches - optimized using reshape + mean
-                group_size = n_le_features // self.model.config.latent_size
-                # Reshape to group patches together, then compute mean along the group dimension
-                # Shape: (batch_size, n_groups, group_size, hidden_states) -> (batch_size, n_groups, hidden_states)
-                le = le.view(
-                    1, self.model.config.latent_size, group_size, self.config.hidden_size
-                ).mean(dim=2, keepdim=False)
-                latent_avg_embeds.append(le)
-
-        del latent_image_embeds
-        try:
-            latent_avg_embeds = torch.cat(latent_avg_embeds, dim=0)
-        except Exception as e:
-            import pdb; pdb.set_trace()
-        
+        latent_embeds = apply_latent_compression(
+            self,
+            input_ids=input_ids,
+            latent_values=latent_values,
+            latent_grid_thw=latent_grid_thw,
+        ).to(inputs_embeds.device, inputs_embeds.dtype)
+       
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
         mask_unsqueezed = mask.unsqueeze(-1)
         mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
         latent_mask = mask_expanded.to(inputs_embeds.device)
-        
-        latent_avg_embeds = latent_avg_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+        latent_embeds = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
 
-        # print("inputs_embeds.shape:", inputs_embeds.shape)
-        # print("mask.shape:", mask_expanded.shape)
-        # print("mask_true_count:", mask_expanded.sum().item())
-        # print("latent_avg_embeds.shape:", latent_avg_embeds.shape)
-        # print("latent_avg_embeds.numel():", latent_avg_embeds.numel())
-        inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_avg_embeds)
+        inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_embeds)
         
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
@@ -243,7 +208,8 @@ def qwen2_5_mixed_modality_forward_lantern(
         # hidden_states=outputs.hidden_states,
         hidden_states=hidden_states,
         attentions=outputs.attentions,
-        rope_deltas=self.rope_deltas,
+        rope_deltas=getattr(self, 'rope_deltas', None),
         inputs_embeds=inputs_embeds,
         latent_mask=latent_mask,
+        last_position_hidden_state=hidden_states[..., -1, :],
     )

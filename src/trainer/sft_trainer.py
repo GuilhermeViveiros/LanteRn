@@ -1,18 +1,46 @@
 from tqdm.auto import tqdm
+from typing import Callable
 import torch
 import wandb
-from transformers import Trainer
+import subprocess
+from functools import partial
+from transformers import Trainer, AutoProcessor
 from transformers import TrainerCallback
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
+from src.judge import LLMJudge
+from src.test import viscot_test
+import subprocess
 
-class VisCoTEvalLogger(TrainerCallback):
-    def __init__(self, dataset: Dataset):
+class VisCoTestLogger(TrainerCallback):
+    def __init__(
+        self, 
+        dataset: Dataset, 
+        collate_fn: Callable, 
+        processor: AutoProcessor,
+        test_steps: int = 1
+    ):
+        from torch.utils.data import DataLoader
+        assert test_steps > 0, "test_steps must be greater than 0"
         self.dataset = dataset
+        self.processor = processor
         self.pbar = None
+        self.test_steps = test_steps
+        self.collate_fn = collate_fn
+        self.judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-3B-Instruct")
 
-    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
-        import pdb; pdb.set_trace()
-        raise NotImplementedError("Not implemented")
+    def on_step_end(self, args, state, control, metrics=None, **kwargs):
+        # calling a subprocess to run the test script
+        # avoid interruping the training with jibberish stuff
+        # subprocess.run(["bash", "scripts/eval_viscot.sh", args.model_ref, args.data_path])
+        if state.global_step % self.test_steps == 0:
+
+            # get the model ckpt at the current step
+            # TODO: implement this
+            
+            #dataloader = DataLoader(self.dataset, batch_size=args.per_device_eval_batch_size, shuffle=False, collate_fn=self.collate_fn)
+            dataloader = DataLoader(self.dataset, batch_size=1, shuffle=False, collate_fn=partial(self.collate_fn, processor=self.processor))
+            
+            viscot_test(kwargs["model"], self.processor, dataloader, self.judge)
 
 class EvalLossLogger(TrainerCallback):
     def __init__(self):
@@ -107,6 +135,8 @@ class LantErnSFTrainer(Trainer):
         Compute training loss and additionally compute token accuracies
         For LantErn, we also need to compute the distance between the predicted and ground truth latents
         """
+        
+        print(f"inputs: {inputs['input_ids'].shape}")
         outputs = model(
             **inputs,
             return_dict=True

@@ -1,10 +1,11 @@
 import logging
 import torch
+from functools import partial
 from transformers import HfArgumentParser
 from src.params import (TrainingParams, ModelParams, DataParams)
-from src.datasets.sft_data import make_sft_data_module
+from src.datasets.sft_data import make_sft_data_module, collate_fn_generate
 from src.models import load_model
-from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, EvalLossLogger, VisCoTEvalLogger
+from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, EvalLossLogger, VisCoTestLogger
 from termcolor import colored
 
 
@@ -39,8 +40,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     global local_rank
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
     logger.info(colored(f"🚀 Training LantErn SFT model", "green"))
-    logger.info(colored(f"Training parameters: {training_params}", "cyan"))
-    model_str = colored(f"🚀 Model parameters: {model_params}", "cyan")
+    #logger.info(colored(f"Training parameters: {training_params}", "cyan"))
+    logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
 
@@ -49,6 +50,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
 
     # Load Model
     model, processor = load_model(model_params.model_id, compute_dtype=compute_dtype, use_cache=model_params.use_cache)
+    print(f"model.config.vocab_size: {model.config.vocab_size}")
+    
 
     # add special tokens for LantErn
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -66,26 +69,30 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
     model.config.latent_size = model_params.latent_size
 
-    #resize the model
+    # resize the model embeddings size
     model.resize_token_embeddings(len(processor.tokenizer))
     
+    # freeze specific components according to the training parameters
     configure_vision_tower(model)
     configure_llm(model)
 
-        
     # Gradient Checkpointing
     if training_params.gradient_checkpointing:
         model.gradient_checkpointing_enable()
+
+    # if eval_steps or test_steps are defined, ensure the split percentages are > 0
+    if training_params.eval_steps > 0:
+        assert data_params.split_percentages[1] > 0, "Eval percentage must be greater than 0 if eval_steps are defined"
+    if training_params.test_steps > 0:
+        assert data_params.split_percentages[2] > 0, "Test percentage must be greater than 0 if test_steps are defined"
 
     # Load data
     data_module = make_sft_data_module(
         processor=processor,
         data_path=data_params.data_path,
         dummy=data_params.dummy,
+        split_percentages=data_params.split_percentages
     )
-    # pop the test dataset
-    test_dataset = data_module.pop("test_dataset")
-
     # check if wandb is enabled
     if training_params.report_to == "wandb":
         logger.info(colored("Initializing WandB...", "yellow"))
@@ -95,9 +102,16 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             #name=training_params.run_name,
             config=training_params
         )
+
+    
     callbacks = [ProgressBarLossLogger(), EvalLossLogger()]
-    if test_dataset is not None:
-        callbacks.append(VisCoTEvalLogger(test_dataset))
+    if training_params.test_steps > 0:
+        callbacks.append(VisCoTestLogger(
+            dataset=data_module.pop("test_dataset"), 
+            collate_fn=collate_fn_generate,
+            processor=processor, # necessary for the test script
+            test_steps=training_params.test_steps
+        ))
 
     # Train
     trainer = LantErnSFTrainer(

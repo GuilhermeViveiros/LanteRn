@@ -14,16 +14,16 @@ REPO="/home/gviveiros/LantErn"
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
-GLOBAL_BATCH_SIZE=66
-BATCH_PER_DEVICE=6
-NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-echo "Number of GPUs: $NUM_DEVICES"
-# must be a multiple of BATCH_PER_DEVICE
-if [ $((GLOBAL_BATCH_SIZE % BATCH_PER_DEVICE)) -ne 0 ]; then
-    echo "GLOBAL_BATCH_SIZE must be a multiple of BATCH_PER_DEVICE"
-    exit 1
-fi
-GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
+# GLOBAL_BATCH_SIZE=66
+# BATCH_PER_DEVICE=1
+# NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+# echo "Number of GPUs: $NUM_DEVICES"
+# # must be a multiple of BATCH_PER_DEVICE
+# if [ $((GLOBAL_BATCH_SIZE % BATCH_PER_DEVICE)) -ne 0 ]; then
+#     echo "GLOBAL_BATCH_SIZE must be a multiple of BATCH_PER_DEVICE"
+#     exit 1
+# fi
+# GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
 
 # LLM-related params
 LR=1e-5
@@ -44,7 +44,7 @@ LR=1e-5
 
 #deepspeed --num_gpus 2 --module src.train.train \
 
-DEEPSPEED=scripts/zero3.json
+#DEEPSPEED=scripts/zero3.json
 
 export OMP_NUM_THREADS=1
 
@@ -82,6 +82,7 @@ python -m src.train.train \
     --model_id $MODEL_ID \
     --latent_size 4 \
     --per_device_train_batch_size 1 \
+    --gamma $LAMBDA_LANTERN \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
     --dummy True
