@@ -97,8 +97,9 @@ def qwen2_5_mixed_modality_forward_lantern(
 
     # not every sample will have latent images, so we need to handle this case
     latent_mask = None
-
-    inputs_embeds = self.get_input_embeddings()(input_ids)
+    if input_ids is not None:
+        inputs_embeds = self.get_input_embeddings()(input_ids)
+    
         
     if pixel_values is not None:
         image_embeds = self.get_image_features(pixel_values, image_grid_thw)
@@ -106,32 +107,28 @@ def qwen2_5_mixed_modality_forward_lantern(
         image_mask, _ = self.model.get_placeholder_mask(
             input_ids, inputs_embeds=inputs_embeds, image_features=image_embeds
         )
-        # TODO: what is this get_placeholder_mask doing?
-        #import pdb; pdb.set_trace()
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     if latent_values is not None:
-        latent_embeds = apply_latent_compression(
-            self,
-            input_ids=input_ids,
-            latent_values=latent_values,
-            latent_grid_thw=latent_grid_thw,
-        ).to(inputs_embeds.device, inputs_embeds.dtype)
+        # compute the ground truth latent embeddings
+        with torch.no_grad():
+            latent_embeds = apply_latent_compression(
+                self,
+                input_ids=input_ids,
+                latent_values=latent_values,
+                latent_grid_thw=latent_grid_thw,
+            ).to(inputs_embeds.device, inputs_embeds.dtype)
        
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
-        mask_unsqueezed = mask.unsqueeze(-1)
-        mask_expanded = mask_unsqueezed.expand_as(inputs_embeds)
-        latent_mask = mask_expanded.to(inputs_embeds.device)
-        latent_embeds = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-
+        latent_mask = mask.unsqueeze(-1).expand_as(inputs_embeds)
         inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_embeds)
         
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
         video_embeds = torch.cat(video_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
-        _, video_mask = self.get_placeholder_mask(
+        _, video_mask = self.model.get_placeholder_mask(
             input_ids, inputs_embeds=inputs_embeds, video_features=video_embeds
         )
         inputs_embeds = inputs_embeds.masked_scatter(video_mask, video_embeds)

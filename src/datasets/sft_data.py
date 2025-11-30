@@ -266,6 +266,11 @@ def make_sft_data_module(
     train_size = int(train_percentage * len(sft_dataset))
     eval_size = int(eval_percentage * len(sft_dataset))
     test_size = int(test_percentage * len(sft_dataset))
+    
+    if test_size+eval_size+train_size < len(sft_dataset):
+        test_size += len(sft_dataset) - (test_size+eval_size+train_size) # add the remaining samples to the test_size
+
+    logger.info(f"Total size: {len(sft_dataset)}, train: {train_size}, eval: {eval_size}, test: {test_size}")
 
     train_dataset, eval_dataset, test_dataset = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
 
@@ -280,7 +285,7 @@ def make_sft_data_module(
     return {
         "train_dataset": train_dataset,
         "eval_dataset": eval_dataset,
-        "test_dataset": test_dataset,
+        #"test_dataset": test_dataset,
         "data_collator": partial(collate_fn, processor=processor)
     }   
 

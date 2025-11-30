@@ -46,8 +46,8 @@ def viscot_test(
     latent_samples = 0
 
     for idx, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
-        if idx == 1:
-            break
+        # if idx == 1:
+        #     break
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         with torch.no_grad():

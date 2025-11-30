@@ -1,15 +1,15 @@
+import os
 from tqdm.auto import tqdm
 from typing import Callable
 import torch
 import wandb
-import subprocess
 from functools import partial
 from transformers import Trainer, AutoProcessor
 from transformers import TrainerCallback
 from torch.utils.data import DataLoader, Dataset
 from src.judge import LLMJudge
 from src.test import viscot_test
-import subprocess
+from src.utils import is_rank0
 
 class VisCoTestLogger(TrainerCallback):
     def __init__(
@@ -39,46 +39,15 @@ class VisCoTestLogger(TrainerCallback):
             
             #dataloader = DataLoader(self.dataset, batch_size=args.per_device_eval_batch_size, shuffle=False, collate_fn=self.collate_fn)
             dataloader = DataLoader(self.dataset, batch_size=1, shuffle=False, collate_fn=partial(self.collate_fn, processor=self.processor))
-            
-            viscot_test(kwargs["model"], self.processor, dataloader, self.judge)
-
-class EvalLossLogger(TrainerCallback):
-    def __init__(self):
-        self.pbar = None
-
-    def on_evaluate(self, args, state, control, metrics=None, **kwargs):
-        # metrics comes from trainer.evaluate()
-        # metrics already contains 'eval_loss' if compute_loss returns a scalar
-
-        if metrics is None:
-            return
-
-        # Show custom losses if present
-        ce = metrics.get("ce_loss")
-        cos = metrics.get("cosine_loss")
-        mse = metrics.get("mse_loss")
-        tot = metrics.get("total_loss")
-
-        # TQDM bar
-        if self.pbar is None:
-            self.pbar = tqdm(total=1, desc="Evaluation", leave=True)
-        self.pbar.set_postfix({
-            "ce": f"{ce:.4f}" if ce is not None else "-",
-            "lvr": f"{cos:.4f}" if cos is not None else "-",
-            "mse": f"{mse:.4f}" if mse is not None else "-",
-            "loss": f"{tot:.4f}" if tot is not None else "-"
-        })
-        self.pbar.update(1)
-
-        # log to wandb
-        if wandb.run:
-            log_dict = {k: v for k, v in metrics.items() if v is not None}
-            log_dict["step"] = state.global_step
-            wandb.log(log_dict)
-
-        # close the bar after eval
-        self.pbar.close()
-        self.pbar = None
+            result = viscot_test(kwargs["model"], self.processor, dataloader, self.judge)
+            if wandb.run:
+                wandb.log({
+                    "test/avg_score": result["avg_score"],
+                    "test/accuracy": result["accuracy"],
+                    "test/invalid": result["invalid"],
+                    "test/latent_ratio": result["latent_ratio"],
+                    "step": state.global_step
+                })
 
 class ProgressBarLossLogger(TrainerCallback):
     def __init__(self):
@@ -88,6 +57,10 @@ class ProgressBarLossLogger(TrainerCallback):
         self.pbar = tqdm(total=state.max_steps, desc="Training", leave=True)
 
     def on_step_end(self, args, state, control, **kwargs):
+        # only rank 0 should log
+        if not is_rank0():
+            return
+
         logs = state.log_history[-1] if len(state.log_history) > 0 else {}
         
         if logs and self.pbar:
@@ -112,7 +85,7 @@ class ProgressBarLossLogger(TrainerCallback):
         if wandb.run:
             wandb.log({
                 "ce_loss": ce,
-                "lvr_loss": cos,
+                "cosine_loss": cos,
                 "mse_loss": mse,
                 "total_loss": tot,
                 "lr": kwargs["lr_scheduler"].get_last_lr()[0],
@@ -120,11 +93,13 @@ class ProgressBarLossLogger(TrainerCallback):
             }, step=state.global_step)
 
     def on_train_end(self, args, state, control, **kwargs):
+        if not is_rank0():
+            return
         if self.pbar:
             self.pbar.close()
 
 class LantErnSFTrainer(Trainer):
-    def __init__(self, *args, gamma: float = 0.1, **kwargs):
+    def __init__(self, *args, gamma: float = 0.2, **kwargs):
         super().__init__(*args, **kwargs)
         self.gamma = gamma
         self.mse_loss = torch.nn.MSELoss()
@@ -136,7 +111,6 @@ class LantErnSFTrainer(Trainer):
         For LantErn, we also need to compute the distance between the predicted and ground truth latents
         """
         
-        print(f"inputs: {inputs['input_ids'].shape}")
         outputs = model(
             **inputs,
             return_dict=True

@@ -47,10 +47,10 @@ def generate(
     decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
 
     # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
-    if return_dict_in_generate and self.config.is_encoder_decoder:
-        encoder_attentions = model_kwargs["encoder_outputs"].get("attentions") if output_attentions else None
+    if return_dict_in_generate and model.config.is_encoder_decoder:
+        encoder_attentions = kwargs["encoder_outputs"].get("attentions") if output_attentions else None
         encoder_hidden_states = (
-            model_kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
+            kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
         )
         
     # keep track of which sequences are already finished
@@ -72,10 +72,10 @@ def generate(
                     "FA2 introduces graph breaks. We overrode the option with `fullgraph=False`."
                 )
                 generation_config.compile_config.fullgraph = False
-        model_forward = self.get_compiled_call(generation_config.compile_config)
+        model_forward = model.get_compiled_call(generation_config.compile_config)
 
     if generation_config.prefill_chunk_size is not None:
-        model_kwargs = self._prefill_chunking(input_ids, generation_config, **model_kwargs)
+        model_kwargs = model._prefill_chunking(input_ids, generation_config, **model_kwargs)
         is_prefill = False
     else:
         is_prefill = True
@@ -196,9 +196,9 @@ def generate(
         #if in_latent_mode and not latent_start and not latent_end:
             #logger.info(f"using latent hidden states")        
             nb_latent_tokens = len(latent_pred_values)
-            # next_token_embed = outputs.hidden_states[..., -1, :].unsqueeze(0)
+            next_token_embed = outputs.hidden_states[..., -1, :].unsqueeze(0)
             # TODO: Debugging purposes, we the ground truth latent embeddings to the generate function
-            next_token_embed = gt_latent_embeds[...,(nb_latent_tokens),:].unsqueeze(0)
+            #next_token_embed = gt_latent_embeds[...,(nb_latent_tokens),:].unsqueeze(0)
             latent_pred_values.append(next_token_embed)
             
             

@@ -1,13 +1,12 @@
 import logging
 import torch
-from functools import partial
 from transformers import HfArgumentParser
+from termcolor import colored
 from src.params import (TrainingParams, ModelParams, DataParams)
 from src.datasets.sft_data import make_sft_data_module, collate_fn_generate
 from src.models import load_model
-from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, EvalLossLogger, VisCoTestLogger
-from termcolor import colored
-
+from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger
+from src.utils import is_rank0
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -94,7 +93,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         split_percentages=data_params.split_percentages
     )
     # check if wandb is enabled
-    if training_params.report_to == "wandb":
+    if training_params.report_to == "wandb" and is_rank0():
         logger.info(colored("Initializing WandB...", "yellow"))
         import wandb
         wandb.init(
@@ -104,7 +103,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         )
 
     
-    callbacks = [ProgressBarLossLogger(), EvalLossLogger()]
+    callbacks = [ProgressBarLossLogger()]
     if training_params.test_steps > 0:
         callbacks.append(VisCoTestLogger(
             dataset=data_module.pop("test_dataset"), 
