@@ -62,7 +62,7 @@ deepspeed $REPO/src/train/train.py \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/warmup_01 \
     --dummy False \
     --learning_rate $LR \
     --report_to wandb \

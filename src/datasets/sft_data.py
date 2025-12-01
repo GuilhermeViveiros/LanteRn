@@ -56,7 +56,9 @@ class SFTDataset(Dataset):
 
         # randomize
         if shuffle:
-            self.dataset = self.dataset.shuffle(seed=42)
+            import random
+            logger.info(f"Shuffling the dataset")
+            random.shuffle(self.dataset)
 
         # if dummy, we only use the first 1000 examples
         if dummy:
@@ -246,12 +248,13 @@ def make_sft_data_module(
     dummy: bool = False,
     generate: bool = False,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
+    shuffle: bool = False,
     seed: int = 42,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy
+        data_path=data_path, processor=processor, dummy=dummy, shuffle=shuffle
     )
 
     # split the dataset into train, eval and test

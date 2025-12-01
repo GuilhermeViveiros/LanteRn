@@ -90,6 +90,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         processor=processor,
         data_path=data_params.data_path,
         dummy=data_params.dummy,
+        shuffle=data_params.shuffle_dataset,
         split_percentages=data_params.split_percentages
     )
     # check if wandb is enabled
