@@ -1,6 +1,9 @@
 # LantErn: Latent Visual Structured Reasoning
 
-<img src="imgs/Screenshot%202025-12-01%20at%2020.12.59.png" alt="LantErn Architecture" width="600"/>
+<p align="center">
+  <img src="imgs/Screenshot%202025-12-01%20at%2020.12.59.png" alt="LantErn Architecture" width="600"/>
+</p>
+
 
 > **Interleaved Reasoning between text (verbalized form) and visual representations (non-verbalized forms)**
 
