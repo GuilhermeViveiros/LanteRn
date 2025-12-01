@@ -288,7 +288,7 @@ def make_sft_data_module(
     return {
         "train_dataset": train_dataset,
         "eval_dataset": eval_dataset,
-        #"test_dataset": test_dataset,
+        "test_dataset": test_dataset,
         "data_collator": partial(collate_fn, processor=processor)
     }   
 

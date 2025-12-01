@@ -14,6 +14,8 @@ from src.models.utils import apply_latent_compression
 from src.judge import LLMJudge
 
 
+
+
 logging.basicConfig(
     level=logging.INFO,  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     format='%(asctime)s - %(levelname)s - %(message)s',  # Log format
@@ -22,6 +24,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ],
 )
+
+logger = logging.getLogger("LantErn-Test")
 
 def compare_latent_embeddings(
     latent_embeds_pred: torch.FloatTensor,
@@ -59,15 +63,16 @@ def viscot_test(
                 latent_grid_thw=inputs.pop("latent_grid_thw"),
             )
 
-            # I'll pass the ground truth latent embeddings to the generate function debugging purposes
+            # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
+            # this will be removed in the future (just for stress testing purposes)
             output = model.generate(
                 **inputs,
                 max_new_tokens=124,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.9,
+                do_sample=False,
+                #temperature=0.7,
+                #top_p=0.9,
                 tokenizer=processor.tokenizer,
-                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds),
+                custom_generate=partial(lantern_generate, gt_latent_embeds=None),
                 use_cache=False,
             )
 
@@ -76,7 +81,7 @@ def viscot_test(
             decoded_output = processor.tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
             print(f"idx {idx} decoded_output: {decoded_output}")
             answer = decoded_output.split('<answer>')[-1].split('</answer>')[0].strip()
-
+            
             if pred_latent_embeds is None:
                 continue
 
@@ -86,11 +91,14 @@ def viscot_test(
                 pred_latent_embeds,
                 gt_latent_embeds
             )
-            print(f"decoded_output: {answer}")
-            print(f"mse_loss: {mse_loss} | sim_loss: {sim_loss}")
+
+            #import pdb; pdb.set_trace()
+            
+            # print(f"mse_loss: {mse_loss} | sim_loss: {sim_loss}")
            
             try:
                 result = judge.judge(answer, labels[0])
+                logger.info(f"Answer: {answer} | Label: {labels[0]} | Result: {result}")
 
                 total += result
 
@@ -100,13 +108,12 @@ def viscot_test(
                     incorrect += 1
             except Exception as e:
                 invalid += 1
-                logging.error(f"Error judging answer: {e}")
+                logger.info(f"Error judging answer: {e}")
 
             
             #if (idx+1) % 20 == 0:
             logging.info(f"[{idx+1}] Avg score: {total/(latent_samples):.3f}, Accuracy: ({correct/latent_samples:.3f}), Invalid: ({invalid/latent_samples:.3f}), latent ratio: ({latent_samples/(idx+1):.3f})")
             
-
 
     
     total_samples = len(dataloader.dataset)
@@ -148,7 +155,7 @@ if __name__ == "__main__":
     logging.info('=='*20)
 
     # load the model and processor
-    model, processor = load_model(args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
+    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
     assert model.config.vocab_size == 151668, "Embedding size is not correct"
 
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -172,11 +179,14 @@ if __name__ == "__main__":
     data_module = make_sft_data_module(
         processor=processor,
         data_path=args.data_path,
-        dummy=True,
-        generate=True
+        generate=True,
+        shuffle=False,
+        seed=42,
+        split_percentages=(0.99, 0.009, 0.001)
     )
 
-    dataset = data_module["train_dataset"]
+    dataset = data_module["test_dataset"]
+    logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
     dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
 
@@ -184,4 +194,11 @@ if __name__ == "__main__":
     judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-3B-Instruct")
 
     # main
-    viscot_test(model, processor, dataloader, judge)
+    results = viscot_test(model, processor, dataloader, judge)
+    # save the results to a json file
+    with open(f"results_{args.model_ref.split('/')[-1]}.json", "w") as f:
+        json.dump(results, f)
+    logging.info(f"Results saved to results_{args.model_ref.split('/')[-1]}.json")
+    logging.info(f"Results: {results}")
+    logging.info('=='*20)
+    logging.info('Testing completed')

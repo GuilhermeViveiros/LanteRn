@@ -47,7 +47,7 @@ class LLMJudge:
 
         decoded_output = self.processor.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
         decoded_output = decoded_output.replace("\n", "").strip()
-        print(f"decoded_output: {decoded_output}")
+        #print(f"decoded_output: {decoded_output}")
         return float(decoded_output)
 
 if __name__ == "__main__":
