@@ -89,18 +89,20 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     data_module = make_sft_data_module(
         processor=processor,
         data_path=data_params.data_path,
+        latent_size=model_params.latent_size,
         dummy=data_params.dummy,
         shuffle=data_params.shuffle_dataset,
         split_percentages=data_params.split_percentages
     )
     # check if wandb is enabled
     if training_params.report_to == "wandb" and is_rank0():
+        run_name = f"sft_mse_latent_size_{training_params.latent_size}_lambda_{training_params.gamma}"
         logger.info(colored("Initializing WandB...", "yellow"))
         import wandb
         wandb.init(
             project=training_params.wandb_project, 
-            #name=training_params.run_name,
-            config=training_params
+            config=training_params,
+            name=run_name
         )
 
     

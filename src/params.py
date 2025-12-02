@@ -31,7 +31,7 @@ class TrainingParams(HFTrainingArguments):
     freeze_merger: bool = field(default=True)
     freeze_llm: bool = field(default=False)
     eval_strategy: str = field(default="steps")
-    eval_steps: int = field(default=100)
+    eval_steps: int = field(default=50)
     test_steps: int = field(default=0)
     dataloader_num_workers: int = field(default=4)
     dataloader_persistent_workers: bool = field(default=True)

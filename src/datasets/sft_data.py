@@ -23,9 +23,11 @@ class SFTDataset(Dataset):
         processor: AutoProcessor,
         shuffle: bool = False,
         dummy: bool = False,
+        latent_size: int = 4,
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
+        self.latent_size = latent_size
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
 
@@ -116,7 +118,7 @@ class SFTDataset(Dataset):
                 latent_visuals.append(img_bbox)
                 # TODO: change different choices of latent tokens in the future
                 # lets inject the custom tokens - at this always inject 4 latent tokens
-                assistant_content += f"<|lvr_start|><|lvr_sep|><|lvr_sep|><|lvr_sep|><|lvr_sep|><|lvr_end|>"
+                assistant_content += "<|lvr_start|>"+'<|lvr_sep|>'*self.latent_size + "<|lvr_end|>"
                 assistant_content += post_visual_latent_reasoning
             
         # Add the final answer
@@ -249,12 +251,13 @@ def make_sft_data_module(
     generate: bool = False,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
     shuffle: bool = False,
+    latent_size: int = 4,
     seed: int = 42,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy, shuffle=shuffle
+        data_path=data_path, processor=processor, dummy=dummy, shuffle=shuffle, latent_size=latent_size
     )
 
     # split the dataset into train, eval and test

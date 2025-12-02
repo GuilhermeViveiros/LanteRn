@@ -137,7 +137,7 @@ class LantErnSFTrainer(Trainer):
         mse_loss = self.mse_loss(shift_pred_embeddings, shift_gt_embeddings)
         
         # compute the total loss
-        loss = self.gamma * ce_loss + mse_loss
+        loss = ce_loss + self.gamma * mse_loss
 
 
         # HF Trainer logging (no prog_bar)

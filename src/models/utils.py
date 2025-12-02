@@ -5,12 +5,35 @@ def apply_latent_compression(
     input_ids,
     latent_values,
     latent_grid_thw,
+    latent_size,
 ):
     """
-    Vectorized replacement of <lvr_sep> token embeddings with latent patch-averaged embeddings.
-    """
+    Computes patch-averaged latent visual embeddings for training with visual reasoning tokens.
 
-    latent_size = self.model.config.latent_size  # fixed number of latent reasoning tokens
+    This function is designed to process a batch of latent visual values (e.g., visual features)
+    such that each sample's latent image features are compressed down to `latent_size` patch-averaged
+    embeddings. These representations are intended to be used as replacements for the corresponding 
+    <|lvr_sep|> tokens in the language model's input sequence.
+
+    Args:
+        self: Model object with callable `get_image_features` method and `config`.
+        input_ids (torch.Tensor): Batch of token ids, shape (batch_size, seq_length).
+          Used to count, per sample, the number of <|lvr_sep|> tokens (i.e., expected latent slots).
+        latent_values (torch.Tensor): Batch of latent visual values (typically images or features),
+          batched as required by `get_image_features`.
+        latent_grid_thw (torch.LongTensor): Batch of grid dimensions for each latent input, used 
+          by `get_image_features` to extract visual features.
+        latent_size (int): Desired number of averaged latent embeddings per sample.
+
+    Returns:
+        torch.Tensor: Patch-averaged latent embeddings of shape (batch_size, latent_size, hidden_dim),
+          suitable for masked scattering onto <|lvr_sep|> token positions in the LLM embedding sequence.
+
+    Notes:
+        - If the number of extracted visual features does not exactly match the desired latent_size,
+          features are grouped and averaged such that the final output per sample matches `latent_size`.
+        - Excess features are dropped (from the end) to ensure divisibility, to minimize feature skew.
+    """
 
     # ---------------------------------------------------------
     # 1) Compute latent image features once (batched)
