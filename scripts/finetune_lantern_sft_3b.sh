@@ -133,3 +133,14 @@ deepspeed $REPO/src/train/train.py \
 #     --long_seq_threshold $LST \
 #     --max_instance_per_batch $MAX_INSTANCE_PER_BATCH \
 #     # save_total_limit is for local storage only, no limit for online checkpointing
+
+
+
+# python -m src.train.train \
+#     --model_id Qwen/Qwen2.5-VL-3B-Instruct \
+#     --num_train_epochs 1 \
+#     --latent_size 4 \
+#     --per_device_train_batch_size 1 \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
+#     --dummy True \

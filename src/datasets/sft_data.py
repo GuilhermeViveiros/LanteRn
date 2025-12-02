@@ -30,7 +30,10 @@ class SFTDataset(Dataset):
         self.latent_size = latent_size
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
-
+        # remove sample textvqa/34084d4c3c347b83.jpg
+        for data in self.dataset: # MINOR BUGG: ignore this sample for now
+            if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
+                self.dataset.remove(data)
         # read json file sample_idxs_and_sizes.json
         with open("sample_idxs_and_sizes.json", "r") as f:
             sample_idxs_and_sizes = json.load(f)
@@ -91,6 +94,7 @@ class SFTDataset(Dataset):
             
         # Extract the image and process bboxes
         img = Image.open(data["img_path"])
+    
         # Build user content
         user_content = [
             {"type": "text", "text": question},
@@ -148,7 +152,7 @@ def mask_image_output_tokens(
         - 0 = this position is kept
     """
     mask = (input_ids == image_token)
-    return mask
+    return mask * 1
 
 def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
@@ -212,19 +216,47 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     )
 
     labels = torch.ones_like(inputs["input_ids"]) * -100
-    for i, t in enumerate(text):
-        assistant_start = t.find("<|im_start|>assistant")
-        if assistant_start >= 0:
-            assistant_part = t[assistant_start:]
-            assistant_ids = processor.tokenizer(assistant_part).input_ids
-            labels[i, -len(assistant_ids):] = torch.tensor(assistant_ids, dtype=torch.long)
+    # Pre-encode markers (fast, done once)
+    # think and answer mut not be a special token
+    assistant_start_tokens = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
+    assistant_end_tokens = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
+    
+
+
+    def find_subsequence(seq: torch.Tensor, subseq: list) -> int:
+        """
+        Find the first start index of subseq inside a 1D tensor seq.
+        Returns -1 if not found.
+        """
+        n, m = len(seq), len(subseq)
+        if m == 0 or n < m:
+            return -1
+
+        for i in range(n - m + 1):
+            if seq[i:i+m] == subseq:
+                return i
+        return -1
+
+    # Process batch
+    for i, ids in enumerate(inputs["input_ids"].tolist()):
+        
+        ts = find_subsequence(ids, assistant_start_tokens)
+        te = ts + find_subsequence(ids[ts:], assistant_end_tokens)    
+        assert ts != -1 and te != -1, "Markers missing in tokenization"
+
+        start_pos = ts + len(assistant_start_tokens)
+        end_pos = te + len(assistant_end_tokens) - 1 # remove the <|im_end|> token (1 token since its a special token)
+        labels[i, start_pos:end_pos] = torch.tensor(ids[start_pos:end_pos], dtype=torch.long)
+        #print(f"labels[i, start_pos:end_pos]: {processor.tokenizer.decode(labels[i, start_pos:end_pos], skip_special_tokens=False)}")
     
     labels[labels == processor.tokenizer.pad_token_id] = -100
     lvr_sep_id = processor.tokenizer.encode("<|lvr_sep|>")[0]
     labels[labels == lvr_sep_id] = -100
     inputs["labels"] = labels
-    latent_mask_out = mask_image_output_tokens(inputs["input_ids"], lvr_sep_id)
-    inputs["latent_mask_out"] = latent_mask_out * 1
+    inputs["latent_mask_out"] = mask_image_output_tokens(inputs["input_ids"], lvr_sep_id)
+    
+
+    # print("inputs: ", processor.tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True))
     
     nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
     if nb_latent_visuals > 0:
@@ -287,6 +319,12 @@ def make_sft_data_module(
         "train_dataset": train_dataset,
         "data_collator": partial(collate_fn, processor=processor)
     }   
+    if eval_size > 0:
+        out["eval_dataset"] = eval_dataset
+    if test_size > 0:
+        out["test_dataset"] = test_dataset
+    # return the out dictionary
+    return out
 
     if eval_size > 0:
         out["eval_dataset"] = eval_dataset
