@@ -95,9 +95,9 @@ def qwen2_5_mixed_modality_forward_lantern(
     )
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-    # not every sample will have latent images, so we need to handle this case
+    # not every sample will have latent representations
     latent_mask = None
-    if input_ids is not None:
+    if inputs_embeds is None:
         inputs_embeds = self.get_input_embeddings()(input_ids)
     
         

@@ -21,9 +21,11 @@ cd /mnt/home/gviveiros/LantErn
 # Model and data paths
 # MODEL_REF can be passed as first argument, otherwise use default
 MODEL_FOLDER="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/"
-#MODEL_REF="${1:-warmup_01/checkpoint-100}"
-#MODEL_REF="${1:-warmup_01/checkpoint-200}"
-MODEL_REF="${1:-warmup_01/checkpoint-300}"
+#MODEL_REF="${1:-lambda_mse/checkpoint-100}"
+#MODEL_REF="${1:-lambda_mse/checkpoint-200}"
+#MODEL_REF="${1:-lambda_mse/checkpoint-300}"
+MODEL_REF="${1:-lambda_mse/checkpoint-400}"
+#MODEL_REF="${1:-lambda_mse/checkpoint-500}"
 MODEL_PATH="${MODEL_FOLDER}/${MODEL_REF}"
 DATA_PATH="${2:-/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json}"
 

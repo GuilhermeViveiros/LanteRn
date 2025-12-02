@@ -49,9 +49,11 @@ def viscot_test(
     total = 0
     latent_samples = 0
 
+    # print latent tokens
+    print(f"latent tokens: {model.config.additional_special_tokens}")
+
     for idx, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
-        # if idx == 1:
-        #     break
+       
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         with torch.no_grad():
@@ -72,7 +74,7 @@ def viscot_test(
                 #temperature=0.7,
                 #top_p=0.9,
                 tokenizer=processor.tokenizer,
-                custom_generate=partial(lantern_generate, gt_latent_embeds=None),
+                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds),
                 use_cache=False,
             )
 
@@ -138,7 +140,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
         help="Path to the model checkpoint"
     )
     parser.add_argument(
@@ -156,7 +159,8 @@ if __name__ == "__main__":
 
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
-    assert model.config.vocab_size == 151668, "Embedding size is not correct"
+    #model, processor = load_model(model_id="Qwen/Qwen2.5-VL-3B-Instruct", device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
+
 
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
@@ -166,12 +170,18 @@ if __name__ == "__main__":
         "<|lvr_sep|>",
         "<|lvr_end|>"
     ]
+    
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
-    model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
+    model.config.latent_size = 4
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
-    print(f"model.config.lvr_sep_id: {model.config.lvr_sep_id}")
+    model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
+    # assert model.config.vocab_size == 151668, "Embedding size is not correct"
+    # assert model.config.lvr_sep_id == processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
+    # assert model.config.lvr_start_id == processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
+    # assert model.config.lvr_end_id == processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
+    # print(f"model.config.lvr_sep_id: {model.config.lvr_sep_id}")
     #model.resize_token_embeddings(len(processor.tokenizer))
 
 
@@ -185,7 +195,8 @@ if __name__ == "__main__":
         split_percentages=(0.99, 0.009, 0.001)
     )
 
-    dataset = data_module["test_dataset"]
+    #dataset = data_module["test_dataset"]
+    dataset = data_module["train_dataset"]
     logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
     dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)

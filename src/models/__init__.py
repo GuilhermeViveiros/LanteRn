@@ -2,7 +2,6 @@ import transformers
 import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from src.models.qwen2_5VL.forward import qwen2_5_mixed_modality_forward_lantern
-from src.models.qwen2_5VL.sample import lantern_sample
 from src.lantern_generate.generate import generate as lantern_generate
 
 def load_model(model_id=None, model_path=None, compute_dtype: torch.dtype = torch.float16, use_cache: bool = False, **kwargs):
@@ -22,7 +21,7 @@ def load_model(model_id=None, model_path=None, compute_dtype: torch.dtype = torc
 
     #if "Qwen2.5-VL-3B-Instruct" in str(model_ref):
     transformers.models.qwen2_5_vl.modeling_qwen2_5_vl.Qwen2_5_VLForConditionalGeneration.forward = qwen2_5_mixed_modality_forward_lantern
-    #transformers.generation.utils._sample = lantern_sample
+    
     # If model_path is given, always load from the local folder (including local configs)
     print(f"Loading model from {model_ref} with compute dtype {compute_dtype}")
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
@@ -33,7 +32,6 @@ def load_model(model_id=None, model_path=None, compute_dtype: torch.dtype = torc
     )
 
     # replace this sample method with our own
-    # model._sample = lantern_sample
     #processor = AutoProcessor.from_pretrained(model_ref, **kwargs)
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct", **kwargs)
     #else:
