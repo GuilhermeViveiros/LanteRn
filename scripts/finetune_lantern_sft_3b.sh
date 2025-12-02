@@ -57,7 +57,7 @@ deepspeed $REPO/src/train/train.py \
     --deepspeed scripts/zero3.json \
     --model_id $MODEL_ID \
     --num_train_epochs 1 \
-    --latent_size 16 \
+    --latent_size 4 \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \

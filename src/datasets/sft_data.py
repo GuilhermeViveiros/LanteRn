@@ -274,26 +274,26 @@ def make_sft_data_module(
     test_size = int(test_percentage * len(sft_dataset))
     
     if test_size+eval_size+train_size < len(sft_dataset):
-        test_size += len(sft_dataset) - (test_size+eval_size+train_size) # add the remaining samples to the test_size
+        eval_size += len(sft_dataset) - (test_size+eval_size+train_size) # add the remaining samples to the test_size
 
     logger.info(f"Total size: {len(sft_dataset)}, train: {train_size}, eval: {eval_size}, test: {test_size}")
 
     train_dataset, eval_dataset, test_dataset = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
 
-    if eval_size == 0:
-        eval_dataset = None
-    if test_size == 0:
-        test_dataset = None
-
     # set the collate function
     collate_fn = collate_fn_sft if not generate else collate_fn_generate
 
-    return {
+    out = {
         "train_dataset": train_dataset,
-        "eval_dataset": eval_dataset,
-        "test_dataset": test_dataset,
         "data_collator": partial(collate_fn, processor=processor)
     }   
+
+    if eval_size > 0:
+        out["eval_dataset"] = eval_dataset
+    if test_size > 0:
+        out["test_dataset"] = test_dataset
+
+    return out
 
 if __name__ == "__main__":
     from tqdm import tqdm
