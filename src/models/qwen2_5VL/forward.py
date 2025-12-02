@@ -117,6 +117,7 @@ def qwen2_5_mixed_modality_forward_lantern(
                 input_ids=input_ids,
                 latent_values=latent_values,
                 latent_grid_thw=latent_grid_thw,
+                latent_size=self.config.latent_size,
             ).to(inputs_embeds.device, inputs_embeds.dtype)
        
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
