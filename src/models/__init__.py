@@ -33,7 +33,14 @@ def load_model(model_id=None, model_path=None, compute_dtype: torch.dtype = torc
 
     # replace this sample method with our own
     #processor = AutoProcessor.from_pretrained(model_ref, **kwargs)
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct", **kwargs)
+    min_pixels = 256 * 28 * 28
+    max_pixels = 3500 * 28 * 28
+    processor = AutoProcessor.from_pretrained(
+        "Qwen/Qwen2.5-VL-3B-Instruct", 
+        min_pixels=min_pixels,
+        max_pixels=max_pixels,
+        **kwargs
+    )
     #else:
     #    raise ValueError(f"Only Qwen2.5-VL-3B-Instruct is currently supported (got {model_ref})")
 

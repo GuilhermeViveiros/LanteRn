@@ -48,7 +48,7 @@ class SFTDataset(Dataset):
             # get size from sample_idxs_and_sizes
             size = sample_idxs_and_sizes["sizes"][idx]
             # for now ignore cases where the image is too large (for 9k tokens this is 3kx4k images)
-            if size > 5000:
+            if size > 3000:
                 return False
             return True
         
@@ -56,8 +56,8 @@ class SFTDataset(Dataset):
         # remove cases where the image is too large and bboxs are more than 1
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
         logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
-        self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
-        logger.info(f"Number of examples of VisCoT data after removing examples with too large images: {len(self.dataset)}")
+        #self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
+        #logger.info(f"Number of examples of VisCoT data after removing examples with too large images: {len(self.dataset)}")
 
         # randomize
         if shuffle:
@@ -205,6 +205,9 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
 
     image_inputs, video_inputs = process_vision_info(samples)
     
+    #print([len(t) for t in text])
+    #print(image_inputs)
+
     inputs = processor(
         text=text,
         images=image_inputs,
@@ -326,12 +329,6 @@ def make_sft_data_module(
     # return the out dictionary
     return out
 
-    if eval_size > 0:
-        out["eval_dataset"] = eval_dataset
-    if test_size > 0:
-        out["test_dataset"] = test_dataset
-
-    return out
 
 if __name__ == "__main__":
     from tqdm import tqdm
