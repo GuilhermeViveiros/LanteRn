@@ -10,7 +10,7 @@ class ModelParams:
 
 @dataclass
 class TrainingParams(HFTrainingArguments):
-    run_name: str = field(default="LantErn-SFT-Qwen2.5VL-3B")
+    #run_name: str = field(default="LantErn-SFT-Qwen2.5VL-3B")
     output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
     save_steps: int = field(default=100)

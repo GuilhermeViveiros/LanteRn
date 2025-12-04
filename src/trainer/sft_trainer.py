@@ -10,6 +10,9 @@ from torch.utils.data import DataLoader, Dataset
 from src.judge import LLMJudge
 from src.test import viscot_test
 from src.utils import is_rank0
+import logging
+
+logger = logging.getLogger("LantErn-Trainer")
 
 class VisCoTestLogger(TrainerCallback):
     def __init__(
@@ -99,9 +102,10 @@ class ProgressBarLossLogger(TrainerCallback):
             self.pbar.close()
 
 class LantErnSFTrainer(Trainer):
-    def __init__(self, *args, gamma: float = 0.2, **kwargs):
+    def __init__(self, *args, gamma: float = 0.1, **kwargs):
         super().__init__(*args, **kwargs)
         self.gamma = gamma
+        logger.info(f"Using gamma: {gamma}")
         self.mse_loss = torch.nn.MSELoss()
 
     # override the custom_loss function
