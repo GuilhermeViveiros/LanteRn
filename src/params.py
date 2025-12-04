@@ -18,7 +18,7 @@ class TrainingParams(HFTrainingArguments):
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.1)
     # warmup_steps: int = field(default=500)
-    gamma: float = field(default=0.1) # weight for the latpent similarity loss
+    gamma: float = field(default=0.0) # weight for the latpent similarity loss
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)
     max_steps: int = field(default=-1) # -1 for no max steps
