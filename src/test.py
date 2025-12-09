@@ -40,19 +40,21 @@ def viscot_test(
     model, 
     processor,
     dataloader: DataLoader,
-    judge: LLMJudge
+    judge_name: str
 ):
+    judge = LLMJudge(model_id=judge_name)
+    print(f"Using judge: {judge_name}")
     model.eval()
-    correct = 0
-    incorrect = 0
-    invalid = 0
-    total = 0
-    latent_samples = 0
+    correct = 0 # number of correct answers
+    invalid = 0 # number of invalid answers (parsing error)
+    total = 0 # total score
+    average_mse_loss = 0 # average MSE loss
+    latent_samples = 0 # number of samples with latent tokens generated
 
     # print latent tokens
     print(f"latent tokens: {model.config.additional_special_tokens}")
 
-    for idx, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
+    for step, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
        
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
@@ -63,16 +65,17 @@ def viscot_test(
                 input_ids=inputs["input_ids"],
                 latent_values=inputs.pop("latent_values"),
                 latent_grid_thw=inputs.pop("latent_grid_thw"),
+                latent_size=model.config.latent_size,
             )
+            # for now I just support one sample at a time
+            assert inputs["input_ids"].shape[0] == 1, "Only batch size of 1 is supported"
 
             # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
             # this will be removed in the future (just for stress testing purposes)
             output = model.generate(
                 **inputs,
                 max_new_tokens=124,
-                do_sample=False,
-                #temperature=0.7,
-                #top_p=0.9,
+                do_sample=False,    
                 tokenizer=processor.tokenizer,
                 custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds),
                 use_cache=False,
@@ -81,23 +84,23 @@ def viscot_test(
             output_ids = output.input_ids
             pred_latent_embeds = output.latent_pred_values            
             decoded_output = processor.tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
-            print(f"idx {idx} decoded_output: {decoded_output}")
+
+
+            # check if <answer> is present
+            # if '<answer>' not in decoded_output:
+            #     invalid += 1
+            #     continue
+            
             answer = decoded_output.split('<answer>')[-1].split('</answer>')[0].strip()
             
-            if pred_latent_embeds is None:
-                continue
+            if pred_latent_embeds is not None:
+                latent_samples += 1
+                mse_loss, _ = compare_latent_embeddings(
+                    pred_latent_embeds,
+                    gt_latent_embeds
+                )
+                average_mse_loss += mse_loss
 
-            latent_samples += 1
-            
-            mse_loss, sim_loss = compare_latent_embeddings(
-                pred_latent_embeds,
-                gt_latent_embeds
-            )
-
-            #import pdb; pdb.set_trace()
-            
-            # print(f"mse_loss: {mse_loss} | sim_loss: {sim_loss}")
-           
             try:
                 result = judge.judge(answer, labels[0])
                 logger.info(f"Answer: {answer} | Label: {labels[0]} | Result: {result}")
@@ -106,24 +109,26 @@ def viscot_test(
 
                 if result > 0.5:
                     correct += 1
-                else:
-                    incorrect += 1
+                
             except Exception as e:
                 invalid += 1
                 logger.info(f"Error judging answer: {e}")
 
+            import pdb; pdb.set_trace()
+            logging.info(f"[{step+1}] \
+                Avg score: {total/step+1:.3f}, \
+                Accuracy: ({correct/step+1:.3f}), \
+                Invalid: ({invalid/step+1:.3f}), \
+                latent ratio: ({latent_samples/step+1:.3f}), \
+                average MSE loss: {average_mse_loss/step+1:.3f}"
+            )
             
-            #if (idx+1) % 20 == 0:
-            logging.info(f"[{idx+1}] Avg score: {total/(latent_samples):.3f}, Accuracy: ({correct/latent_samples:.3f}), Invalid: ({invalid/latent_samples:.3f}), latent ratio: ({latent_samples/(idx+1):.3f})")
-            
-
-    
-    total_samples = len(dataloader.dataset)
     result = {
-        "avg_score": total/latent_samples if latent_samples > 0 else 0,
-        "accuracy": correct/latent_samples if latent_samples > 0 else 0,
-        "invalid": invalid/latent_samples if latent_samples > 0 else 0,
-        "latent_ratio": latent_samples/total_samples if total_samples > 0 else 0
+        "avg_score": total/step,
+        "accuracy": correct/step,
+        "invalid": invalid/step,
+        "latent_ratio": latent_samples/step,
+        "average_mse_loss": average_mse_loss/step
     }
     logging.info(f"\n{'='*40}\n[Final Results]\n{'-'*40}\n"
                  f"Average Score : {result['avg_score']:.3f}\n"
@@ -201,11 +206,8 @@ if __name__ == "__main__":
     collator = data_module["data_collator"]
     dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
 
-    # load the judge
-    judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-3B-Instruct")
-
     # main
-    results = viscot_test(model, processor, dataloader, judge)
+    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-7B-Instruct")
     # save the results to a json file
     with open(f"results_{args.model_ref.split('/')[-1]}.json", "w") as f:
         json.dump(results, f)
