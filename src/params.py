@@ -47,5 +47,5 @@ class DataParams:
     data_path: str = field(default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json")
     dummy: bool = field(default=False)
     #split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.0998, 0.0002))
-    shuffle_dataset: bool = field(default=True)
+    #shuffle_dataset: bool = field(default=True) # not used anymore
     split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0.0))

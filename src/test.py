@@ -40,7 +40,8 @@ def viscot_test(
     model, 
     processor,
     dataloader: DataLoader,
-    judge: LLMJudge
+    judge: LLMJudge,
+    use_gt: bool = False
 ):
     model.eval()
     correct = 0
@@ -49,20 +50,24 @@ def viscot_test(
     total = 0
     latent_samples = 0
 
+    print("Using ground truth latent embeddings" if use_gt else "Using predicted latent embeddings")
     # print latent tokens
     print(f"latent tokens: {model.config.additional_special_tokens}")
 
     for idx, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
-       
+        
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         with torch.no_grad():
+            if "latent_values" not in inputs:
+                continue
             # get gt latent values
             gt_latent_embeds = apply_latent_compression(
                 model,
                 input_ids=inputs["input_ids"],
                 latent_values=inputs.pop("latent_values"),
                 latent_grid_thw=inputs.pop("latent_grid_thw"),
+                latent_size=model.config.latent_size,
             )
 
             # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
@@ -74,7 +79,7 @@ def viscot_test(
                 #temperature=0.7,
                 #top_p=0.9,
                 tokenizer=processor.tokenizer,
-                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds),
+                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds if use_gt else None),
                 use_cache=False,
             )
 
@@ -140,8 +145,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-700/",
         help="Path to the model checkpoint"
     )
     parser.add_argument(
@@ -150,12 +156,20 @@ if __name__ == "__main__":
         default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json",
         help="Path to the data"
     )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="results",
+        help="Path to the output directory"
+    )
     args = parser.parse_args()
     
     logging.info('=='*20)
     logging.info('Testing model...')
     logging.info(f"Arguments: {args}")
     logging.info('=='*20)
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
@@ -173,7 +187,11 @@ if __name__ == "__main__":
     
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
-    model.config.latent_size = 4
+    # check if the latent size is set
+    if model.config.latent_size is None:
+        logger.info("Latent size is not set, using 4")
+        model.config.latent_size = 4
+    
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
     model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
@@ -190,26 +208,26 @@ if __name__ == "__main__":
         processor=processor,
         data_path=args.data_path,
         generate=True,
-        shuffle=False,
         seed=42,
+        latent_size=model.config.latent_size,
         split_percentages=(0.99, 0.009, 0.001)
     )
 
-    #dataset = data_module["test_dataset"]
-    dataset = data_module["train_dataset"]
+    dataset = data_module["test_dataset"]
+    
     logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
-    dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator)
 
     # load the judge
     judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-3B-Instruct")
 
     # main
-    results = viscot_test(model, processor, dataloader, judge)
+    results = viscot_test(model, processor, dataloader, judge, use_gt=False)
     # save the results to a json file
-    with open(f"results_{args.model_ref.split('/')[-1]}.json", "w") as f:
+    with open(f"{args.output_dir}/results_{args.model_ref.split('/')[-1]}.json", "w") as f:
         json.dump(results, f)
-    logging.info(f"Results saved to results_{args.model_ref.split('/')[-1]}.json")
+    logging.info(f"Results saved to {args.output_dir}/results_{args.model_ref.split('/')[-1]}.json")
     logging.info(f"Results: {results}")
     logging.info('=='*20)
     logging.info('Testing completed')
