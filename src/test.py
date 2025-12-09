@@ -40,10 +40,11 @@ def viscot_test(
     model, 
     processor,
     dataloader: DataLoader,
-    judge_name: str
+    judge_name: str,
+    use_gt: bool = False
 ):
     judge = LLMJudge(model_id=judge_name)
-    print(f"Using judge: {judge_name}")
+    logger.info(f"Using judge: {judge_name}")
     model.eval()
     correct = 0 # number of correct answers
     invalid = 0 # number of invalid answers (parsing error)
@@ -52,13 +53,16 @@ def viscot_test(
     latent_samples = 0 # number of samples with latent tokens generated
 
     # print latent tokens
-    print(f"latent tokens: {model.config.additional_special_tokens}")
+    logger.info(f"{'Using ground truth latent embeddings.' if use_gt else 'Using predicted latent embeddings.'}")
+    logger.info(f"latent tokens: {model.config.additional_special_tokens}")
 
-    for step, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
-       
+    for step, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+        step += 1
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         with torch.no_grad():
+            if "latent_values" not in inputs:
+                continue
             # get gt latent values
             gt_latent_embeds = apply_latent_compression(
                 model,
@@ -77,7 +81,7 @@ def viscot_test(
                 max_new_tokens=124,
                 do_sample=False,    
                 tokenizer=processor.tokenizer,
-                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds),
+                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds if use_gt else None),
                 use_cache=False,
             )
 
@@ -114,13 +118,12 @@ def viscot_test(
                 invalid += 1
                 logger.info(f"Error judging answer: {e}")
 
-            import pdb; pdb.set_trace()
-            logging.info(f"[{step+1}] \
-                Avg score: {total/step+1:.3f}, \
-                Accuracy: ({correct/step+1:.3f}), \
-                Invalid: ({invalid/step+1:.3f}), \
-                latent ratio: ({latent_samples/step+1:.3f}), \
-                average MSE loss: {average_mse_loss/step+1:.3f}"
+            logging.info(f"[{step}] \
+                Avg score: {total/step:.3f}, \
+                Accuracy: ({correct/step:.3f}), \
+                Invalid: ({invalid/step:.3f}), \
+                latent ratio: ({latent_samples/step:.3f}), \
+                average MSE loss: {average_mse_loss/step:.3f}"
             )
             
     result = {
@@ -145,8 +148,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-700/",
         help="Path to the model checkpoint"
     )
     parser.add_argument(
@@ -155,12 +159,20 @@ if __name__ == "__main__":
         default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json",
         help="Path to the data"
     )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="results",
+        help="Path to the output directory"
+    )
     args = parser.parse_args()
     
     logging.info('=='*20)
     logging.info('Testing model...')
     logging.info(f"Arguments: {args}")
     logging.info('=='*20)
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
@@ -178,7 +190,11 @@ if __name__ == "__main__":
     
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
-    model.config.latent_size = 4
+    # check if the latent size is set
+    if model.config.latent_size is None:
+        logger.info("Warning!!!! Latent size is not set, using 4")
+        model.config.latent_size = 4
+    
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
     model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
@@ -195,23 +211,23 @@ if __name__ == "__main__":
         processor=processor,
         data_path=args.data_path,
         generate=True,
-        shuffle=False,
         seed=42,
         split_percentages=(0.9, 0.0905, 0.005)
+        latent_size=model.config.latent_size,
+        split_percentages=(0.9, 0.097, 0.003)
     )
 
-    #dataset = data_module["test_dataset"]
-    dataset = data_module["train_dataset"]
+    dataset = data_module["test_dataset"]
     logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
     dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
 
     # main
-    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-7B-Instruct")
+    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-7B-Instruct", use_gt=False)
     # save the results to a json file
-    with open(f"results_{args.model_ref.split('/')[-1]}.json", "w") as f:
+    with open(f"{args.output_dir}/results_{args.model_ref.split('/')[-1]}.json", "w") as f:
         json.dump(results, f)
-    logging.info(f"Results saved to results_{args.model_ref.split('/')[-1]}.json")
+    logging.info(f"Results saved to {args.output_dir}/results_{args.model_ref.split('/')[-1]}.json")
     logging.info(f"Results: {results}")
     logging.info('=='*20)
     logging.info('Testing completed')
