@@ -11,7 +11,9 @@ class LLMJudge:
         self.system_prompt = (
             "You are a strict evaluation model. "
             "Given PREDICTED and GROUND TRUTH, output EXACTLY one floating-point number "
-            "between 0 and 1. Output nothing else. No words, no explanations."
+            "between 0 and 1, where 0 means completely unrelated and 1 means semantically identical. "
+            "You can ignore minor differences in grammatical or function-word usage (articles, prepositions, plurals). "
+            "Output only the number — no words, no explanations."
         )
 
     @torch.no_grad()
@@ -31,7 +33,7 @@ class LLMJudge:
             },
         ]
 
-        text = self.processor.apply_chat_template(messages, tokenize=False)
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
         inputs = self.processor(
             text=text,

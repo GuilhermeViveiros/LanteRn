@@ -44,7 +44,7 @@ def viscot_test(
     use_gt: bool = False
 ):
     judge = LLMJudge(model_id=judge_name)
-    print(f"Using judge: {judge_name}")
+    logger.info(f"Using judge: {judge_name}")
     model.eval()
     correct = 0 # number of correct answers
     invalid = 0 # number of invalid answers (parsing error)
@@ -53,10 +53,11 @@ def viscot_test(
     latent_samples = 0 # number of samples with latent tokens generated
 
     # print latent tokens
-    print(f"latent tokens: {model.config.additional_special_tokens}")
+    logger.info(f"{'Using ground truth latent embeddings.' if use_gt else 'Using predicted latent embeddings.'}")
+    logger.info(f"latent tokens: {model.config.additional_special_tokens}")
 
-    for step, (inputs, labels) in tqdm(enumerate(dataloader), "VisCot Test"):
-       
+    for step, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+        step += 1
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         with torch.no_grad():
@@ -117,13 +118,12 @@ def viscot_test(
                 invalid += 1
                 logger.info(f"Error judging answer: {e}")
 
-            import pdb; pdb.set_trace()
-            logging.info(f"[{step+1}] \
-                Avg score: {total/step+1:.3f}, \
-                Accuracy: ({correct/step+1:.3f}), \
-                Invalid: ({invalid/step+1:.3f}), \
-                latent ratio: ({latent_samples/step+1:.3f}), \
-                average MSE loss: {average_mse_loss/step+1:.3f}"
+            logging.info(f"[{step}] \
+                Avg score: {total/step:.3f}, \
+                Accuracy: ({correct/step:.3f}), \
+                Invalid: ({invalid/step:.3f}), \
+                latent ratio: ({latent_samples/step:.3f}), \
+                average MSE loss: {average_mse_loss/step:.3f}"
             )
             
     result = {
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
     if model.config.latent_size is None:
-        logger.info("Latent size is not set, using 4")
+        logger.info("Warning!!!! Latent size is not set, using 4")
         model.config.latent_size = 4
     
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
@@ -213,11 +213,10 @@ if __name__ == "__main__":
         generate=True,
         seed=42,
         latent_size=model.config.latent_size,
-        split_percentages=(0.99, 0.009, 0.001)
+        split_percentages=(0.9, 0.097, 0.003)
     )
 
     dataset = data_module["test_dataset"]
-    
     logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
     dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
