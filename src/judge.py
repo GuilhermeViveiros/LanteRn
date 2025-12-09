@@ -31,6 +31,7 @@ class LLMJudge:
             },
         ]
 
+        import pdb; pdb.set_trace()
         text = self.processor.apply_chat_template(messages, tokenize=False)
 
         inputs = self.processor(
@@ -45,6 +46,8 @@ class LLMJudge:
             do_sample=False
         )
 
+        
+
         decoded_output = self.processor.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
         decoded_output = decoded_output.replace("\n", "").strip()
         #print(f"decoded_output: {decoded_output}")
@@ -57,4 +60,4 @@ if __name__ == "__main__":
 
     # judge.judge("it's a good idea.", "wow you're smart, that's a good idea.")
     print(f"Answer: {answer}")
-    import pdb; pdb.set_trace()
+  

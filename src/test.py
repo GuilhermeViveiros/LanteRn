@@ -197,7 +197,7 @@ if __name__ == "__main__":
         generate=True,
         shuffle=False,
         seed=42,
-        split_percentages=(0.99, 0.009, 0.001)
+        split_percentages=(0.9, 0.0905, 0.005)
     )
 
     #dataset = data_module["test_dataset"]
