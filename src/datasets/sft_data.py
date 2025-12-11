@@ -8,7 +8,7 @@ import json
 from PIL import Image
 from torch.utils.data import Dataset, random_split
 from typing import List
-from src.utils import center_and_crop_image, measure_time
+from src.utils import center_and_crop_image
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 
@@ -21,7 +21,6 @@ class SFTDataset(Dataset):
         self,
         data_path: str,
         processor: AutoProcessor,
-        shuffle: bool = False,
         dummy: bool = False,
         latent_size: int = 4,
     ):
@@ -58,12 +57,6 @@ class SFTDataset(Dataset):
         logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
         #self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
         #logger.info(f"Number of examples of VisCoT data after removing examples with too large images: {len(self.dataset)}")
-
-        # randomize
-        if shuffle:
-            import random
-            logger.info(f"Shuffling the dataset")
-            random.shuffle(self.dataset)
 
         # if dummy, we only use the first 1000 examples
         if dummy:
@@ -157,7 +150,7 @@ def mask_image_output_tokens(
 def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
-    user_samples = [s for bs in samples for s in bs if s["role"] == "user"]
+    user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
     labels = [s for bs in samples for s in bs if s["role"] == "assistant"]
     labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>","") for l in labels]
    
@@ -173,9 +166,7 @@ def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
         images=image_inputs,
         videos=video_inputs,
         return_tensors="pt",
-        #padding="max_length",
-        #max_length=5000,
-        #truncation=True
+        padding=True
     )
 
     # ground truth latent images
@@ -281,18 +272,17 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     
 def make_sft_data_module(
     processor,
-    data_path,
+    data_path: str,
+    latent_size: int,
     dummy: bool = False,
     generate: bool = False,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
-    shuffle: bool = False,
-    latent_size: int = 4,
     seed: int = 42,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy, shuffle=shuffle, latent_size=latent_size
+        data_path=data_path, processor=processor, dummy=dummy, latent_size=latent_size
     )
 
     # split the dataset into train, eval and test
