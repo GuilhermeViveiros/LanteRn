@@ -1,12 +1,18 @@
 import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AutoModelForCausalLM
+import logging
+logger = logging.getLogger("LantErn-Judge")
 
 class LLMJudge:
-    def __init__(self, model_id: str):
+    def __init__(self, model_id: str, device: torch.device):
         self.model_id = model_id
         # only qwen is supported for now
         # self.model = AutoModelForCausalLM.from_pretrained(model_id)
-        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id)
+        logger.info(f"Loading judge model from {model_id} on device {device}")
+        from accelerate import init_empty_weights
+        
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(model_id, torch_dtype=torch.bfloat16, use_cache=False).to(device)
+        self.model.eval()
         self.processor = AutoProcessor.from_pretrained(model_id)
         self.system_prompt = (
             "You are a strict evaluation model. "
@@ -40,14 +46,14 @@ class LLMJudge:
             return_tensors="pt",
         ).to(self.model.device)
 
+        import pdb; pdb.set_trace()
         # generate the output
         output = self.model.generate(
             **inputs,
             max_new_tokens=1024,
-            do_sample=False
+            do_sample=False,
+            use_cache=False
         )
-
-        
 
         decoded_output = self.processor.decode(output[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
         decoded_output = decoded_output.replace("\n", "").strip()

@@ -1,3 +1,4 @@
+import os
 import torch
 
 def apply_latent_compression(
@@ -68,3 +69,14 @@ def apply_latent_compression(
     latent_avg_embeds = torch.stack(processed_latents, dim=0)
     
     return latent_avg_embeds
+
+def get_last_checkpoint(output_dir: str):
+    """
+    Get the last checkpoint from the output directory
+    """
+    checkpoints = [f for f in os.listdir(output_dir) if f.startswith("checkpoint")]
+    return os.path.join(output_dir, max(checkpoints))
+
+if __name__ == "__main__":
+    output_dir = "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1"
+    print(get_last_checkpoint(output_dir))

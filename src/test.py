@@ -40,11 +40,9 @@ def viscot_test(
     model, 
     processor,
     dataloader: DataLoader,
-    judge_name: str,
+    judge: LLMJudge,
     use_gt: bool = False
 ):
-    judge = LLMJudge(model_id=judge_name)
-    logger.info(f"Using judge: {judge_name}")
     model.eval()
     correct = 0 # number of correct answers
     invalid = 0 # number of invalid answers (parsing error)
@@ -58,6 +56,7 @@ def viscot_test(
 
     for step, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
         step += 1
+        
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         with torch.no_grad():
@@ -126,7 +125,7 @@ def viscot_test(
                 average MSE loss: {average_mse_loss/step:.3f}"
             )
             
-    result = {
+    results = {
         "avg_score": total/step,
         "accuracy": correct/step,
         "invalid": invalid/step,
@@ -139,7 +138,7 @@ def viscot_test(
                  f"Invalid Ratio : {result['invalid']:.3f}\n"
                  f"Latent Ratio  : {result['latent_ratio']:.3f}\n"
                  f"{'='*40}")
-    return result
+    return results
     
 
 if __name__ == "__main__":
@@ -212,7 +211,6 @@ if __name__ == "__main__":
         data_path=args.data_path,
         generate=True,
         seed=42,
-        split_percentages=(0.9, 0.0905, 0.005)
         latent_size=model.config.latent_size,
         split_percentages=(0.9, 0.097, 0.003)
     )
@@ -223,7 +221,8 @@ if __name__ == "__main__":
     dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
 
     # main
-    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-7B-Instruct", use_gt=False)
+    judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-7B-Instruct")
+    results = viscot_test(model, processor, dataloader, judge, use_gt=False)
     # save the results to a json file
     with open(f"{args.output_dir}/results_{args.model_ref.split('/')[-1]}.json", "w") as f:
         json.dump(results, f)
