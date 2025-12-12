@@ -33,23 +33,13 @@ class SFTDataset(Dataset):
         for data in self.dataset: # MINOR BUGG: ignore this sample for now
             if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
                 self.dataset.remove(data)
-        # read json file sample_idxs_and_sizes.json
-        with open("sample_idxs_and_sizes.json", "r") as f:
-            sample_idxs_and_sizes = json.load(f)
 
         def pre_validation(data, idx):
             # ignore samples with more than 1 bbox
             if len(data["bboxs"]) > 1:
                 return False
             return True
-        
-        def filter_too_large_images(data, idx):
-            # get size from sample_idxs_and_sizes
-            size = sample_idxs_and_sizes["sizes"][idx]
-            # for now ignore cases where the image is too large (for 9k tokens this is 3kx4k images)
-            if size > 3000:
-                return False
-            return True
+    
         
         logger.info(f"Number of examples of VisCoT data: {len(self.dataset)}")
         # remove cases where the image is too large and bboxs are more than 1
