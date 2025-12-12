@@ -6,10 +6,12 @@ import wandb
 from functools import partial
 from transformers import Trainer, AutoProcessor
 from transformers import TrainerCallback
+from transformers.modeling_utils import no_init_weights
 from torch.utils.data import DataLoader, Dataset
+#from accelerate.utils import no_init_weights
 from src.judge import LLMJudge
 from src.test import viscot_test
-from src.utils import is_rank0
+from src.utils import is_rank0, get_rank
 import logging
 
 logger = logging.getLogger("LantErn-Trainer")
@@ -20,7 +22,8 @@ class VisCoTestLogger(TrainerCallback):
         dataset: Dataset, 
         collate_fn: Callable, 
         processor: AutoProcessor,
-        test_steps: int = 1
+        test_steps: int = 1,
+        report_to: str = "wandb"
     ):
         from torch.utils.data import DataLoader
         assert test_steps > 0, "test_steps must be greater than 0"
@@ -29,35 +32,45 @@ class VisCoTestLogger(TrainerCallback):
         self.pbar = None
         self.test_steps = test_steps
         self.collate_fn = collate_fn
-        self.judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-3B-Instruct")
-
+        self.report_to = report_to
+        # if is_rank0():
+        #     # get rank 0 device
+        #     # 🎯 CRITICAL STEP: Use no_init_weights to isolate model loading
+        #     # This prevents DeepSpeed/Accelerate's memory initialization hooks 
+        #     # from interfering with the judge model's weight loading.
+           
+        #     self.judge = LLMJudge(
+        #         model_id="Qwen/Qwen2.5-VL-3B-Instruct",
+        #         device=get_rank()
+        #     )
+    
     def on_step_end(self, args, state, control, metrics=None, **kwargs):
-        # calling a subprocess to run the test script
-        # avoid interruping the training with jibberish stuff
-        # subprocess.run(["bash", "scripts/eval_viscot.sh", args.model_ref, args.data_path])
-        if state.global_step % self.test_steps == 0:
+        return
+        if not is_rank0():
+            return
+        logger.info(f"Testing at step {state.global_step}")
 
-            # get the model ckpt at the current step
-            # TODO: implement this
-            
-            #dataloader = DataLoader(self.dataset, batch_size=args.per_device_eval_batch_size, shuffle=False, collate_fn=self.collate_fn)
-            dataloader = DataLoader(self.dataset, batch_size=1, shuffle=False, collate_fn=partial(self.collate_fn, processor=self.processor))
-            result = viscot_test(kwargs["model"], self.processor, dataloader, self.judge)
-            if wandb.run:
-                wandb.log({
-                    "test/avg_score": result["avg_score"],
-                    "test/accuracy": result["accuracy"],
-                    "test/invalid": result["invalid"],
-                    "test/latent_ratio": result["latent_ratio"],
-                    "step": state.global_step
-                })
+        if state.global_step % self.test_steps == 0: 
+            with torch.no_grad():
+                dataloader = DataLoader(self.dataset, batch_size=1, collate_fn=partial(self.collate_fn, processor=self.processor))
+                results = viscot_test(kwargs["model"], self.processor, dataloader, self.judge, use_gt=False)
+                
+                if self.report_to == "wandb":
+                    wandb.log({
+                        "test/avg_score": results["avg_score"],
+                        "test/accuracy": results["accuracy"],
+                        "test/invalid": results["invalid"],
+                        "test/latent_ratio": results["latent_ratio"],
+                        "step": state.global_step
+                    })
 
 class ProgressBarLossLogger(TrainerCallback):
     def __init__(self):
         self.pbar = None
 
     def on_train_begin(self, args, state, control, **kwargs):
-        self.pbar = tqdm(total=state.max_steps, desc="Training", leave=True)
+        # deat with cases where steps > 0, resume training from a checkpoint
+        self.pbar = tqdm(total=state.max_steps, position=state.global_step, desc="Training", leave=True)
 
     def on_step_end(self, args, state, control, **kwargs):
         # only rank 0 should log
