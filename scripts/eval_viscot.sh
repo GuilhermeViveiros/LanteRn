@@ -10,7 +10,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition=a6000
 #SBATCH --qos=gpu-short
-#SBATCH --time=03:00:00
+#SBATCH --time=00:20:00
 
 # Activate conda environment if needed
 #conda activate lantern
@@ -18,24 +18,34 @@
 # Change to the project directory
 cd /mnt/home/gviveiros/LantErn
 
-# Model and data paths
-# MODEL_REF can be passed as first argument, otherwise use default
-MODEL_FOLDER="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/"
-#MODEL_REF="${1:-lambda_mse/checkpoint-100}"
-#MODEL_REF="${1:-lambda_mse/checkpoint-200}"
-#MODEL_REF="${1:-lambda_mse/checkpoint-300}"
-MODEL_REF="${1:-lambda_mse/checkpoint-400}"
-#MODEL_REF="${1:-lambda_mse/checkpoint-500}"
-MODEL_PATH="${MODEL_FOLDER}/${MODEL_REF}"
-DATA_PATH="${2:-/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json}"
+# Get Model Path
+MODEL_PATH="${1}"
+OUTPUT_DIR="${2}"
+
+# if the output directory is not provided, use the default
+if [ -z "$OUTPUT_DIR" ]; then
+    OUTPUT_DIR="results"
+fi
+
+# check if the model path is valid
+if [ -z "$MODEL_PATH" ]; then
+    echo "Model path is required"
+    exit 1
+fi
+ 
+DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
 
-echo "Model ref: $MODEL_REF"
+echo "Model path: $MODEL_PATH"
 echo "Data path: $DATA_PATH"
+echo "Output directory: $OUTPUT_DIR"
 
 
 # Run the test script
 srun python -m src.test \
     --model_ref "$MODEL_PATH" \
-    --data_path "$DATA_PATH"
+    --data_path "$DATA_PATH" \
+    --output_dir "$OUTPUT_DIR" \
+    --batch_size 12 \
+    # --use_gt True
 

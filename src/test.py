@@ -1,6 +1,7 @@
 
 import os
 import json
+import time
 import logging
 import argparse
 from tqdm import tqdm
@@ -31,8 +32,10 @@ def compare_latent_embeddings(
     latent_embeds_pred: torch.FloatTensor,
     gt_latent_embeds: torch.FloatTensor,
 ):
-    sim_loss = 1-torch.nn.functional.cosine_similarity(latent_embeds_pred, gt_latent_embeds).mean()
-    mse_loss = torch.nn.functional.mse_loss(latent_embeds_pred, gt_latent_embeds)
+    sim_loss = 1-torch.nn.functional.cosine_similarity(latent_embeds_pred, gt_latent_embeds).mean(axis=-1)
+    #mse_loss = torch.nn.functional.mse_loss(latent_embeds_pred, gt_latent_embeds)
+    mse_loss = ((latent_embeds_pred - gt_latent_embeds) ** 2).mean(dim=(1, 2))
+
     return mse_loss, sim_loss
 
 # Load the model and processor
@@ -49,88 +52,92 @@ def viscot_test(
     total = 0 # total score
     average_mse_loss = 0 # average MSE loss
     latent_samples = 0 # number of samples with latent tokens generated
+    total_samples = 0 # total number of samples
 
     # print latent tokens
     logger.info(f"{'Using ground truth latent embeddings.' if use_gt else 'Using predicted latent embeddings.'}")
     logger.info(f"latent tokens: {model.config.additional_special_tokens}")
 
     for step, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
-        step += 1
-        
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
+        
         with torch.no_grad():
-            if "latent_values" not in inputs:
-                continue
             # get gt latent values
             gt_latent_embeds = apply_latent_compression(
                 model,
                 input_ids=inputs["input_ids"],
-                latent_values=inputs.pop("latent_values"),
-                latent_grid_thw=inputs.pop("latent_grid_thw"),
+                latent_values=inputs.pop("latent_values") if "latent_values" in inputs else None,
+                latent_grid_thw=inputs.pop("latent_grid_thw") if "latent_grid_thw" in inputs else None,
                 latent_size=model.config.latent_size,
             )
-            # for now I just support one sample at a time
-            assert inputs["input_ids"].shape[0] == 1, "Only batch size of 1 is supported"
 
+            total_samples += len(inputs.input_ids)
+            
             # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
             # this will be removed in the future (just for stress testing purposes)
+            time_start = time.time()
             output = model.generate(
                 **inputs,
                 max_new_tokens=124,
                 do_sample=False,    
                 tokenizer=processor.tokenizer,
                 custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds if use_gt else None),
-                use_cache=False,
+                use_cache=True,
+            )
+            time_end = time.time()
+            print(f"Time taken for generation: {time_end - time_start} seconds with batch size {len(inputs.input_ids)}")
+            
+            generated_ids = output.input_ids
+            pred_latent_embeds = output.latent_pred_values            
+
+            generated_ids_trimmed = [
+                out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+            ]
+
+            batch_decoded_output = processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
             )
 
-            output_ids = output.input_ids
-            pred_latent_embeds = output.latent_pred_values            
-            decoded_output = processor.tokenizer.decode(output_ids[0][inputs["input_ids"].shape[1]:], skip_special_tokens=False)
+            # ensure the output has the <answer> tag (for base models this is not needed)
+            batch_parsed_output = [
+                x.split('<answer>')[-1].split('</answer>')[0].strip()
+                if '<answer>' in x else None
+                for x in batch_decoded_output
+            ]
 
-
-            # check if <answer> is present
-            # if '<answer>' not in decoded_output:
-            #     invalid += 1
-            #     continue
-            
-            answer = decoded_output.split('<answer>')[-1].split('</answer>')[0].strip()
-            
-            if pred_latent_embeds is not None:
-                latent_samples += 1
-                mse_loss, _ = compare_latent_embeddings(
-                    pred_latent_embeds,
-                    gt_latent_embeds
-                )
-                average_mse_loss += mse_loss
-
+            invalid_sample_idxs = [i for i, x in enumerate(batch_parsed_output) if x is None]
+            parsed_decoded_output = [p for p in batch_parsed_output if p is not None]
+            [labels.pop(i) for i in invalid_sample_idxs]
+            invalid += len(invalid_sample_idxs)
+            # no samples left to judge
+            if len(invalid_sample_idxs) == len(batch_decoded_output):
+                continue                
+    
             try:
-                result = judge.judge(answer, labels[0])
-                logger.info(f"Answer: {answer} | Label: {labels[0]} | Result: {result}")
+                results = judge.judge(parsed_decoded_output, labels)
+                logger.info(f"Answer: {parsed_decoded_output} | Label: {labels} | Result: {results}")
 
-                total += result
-
-                if result > 0.5:
-                    correct += 1
+                total += results.sum()
+                correct += (results > 0.5).sum()
                 
             except Exception as e:
                 invalid += 1
                 logger.info(f"Error judging answer: {e}")
 
+                
             logging.info(f"[{step}] \
-                Avg score: {total/step:.3f}, \
-                Accuracy: ({correct/step:.3f}), \
-                Invalid: ({invalid/step:.3f}), \
-                latent ratio: ({latent_samples/step:.3f}), \
-                average MSE loss: {average_mse_loss/step:.3f}"
+                Avg score: {total/total_samples:.3f}, \
+                Accuracy: ({correct/total_samples:.3f}), \
+                Invalid: ({invalid/total_samples:.3f}), \
+                latent ratio: ({latent_samples/total_samples:.3f})"
             )
-            
-    results = {
-        "avg_score": total/step,
-        "accuracy": correct/step,
-        "invalid": invalid/step,
-        "latent_ratio": latent_samples/step,
-        "average_mse_loss": average_mse_loss/step
+    
+    result = {
+        "avg_score": total/total_samples,
+        "accuracy": correct/total_samples,
+        "invalid": invalid/total_samples,
+        "latent_ratio": latent_samples/total_samples,
     }
     logging.info(f"\n{'='*40}\n[Final Results]\n{'-'*40}\n"
                  f"Average Score : {result['avg_score']:.3f}\n"
@@ -150,20 +157,38 @@ if __name__ == "__main__":
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
         default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-700/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.0/checkpoint-600/",
         help="Path to the model checkpoint"
     )
+
+    parser.add_argument(
+        "--use_gt",
+        type=bool,
+        default=False,
+        help="Whether to use ground truth latent embeddings"
+    )
+
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=1,
+        help="Batch size"
+    )
+
     parser.add_argument(
         "--data_path",
         type=str,
         default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json",
         help="Path to the data"
     )
+
     parser.add_argument(
         "--output_dir",
         type=str,
         default="results",
         help="Path to the output directory"
     )
+
     args = parser.parse_args()
     
     logging.info('=='*20)
@@ -174,8 +199,8 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     # load the model and processor
-    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
-    #model, processor = load_model(model_id="Qwen/Qwen2.5-VL-3B-Instruct", device_map="cuda", compute_dtype=torch.bfloat16, use_cache=False)  
+    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16)  
+    #model, processor = load_model(model_id="Qwen/Qwen2.5-VL-3B-Instruct", device_map="cuda", compute_dtype=torch.bfloat16)  
 
 
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -190,9 +215,11 @@ if __name__ == "__main__":
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
-    if model.config.latent_size is None:
+    if not hasattr(model.config, "latent_size"):
         logger.info("Warning!!!! Latent size is not set, using 4")
         model.config.latent_size = 4
+    
+    print(f"model.config.latent_size: {model.config.latent_size}")
     
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
@@ -218,11 +245,11 @@ if __name__ == "__main__":
     dataset = data_module["test_dataset"]
     logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
-    dataloader = DataLoader(dataset, batch_size=1, collate_fn=collator, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator, shuffle=False)
 
-    # main
-    judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-7B-Instruct")
-    results = viscot_test(model, processor, dataloader, judge, use_gt=False)
+    # main test function
+    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-3B-Instruct", use_gt=args.use_gt)
+    
     # save the results to a json file
     with open(f"{args.output_dir}/results_{args.model_ref.split('/')[-1]}.json", "w") as f:
         json.dump(results, f)

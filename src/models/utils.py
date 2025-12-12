@@ -1,6 +1,7 @@
 import os
 import torch
 
+# TODO: I could vectorize this function to avoid the loop. However since we're still in an experimental stage, the latent tokens can vary in the future, per image, so I'll leave it as is for now
 def apply_latent_compression(
     self,
     input_ids,
