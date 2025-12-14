@@ -162,6 +162,7 @@ if __name__ == "__main__":
         default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995",
         help="Path to the model checkpoint"
     )
+    # Qwen/Qwen2.5-VL-3B-Instruct
 
     parser.add_argument(
         "--batch_size",
