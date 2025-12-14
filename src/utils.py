@@ -2,12 +2,19 @@ import time
 from PIL import Image
 from typing import List, Tuple
 import torch
+import torch.distributed as dist
 
 def is_rank0() -> bool:
     """Return True if current process is rank 0, or if not in distributed mode."""
     if not torch.distributed.is_initialized():
         return True
     return torch.distributed.get_rank() == 0
+
+def get_rank():
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_rank()
+    else:
+        return 0 
 
 def center_and_crop_image(
     img: Image.Image,

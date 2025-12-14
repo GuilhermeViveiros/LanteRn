@@ -1,3 +1,4 @@
+import os
 import logging
 import torch
 from transformers import HfArgumentParser
@@ -6,7 +7,7 @@ from src.params import (TrainingParams, ModelParams, DataParams)
 from src.datasets.sft_data import make_sft_data_module, collate_fn_generate
 from src.models import load_model
 from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger
-from src.utils import is_rank0
+from src.models.utils import get_last_checkpoint
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -48,9 +49,20 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     logger.info(colored(f"Compute dtype: {compute_dtype}", "cyan"))
 
     # Load Model
-    model, processor = load_model(model_params.model_id, compute_dtype=compute_dtype, use_cache=model_params.use_cache)
+    model, processor = load_model(
+        model_params.model_id,
+        compute_dtype=compute_dtype,
+        use_cache=model_params.use_cache
+    )
     print(f"model.config.vocab_size: {model.config.vocab_size}")
-    
+
+    # check if we should resume training from a checkpoint
+    if os.path.exists(training_params.output_dir):
+        # get the last checkpoint
+        resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+        logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
+    else:
+        resume_from_checkpoint = None
 
     # add special tokens for LantErn
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -80,11 +92,15 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         model.gradient_checkpointing_enable()
 
     # if eval_steps or test_steps are defined, ensure the split percentages are > 0
-    if training_params.eval_steps > 0:
-        assert data_params.split_percentages[1] > 0, "Eval percentage must be greater than 0 if eval_steps are defined"
-    if training_params.test_steps > 0:
-        assert data_params.split_percentages[2] > 0, "Test percentage must be greater than 0 if test_steps are defined"
-
+    if data_params.split_percentages[1] > 0:
+        assert training_params.eval_steps > 0, "Eval steps must be greater than 0 if eval percentage is greater than 0 (data_params.split_percentages[1] > 0)"
+    else:
+        training_params.test_steps = 0
+    if data_params.split_percentages[2] > 0:
+        assert training_params.test_steps > 0, "Test steps must be greater than 0 if test percentage is greater than 0 (data_params.split_percentages[2] > 0)"
+    else:
+        training_params.test_steps = 0
+    
     # Load data
     data_module = make_sft_data_module(
         processor=processor,
@@ -93,16 +109,6 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         dummy=data_params.dummy,
         split_percentages=data_params.split_percentages
     )
-    # check if wandb is enabled
-    if training_params.report_to == "wandb" and is_rank0():
-        run_name = f"sft_mse_latent_size_{training_params.latent_size}_lambda_{training_params.gamma}"
-        logger.info(colored("Initializing WandB...", "yellow"))
-        import wandb
-        wandb.init(
-            project=training_params.wandb_project, 
-            config=training_params,
-            name=run_name
-        )
 
     
     callbacks = [ProgressBarLossLogger()]
@@ -111,18 +117,22 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             dataset=data_module.pop("test_dataset"), 
             collate_fn=collate_fn_generate,
             processor=processor, # necessary for the test script
-            test_steps=training_params.test_steps
+            test_steps=training_params.test_steps,
+            report_to="wandb"
         ))
 
     # Train
     trainer = LantErnSFTrainer(
         model=model,
         args=training_params,
+        gamma=training_params.gamma,
         callbacks=callbacks,
         **data_module
     )
 
-    trainer.train()
+    trainer.train(
+        resume_from_checkpoint=resume_from_checkpoint
+    )
 
     logger.info("Training completed")
 

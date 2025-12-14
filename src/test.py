@@ -2,6 +2,7 @@
 import os
 import json
 import time
+import time
 import logging
 import argparse
 from tqdm import tqdm
@@ -36,6 +37,10 @@ def compare_latent_embeddings(
     #mse_loss = torch.nn.functional.mse_loss(latent_embeds_pred, gt_latent_embeds)
     mse_loss = ((latent_embeds_pred - gt_latent_embeds) ** 2).mean(dim=(1, 2))
 
+    sim_loss = 1-torch.nn.functional.cosine_similarity(latent_embeds_pred, gt_latent_embeds).mean(axis=-1)
+    #mse_loss = torch.nn.functional.mse_loss(latent_embeds_pred, gt_latent_embeds)
+    mse_loss = ((latent_embeds_pred - gt_latent_embeds) ** 2).mean(dim=(1, 2))
+
     return mse_loss, sim_loss
 
 # Load the model and processor
@@ -43,17 +48,16 @@ def viscot_test(
     model, 
     processor,
     dataloader: DataLoader,
-    judge_name: str,
+    judge: LLMJudge,
     use_gt: bool = False
 ):
-    judge = LLMJudge(model_id=judge_name)
-    logger.info(f"Using judge: {judge_name}")
     model.eval()
     correct = 0 # number of correct answers
     invalid = 0 # number of invalid answers (parsing error)
     total = 0 # total score
     average_mse_loss = 0 # average MSE loss
     latent_samples = 0 # number of samples with latent tokens generated
+    total_samples = 0 # total number of samples
     total_samples = 0 # total number of samples
 
     # print latent tokens
@@ -64,6 +68,7 @@ def viscot_test(
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         
+        
         with torch.no_grad():
             # get gt latent values
             gt_latent_embeds = apply_latent_compression(
@@ -71,13 +76,19 @@ def viscot_test(
                 input_ids=inputs["input_ids"],
                 latent_values=inputs.pop("latent_values") if "latent_values" in inputs else None,
                 latent_grid_thw=inputs.pop("latent_grid_thw") if "latent_grid_thw" in inputs else None,
+                latent_values=inputs.pop("latent_values") if "latent_values" in inputs else None,
+                latent_grid_thw=inputs.pop("latent_grid_thw") if "latent_grid_thw" in inputs else None,
                 latent_size=model.config.latent_size,
             )
 
             total_samples += len(inputs.input_ids)
             
+
+            total_samples += len(inputs.input_ids)
+            
             # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
             # this will be removed in the future (just for stress testing purposes)
+            time_start = time.time()
             time_start = time.time()
             output = model.generate(
                 **inputs,
@@ -117,10 +128,33 @@ def viscot_test(
             if len(invalid_sample_idxs) == len(batch_decoded_output):
                 continue                
     
+            batch_decoded_output = processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
+
+            # ensure the output has the <answer> tag (for base models this is not needed)
+            batch_parsed_output = [
+                x.split('<answer>')[-1].split('</answer>')[0].strip()
+                if '<answer>' in x else None
+                for x in batch_decoded_output
+            ]
+
+            invalid_sample_idxs = [i for i, x in enumerate(batch_parsed_output) if x is None]
+            parsed_decoded_output = [p for p in batch_parsed_output if p is not None]
+            [labels.pop(i) for i in invalid_sample_idxs]
+            invalid += len(invalid_sample_idxs)
+            # no samples left to judge
+            if len(invalid_sample_idxs) == len(batch_decoded_output):
+                continue                
+    
             try:
                 results = judge.judge(parsed_decoded_output, labels)
                 logger.info(f"Answer: {parsed_decoded_output} | Label: {labels} | Result: {results}")
+                results = judge.judge(parsed_decoded_output, labels)
+                logger.info(f"Answer: {parsed_decoded_output} | Label: {labels} | Result: {results}")
 
+                total += results.sum()
+                correct += (results > 0.5).sum()
                 total += results.sum()
                 correct += (results > 0.5).sum()
                 
@@ -129,14 +163,25 @@ def viscot_test(
                 logger.info(f"Error judging answer: {e}")
 
                 
+
+                
             logging.info(f"[{step}] \
+                Avg score: {total/total_samples:.3f}, \
+                Accuracy: ({correct/total_samples:.3f}), \
+                Invalid: ({invalid/total_samples:.3f}), \
+                latent ratio: ({latent_samples/total_samples:.3f})"
                 Avg score: {total/total_samples:.3f}, \
                 Accuracy: ({correct/total_samples:.3f}), \
                 Invalid: ({invalid/total_samples:.3f}), \
                 latent ratio: ({latent_samples/total_samples:.3f})"
             )
     
+    
     result = {
+        "avg_score": total/total_samples,
+        "accuracy": correct/total_samples,
+        "invalid": invalid/total_samples,
+        "latent_ratio": latent_samples/total_samples,
         "avg_score": total/total_samples,
         "accuracy": correct/total_samples,
         "invalid": invalid/total_samples,
@@ -148,7 +193,7 @@ def viscot_test(
                  f"Invalid Ratio : {result['invalid']:.3f}\n"
                  f"Latent Ratio  : {result['latent_ratio']:.3f}\n"
                  f"{'='*40}")
-    return result
+    return results
     
 
 if __name__ == "__main__":
@@ -161,8 +206,24 @@ if __name__ == "__main__":
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
         default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-700/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.0/checkpoint-600/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.0/checkpoint-600/",
         help="Path to the model checkpoint"
     )
+
+    parser.add_argument(
+        "--use_gt",
+        type=bool,
+        default=False,
+        help="Whether to use ground truth latent embeddings"
+    )
+
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=1,
+        help="Batch size"
+    )
+
 
     parser.add_argument(
         "--use_gt",
@@ -185,12 +246,14 @@ if __name__ == "__main__":
         help="Path to the data"
     )
 
+
     parser.add_argument(
         "--output_dir",
         type=str,
         default="results",
         help="Path to the output directory"
     )
+
 
     args = parser.parse_args()
     
@@ -202,6 +265,8 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     # load the model and processor
+    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16)  
+    #model, processor = load_model(model_id="Qwen/Qwen2.5-VL-3B-Instruct", device_map="cuda", compute_dtype=torch.bfloat16)  
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16)  
     #model, processor = load_model(model_id="Qwen/Qwen2.5-VL-3B-Instruct", device_map="cuda", compute_dtype=torch.bfloat16)  
 
@@ -219,8 +284,11 @@ if __name__ == "__main__":
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
     if not hasattr(model.config, "latent_size"):
+    if not hasattr(model.config, "latent_size"):
         logger.info("Warning!!!! Latent size is not set, using 4")
         model.config.latent_size = 4
+    
+    print(f"model.config.latent_size: {model.config.latent_size}")
     
     print(f"model.config.latent_size: {model.config.latent_size}")
     
@@ -248,6 +316,11 @@ if __name__ == "__main__":
     dataset = data_module["test_dataset"]
     logger.info(f"Test dataset size: {len(dataset)}")
     collator = data_module["data_collator"]
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator, shuffle=False)
+
+    # main test function
+    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-3B-Instruct", use_gt=args.use_gt)
+    
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator, shuffle=False)
 
     # main test function

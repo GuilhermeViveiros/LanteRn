@@ -3,8 +3,17 @@ import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from src.models.qwen2_5VL.forward import qwen2_5_mixed_modality_forward_lantern
 from src.lantern_generate.generate import generate as lantern_generate
+import logging
 
-def load_model(model_id=None, model_path=None, compute_dtype: torch.dtype = torch.float16, use_cache: bool = False, **kwargs):
+logger = logging.getLogger("LantErn-Trainer")
+
+def load_model(
+    model_id=None,
+    model_path=None,
+    compute_dtype: torch.dtype = torch.float16,
+    use_cache: bool = False,
+    **kwargs
+):
     """
     Load the model and processor from a model id (remote hub) or local model path.
     If model_path is provided, load locally from there (including any configs).
@@ -23,7 +32,10 @@ def load_model(model_id=None, model_path=None, compute_dtype: torch.dtype = torc
     transformers.models.qwen2_5_vl.modeling_qwen2_5_vl.Qwen2_5_VLForConditionalGeneration.forward = qwen2_5_mixed_modality_forward_lantern
     
     # If model_path is given, always load from the local folder (including local configs)
-    print(f"Loading model from {model_ref} with compute dtype {compute_dtype}")
+    # use flash attention 2 if use_liger_kernel is True
+    #kwargs["attn_implementation"] = "flash_attention_2"
+    logger.info(f"Loading model from {model_ref} with compute dtype {compute_dtype} and kwargs: {kwargs}")
+
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_ref,
         torch_dtype=compute_dtype,

@@ -1,3 +1,4 @@
+import os
 import torch
 
 # TODO: I could vectorize this function to avoid the loop. However since we're still in an experimental stage, the latent tokens can vary in the future, per image, so I'll leave it as is for now
@@ -69,3 +70,14 @@ def apply_latent_compression(
     latent_avg_embeds = torch.stack(processed_latents, dim=0)
     
     return latent_avg_embeds
+
+def get_last_checkpoint(output_dir: str):
+    """
+    Get the last checkpoint from the output directory
+    """
+    checkpoints = [f for f in os.listdir(output_dir) if f.startswith("checkpoint")]
+    return os.path.join(output_dir, max(checkpoints))
+
+if __name__ == "__main__":
+    output_dir = "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1"
+    print(get_last_checkpoint(output_dir))

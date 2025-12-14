@@ -35,10 +35,10 @@ LVR_HEAD=False
 
 # LantErn-related params
 LANTERN_LOSS_FCT=mse
-LAMBDA_LANTERN=0.1
 
 
-RUN_NAME="Stage1_${LVR_LOSS_FCT}LVRLossLambda${LAMBDA_LVR}"
+
+RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
 # ONLINE=True to enable online checkpointing with OCI
 OUTPUT_DIR="stage1_checkpoints/"
 LR=1e-5
@@ -46,25 +46,105 @@ LR=1e-5
 # if continue training, set checkpoint_name = checkpoint to continue;
 # --checkpoint_name checkpoint-1400
 
-#deepspeed --num_gpus 2 --module src.train.train \
 
 #DEEPSPEED=scripts/zero3.json
 
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 
+# LATENT_SIZE=4
+# LAMBDA_LANTERN=0.0
+# RUN_NAME="sft_mse_lt_4_lambda_0.0"
+# deepspeed $REPO/src/train/train.py \
+#     --deepspeed scripts/zero3.json \
+#     --run_name $RUN_NAME \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 1 \
+#     --latent_size $LATENT_SIZE \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+#     --dummy False \
+#     --learning_rate $LR \
+#     --gamma $LAMBDA_LANTERN \
+#     --report_to wandb \
+
+# LATENT_SIZE=4
+# LAMBDA_LANTERN=0.1
+# RUN_NAME="sft_mse_lt_4_lambda_0.1"
+# deepspeed $REPO/src/train/train.py \
+#     --deepspeed scripts/zero3.json \
+#     --run_name $RUN_NAME \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 1 \
+#     --latent_size $LATENT_SIZE \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+#     --dummy False \
+#     --learning_rate $LR \
+#     --gamma $LAMBDA_LANTERN \
+#     --report_to wandb \
+
+# LATENT_SIZE=4
+# LAMBDA_LANTERN=0.2
+# RUN_NAME="sft_mse_lt_4_lambda_0.2"
+# deepspeed $REPO/src/train/train.py \
+#     --deepspeed scripts/zero3.json \
+#     --run_name $RUN_NAME \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 1 \
+#     --latent_size $LATENT_SIZE \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+#     --dummy False \
+#     --learning_rate $LR \
+#     --gamma $LAMBDA_LANTERN \
+#     --report_to wandb \
+
+LATENT_SIZE=8
+LAMBDA_LANTERN=0.1
+RUN_NAME="sft_mse_lt_8_lambda_0.1"
 deepspeed $REPO/src/train/train.py \
     --deepspeed scripts/zero3.json \
+    --run_name $RUN_NAME \
     --model_id $MODEL_ID \
     --num_train_epochs 1 \
-    --latent_size 4 \
+    --latent_size $LATENT_SIZE \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse \
+    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
     --learning_rate $LR \
+    --gamma $LAMBDA_LANTERN \
     --report_to wandb \
+
+
+
+
+LATENT_SIZE=16
+LAMBDA_LANTERN=0.1
+RUN_NAME="sft_mse_lt_16_lambda_0.1"
+deepspeed $REPO/src/train/train.py \
+    --deepspeed scripts/zero3.json \
+    --run_name $RUN_NAME \
+    --model_id $MODEL_ID \
+    --num_train_epochs 1 \
+    --latent_size $LATENT_SIZE \
+    --per_device_train_batch_size $BATCH_PER_DEVICE \
+    --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+    --dummy False \
+    --learning_rate $LR \
+    --gamma $LAMBDA_LANTERN \
+    --report_to wandb \
+
 
 
 # python -m src.train.train \

@@ -2,9 +2,11 @@ from typing import List
 import torch
 import numpy as np
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AutoModelForCausalLM
+import logging
+logger = logging.getLogger("LantErn-Judge")
 
 class LLMJudge:
-    def __init__(self, model_id: str):
+    def __init__(self, model_id: str, device: torch.device):
         self.model_id = model_id
         # only qwen is supported for now
         # self.model = AutoModelForCausalLM.from_pretrained(model_id)
