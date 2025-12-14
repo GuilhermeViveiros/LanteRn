@@ -15,7 +15,7 @@ RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
 GLOBAL_BATCH_SIZE=128
-BATCH_PER_DEVICE=8
+BATCH_PER_DEVICE=4
 NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "Number of GPUs: $NUM_DEVICES"
 # must be a multiple of BATCH_PER_DEVICE
@@ -70,23 +70,23 @@ export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 #     --gamma $LAMBDA_LANTERN \
 #     --report_to wandb \
 
-# LATENT_SIZE=4
-# LAMBDA_LANTERN=0.1
-# RUN_NAME="sft_mse_lt_4_lambda_0.1"
-# deepspeed $REPO/src/train/train.py \
-#     --deepspeed scripts/zero3.json \
-#     --run_name $RUN_NAME \
-#     --model_id $MODEL_ID \
-#     --num_train_epochs 1 \
-#     --latent_size $LATENT_SIZE \
-#     --per_device_train_batch_size $BATCH_PER_DEVICE \
-#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
-#     --dummy False \
-#     --learning_rate $LR \
-#     --gamma $LAMBDA_LANTERN \
-#     --report_to wandb \
+LATENT_SIZE=4
+LAMBDA_LANTERN=0.3
+RUN_NAME="sft_mse_lt_4_lambda_0.3"
+deepspeed $REPO/src/train/train.py \
+    --deepspeed scripts/zero3.json \
+    --run_name $RUN_NAME \
+    --model_id $MODEL_ID \
+    --num_train_epochs 1 \
+    --latent_size $LATENT_SIZE \
+    --per_device_train_batch_size $BATCH_PER_DEVICE \
+    --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+    --dummy False \
+    --learning_rate $LR \
+    --gamma $LAMBDA_LANTERN \
+    --report_to wandb \
 
 # LATENT_SIZE=4
 # LAMBDA_LANTERN=0.2
@@ -106,9 +106,48 @@ export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 #     --gamma $LAMBDA_LANTERN \
 #     --report_to wandb \
 
-LATENT_SIZE=8
+# LATENT_SIZE=8
+# LAMBDA_LANTERN=0.1
+# RUN_NAME="sft_mse_lt_8_lambda_0.1"
+# deepspeed $REPO/src/train/train.py \
+#     --deepspeed scripts/zero3.json \
+#     --run_name $RUN_NAME \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 1 \
+#     --latent_size $LATENT_SIZE \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+#     --dummy False \
+#     --learning_rate $LR \
+#     --gamma $LAMBDA_LANTERN \
+#     --report_to wandb \
+
+
+
+
+# LATENT_SIZE=16
+# LAMBDA_LANTERN=0.1
+# RUN_NAME="sft_mse_lt_16_lambda_0.1"
+# deepspeed $REPO/src/train/train.py \
+#     --deepspeed scripts/zero3.json \
+#     --run_name $RUN_NAME \
+#     --model_id $MODEL_ID \
+#     --num_train_epochs 1 \
+#     --latent_size $LATENT_SIZE \
+#     --per_device_train_batch_size $BATCH_PER_DEVICE \
+#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
+#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+#     --dummy False \
+#     --learning_rate $LR \
+#     --gamma $LAMBDA_LANTERN \
+#     --report_to wandb \
+
+LATENT_SIZE=32
 LAMBDA_LANTERN=0.1
-RUN_NAME="sft_mse_lt_8_lambda_0.1"
+RUN_NAME="sft_mse_lt_32_lambda_0.1"
 deepspeed $REPO/src/train/train.py \
     --deepspeed scripts/zero3.json \
     --run_name $RUN_NAME \
@@ -123,29 +162,6 @@ deepspeed $REPO/src/train/train.py \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
     --report_to wandb \
-
-
-
-
-LATENT_SIZE=16
-LAMBDA_LANTERN=0.1
-RUN_NAME="sft_mse_lt_16_lambda_0.1"
-deepspeed $REPO/src/train/train.py \
-    --deepspeed scripts/zero3.json \
-    --run_name $RUN_NAME \
-    --model_id $MODEL_ID \
-    --num_train_epochs 1 \
-    --latent_size $LATENT_SIZE \
-    --per_device_train_batch_size $BATCH_PER_DEVICE \
-    --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
-    --dummy False \
-    --learning_rate $LR \
-    --gamma $LAMBDA_LANTERN \
-    --report_to wandb \
-
-
 
 # python -m src.train.train \
 #     --run_name "$RUN_NAME" \

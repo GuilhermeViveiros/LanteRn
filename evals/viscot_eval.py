@@ -82,8 +82,7 @@ def viscot_test(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
 
-        print(f"Batch decoded output: {batch_decoded_output}")
-        
+        latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
 
         # extract the answer from the decoded output
         batch_parsed_output = [

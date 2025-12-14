@@ -84,8 +84,6 @@ def generate(
 
     # -> Latent mode init
     in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_start = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_end = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
     latent_pred_values = [[] for _ in range(batch_size)]
@@ -94,6 +92,8 @@ def generate(
     latent_start_idx = model.config.lvr_start_id
     latent_end_idx = model.config.lvr_end_id
     latent_pad_idx = model.config.lvr_sep_id
+
+    first_token = True
 
     while model._has_unfinished_sequences(this_peer_finished, synced_gpus, device=input_ids.device):
         # prepare model inputs
@@ -151,6 +151,15 @@ def generate(
         else:
             next_tokens = torch.argmax(next_token_scores, dim=-1)
 
+        # check if its the first generated token
+        # HACK TO FORCE THE FIRST TOKEN TO BE THE <think> TOKEN 
+        # Helps lantern generation to diverge from the distribution shift
+        if first_token:
+            # first token is the <think> token
+            next_tokens = torch.full_like(next_tokens, tokenizer.encode("<think>")[0])
+            print(f"First token: {next_tokens}, decoded: {tokenizer.batch_decode(next_tokens, skip_special_tokens=False)}")
+            first_token = False
+
         # finished sentences should have their next token be a padding token
         if has_eos_stopping_criteria:
             next_tokens = next_tokens * unfinished_sequences + pad_token_id * (1 - unfinished_sequences)
@@ -166,17 +175,17 @@ def generate(
         #    - Determine whether they still need pad tokens or should end
         # ---------------------------------------------------------
         need_pad_mask = in_latent_mode & (latent_num < MAX_LATENT_LEN) & ~latent_start_mask
-        latent_num[need_pad_mask] += 1
         latent_end_mask = in_latent_mode & (latent_num >= MAX_LATENT_LEN)
+        latent_num[need_pad_mask] += 1
 
         # ---------------------------------------------------------
         # 3) Build the next_tokens
         #    priority: latent_pad -> latent_end -> next_tokens
         #    latent_start is handled in the previous step
         # ---------------------------------------------------------
-        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
         next_tokens = torch.where(latent_end_mask,  torch.full_like(next_tokens, latent_end_idx), next_tokens)
-
+        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
+        
         # ---------------------------------------------------------
         # 4) Determine embedding for next token
         #    We'll construct next_token_embed of shape (batch_size, 1, embed_dim)
@@ -227,13 +236,13 @@ def generate(
     if streamer is not None:
         streamer.end()
 
-    # TODO: THIS CODE WILL BE REMOVED IN FUTURE VERSIONS
-    # we dont need to store the latent pred values (used for debugging purposes to compare with the ground truth)
-    if sum(len(sublist) for sublist in latent_pred_values) > 0:
-        # cat nested lists into a single tensor
-        latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
-    else:
-        latent_pred_values = None
+    # # TODO: THIS CODE WILL BE REMOVED IN FUTURE VERSIONS
+    # # we dont need to store the latent pred values (used for debugging purposes to compare with the ground truth)
+    # if sum(len(sublist) for sublist in latent_pred_values) > 0:
+    #     # cat nested lists into a single tensor
+    #     latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
+    # else:
+    #     latent_pred_values = None
         
 
     return input_ids
