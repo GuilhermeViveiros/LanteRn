@@ -1,7 +1,5 @@
-
 import os
 import json
-import time
 import re
 import numpy as np
 import logging
@@ -9,15 +7,14 @@ import argparse
 from tqdm import tqdm
 from functools import partial
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 from src.models import load_model
-from src.datasets.sft_data import make_sft_data_module
-from src.models.utils import apply_latent_compression
 from datasets import load_dataset
 from evals import run_batch_inference
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
-
+# import fuzzy matching
+from fuzzywuzzy import fuzz
 
 
 logging.basicConfig(
@@ -32,35 +29,49 @@ logging.basicConfig(
 logger = logging.getLogger("LantErn-Test-VStar")
 
 # ==== Core utilities ====
-def extract_answer(response: str) -> str:
+def extract_answer(response: str, options: list[str]) -> str:
     given_answer = response.split('<answer>')[-1]
     given_answer = given_answer.split('</answer')[0].strip()
-    if len(given_answer) > 1:
-        given_answer = re.findall(r"(?:Answer:\s*([A-Z])\b|\(([A-Z])\))", given_answer)
     
-    if len(given_answer) > 1:
-        given_answer = given_answer[0][-1]
-    
+    if given_answer:
+        match = re.search(r"(?:Answer:\s*)?(?:\(|\b)([A-Z])(?:\)|\b)", given_answer)
+        if match:
+            given_answer = match.group(1)
+        else:
+            # check using fuzzy matching
+            if given_answer is not None:
+                scores = [fuzz.ratio(given_answer.lower(), opt.lower()) for opt in options]
+            
+                max_score = max(scores)
+                if max_score > 90:
+                    given_answer = ["A", "B", "C", "D", "E", "F"][scores.index(max_score)]
+                else:
+                    given_answer = None
+
+
     return given_answer
 
 def collate_fn(batch, processor: AutoProcessor):
     messages = []
+    options = []
     labels = []
     categories = []
 
     for dat in batch:
         labels.append(dat['label'])
         categories.append(dat['category'])
-        # vstar has this text:
-        # Answer with the option's letter from the given choices directly.
-        # remove it
-        text = dat['text'].split("Answer with the option's letter from the given choices directly.")[0].strip()
+        # HACK: remove the prefix from vstar
+        # this prompt can mislead lantern generation
+        question = dat['text'].split("Answer with the option's letter from the given choices directly.")[0].strip()
+        opts = question.split("\n")[1:]
+        opts = [opt.split(" ")[-1].strip() for opt in opts]
+        options.append(opts)
         messages.append([
             {
                 "role": "user",
                 "content": [
                     {"type": "image", "image": dat['image']},
-                    {"type": "text", "text": "text"}
+                    {"type": "text", "text": question}
                 ]
             }
         ])
@@ -79,7 +90,7 @@ def collate_fn(batch, processor: AutoProcessor):
         return_tensors="pt",
     )
 
-    return inputs, labels, categories
+    return inputs, options, labels, categories
 
 
 def vstar_eval(
@@ -101,7 +112,8 @@ def vstar_eval(
             "total": 0,
         }
 
-    for step, (inputs, labels, categories) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+    for step, (inputs, options, labels, categories) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+      
         # run batch inference
         generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr)
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
@@ -115,18 +127,22 @@ def vstar_eval(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
 
-        print(f"Batch decoded output: {batch_decoded_output}")
+        print(f"[{step}] Batch decoded output:")
+        for i, x in enumerate(batch_decoded_output):
+            print(f"[{i}] {x}")
         
         # extract the answer from the decoded output
-        answers = [extract_answer(x) for x in batch_decoded_output]
+        answers = [extract_answer(x, options[i]) for i, x in enumerate(batch_decoded_output)]
+        if answers[0] is not None and len(answers[0]) == 0:
+            import ipdb; ipdb.set_trace()
         # check if the answer is correct
         results = np.array([answers[i] == labels[i] for i in range(len(answers))])
-        latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         accuracy += results.sum()
+        
         for idx, (res, category) in enumerate(zip(results, categories)):
-            res_by_category[category]["accuracy"] += res
-            res_by_category[category]["latent_ratio"] += (generated_ids[idx] == model.config.lvr_start_id).sum().item()
             res_by_category[category]["total"] += 1
+            res_by_category[category]["accuracy"] += res
+            res_by_category[category]["latent_ratio"] += (generated_ids[idx] == model.config.lvr_start_id).any(axis=-1).sum().item()
         
         logging.info(f"Answer: {answers} | Label: {labels} | Result: {results} | Accuracy: {accuracy / total_samples} | Latent Ratio: {latent_samples / total_samples}")
     
@@ -180,9 +196,9 @@ if __name__ == "__main__":
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
 
-    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True) 
+    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
