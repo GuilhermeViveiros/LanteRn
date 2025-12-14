@@ -236,14 +236,16 @@ def generate(
 
     # TODO: THIS CODE WILL BE REMOVED IN FUTURE VERSIONS
     # we dont need to store the latent pred values (used for debugging purposes to compare with the ground truth)
-    if sum(len(sublist) for sublist in latent_pred_values) > 0:
-        # cat nested lists into a single tensor
-        latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
-    else:
-        latent_pred_values = None
+    # if sum(len(sublist) for sublist in latent_pred_values) > 0:
+    #     # cat nested lists into a single tensor
+    #     latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
+    # else:
+    #     latent_pred_values = None
         
 
-    return LanternGenerateOutput(
-        input_ids=input_ids,
-        latent_pred_values=latent_pred_values,
-    )
+    # return LanternGenerateOutput(
+    #     input_ids=input_ids,
+    #     latent_pred_values=latent_pred_values,
+    # )
+
+    return input_ids

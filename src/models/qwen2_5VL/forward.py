@@ -170,7 +170,6 @@ def qwen2_5_mixed_modality_forward_lantern(
             delta = delta.repeat_interleave(batch_size // delta.shape[0], dim=1)
             position_ids = position_ids + delta.to(position_ids.device)
 
-   
     outputs = self.language_model(
         input_ids=None,
         position_ids=position_ids,
