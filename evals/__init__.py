@@ -32,7 +32,7 @@ def run_batch_inference(
     # this will be removed in the future (just for stress testing purposes)
     output = model.generate(
         **inputs,
-        max_new_tokens=124,
+        max_new_tokens=526,
         do_sample=False,
         custom_generate=partial(
             lantern_generate,

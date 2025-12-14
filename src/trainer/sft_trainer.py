@@ -6,11 +6,7 @@ import wandb
 from functools import partial
 from transformers import Trainer, AutoProcessor
 from transformers import TrainerCallback
-from transformers.modeling_utils import no_init_weights
 from torch.utils.data import DataLoader, Dataset
-#from accelerate.utils import no_init_weights
-from src.judge import LLMJudge
-from src.test import viscot_test
 from src.utils import is_rank0, get_rank
 import logging
 
@@ -70,6 +66,8 @@ class ProgressBarLossLogger(TrainerCallback):
 
     def on_train_begin(self, args, state, control, **kwargs):
         # deat with cases where steps > 0, resume training from a checkpoint
+        if not is_rank0():
+            return
         self.pbar = tqdm(total=state.max_steps, position=state.global_step, desc="Training", leave=True)
 
     def on_step_end(self, args, state, control, **kwargs):

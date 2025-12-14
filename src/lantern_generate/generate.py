@@ -6,22 +6,11 @@ from typing import Optional
 import logging
 
 logger = logging.getLogger("LantErn-Generate")
-import logging
-
-logger = logging.getLogger("LantErn-Generate")
 
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
 tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
 tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
 tokenizer.add_tokens("<|lvr_end|>", special_tokens=True)
-
-
-@dataclass
-class LanternGenerateOutput:
-    input_ids: torch.LongTensor
-    latent_pred_values: torch.FloatTensor
-
-
 
 def generate(
     model,
@@ -57,11 +46,6 @@ def generate(
     if not use_cache:
         logger.warning("\033[93mNot using cache. This may slow down generation a LOT!!!.\033[0m")
 
-    # check if use_cache is True
-    use_cache = kwargs.get("use_cache", False)
-    if not use_cache:
-        logger.warning("\033[93mNot using cache. This may slow down generation a LOT!!!.\033[0m")
-
     # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
     if return_dict_in_generate and model.config.is_encoder_decoder:
         encoder_attentions = kwargs["encoder_outputs"].get("attentions") if output_attentions else None
@@ -84,7 +68,6 @@ def generate(
             # only raise warning if the user passed an explicit compile-config
             if generation_config.compile_config is not None and generation_config.compile_config.fullgraph:
                 print.warning_once(
-                print.warning_once(
                     "When using Flash Attention 2 and a static cache, you cannot use the option `CompileConfig(fullgraph=True)` as "
                     "FA2 introduces graph breaks. We overrode the option with `fullgraph=False`."
                 )
@@ -104,12 +87,7 @@ def generate(
     latent_start = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_end = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
-    in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_start = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_end = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
-    latent_pred_values = [[] for _ in range(batch_size)]
     latent_pred_values = [[] for _ in range(batch_size)]
 
 
@@ -124,11 +102,9 @@ def generate(
 
         if is_prefill:
             # initial forward pass of the model (before the generation)
-            # initial forward pass of the model (before the generation)
             outputs = model(**model_inputs, return_dict=True)
             is_prefill = False
         else:
-            # generation-specific forward function
             # generation-specific forward function
             outputs = model_forward(**model_inputs, return_dict=True)
 
@@ -212,63 +188,7 @@ def generate(
             if gt_latent_embeds is not None: # for debugging purposes (we can use the gt during the generation)
                 latent_positions = latent_num[need_pad_mask] - 1
                 next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(0)
-        
-        # ---------------------------------------------------------
-        # 1) Determine if the model entered latent mode
-        # ---------------------------------------------------------
-        latent_start_mask = ~in_latent_mode & (next_tokens == latent_start_idx)
-        in_latent_mode[latent_start_mask] = True
-
-        # ---------------------------------------------------------
-        # 2) For samples already in_latent_mode:
-        #    - Determine whether they still need pad tokens or should end
-        # ---------------------------------------------------------
-        need_pad_mask = in_latent_mode & (latent_num < MAX_LATENT_LEN) & ~latent_start_mask
-        latent_num[need_pad_mask] += 1
-        latent_end_mask = in_latent_mode & (latent_num >= MAX_LATENT_LEN)
-
-        # ---------------------------------------------------------
-        # 3) Build the next_tokens
-        #    priority: latent_pad -> latent_end -> next_tokens
-        #    latent_start is handled in the previous step
-        # ---------------------------------------------------------
-        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
-        next_tokens = torch.where(latent_end_mask,  torch.full_like(next_tokens, latent_end_idx), next_tokens)
-
-        # ---------------------------------------------------------
-        # 4) Determine embedding for next token
-        #    We'll construct next_token_embed of shape (batch_size, 1, embed_dim)
-        # ---------------------------------------------------------
-        next_token_embed = model.get_input_embeddings()(next_tokens[:, None])
-        # latent tokens get continuous representations
-        if need_pad_mask.any():
-            batch_indices = torch.nonzero(need_pad_mask, as_tuple=False).squeeze(1)
-            if gt_latent_embeds is not None: # for debugging purposes (we can use the gt during the generation)
-                latent_positions = latent_num[need_pad_mask] - 1
-                next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(0)
             else:
-                next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(0)
-            next_token_embed[batch_indices, 0, :] = next_latent_embed
-        
-            # store predicted latent embeddings per-sample for bookkeeping purposes (can be removed in the future)
-            for idx, latent_embed in enumerate(next_latent_embed[0]):
-                latent_pred_values[batch_indices[idx]].append(latent_embed)
-
-        # ---------------------------------------------------------    
-        # 5) Update latent counters AFTER using the embedding
-        #    For the samples that have terminated latent mode, set latent_num to 0
-        # ---------------------------------------------------------
-        # latent_num = latent_num + need_pad_mask.long()
-        if latent_end_mask.any():
-            latent_num[latent_end_mask] = 0
-            in_latent_mode[latent_end_mask] = False
-
-        
-        # ---------------------------------------------------------    
-        # 6) Replace the input embeddings with the new embeddings
-        # ---------------------------------------------------------
-        input_embeds = next_token_embed if use_cache else torch.cat((input_embeds, next_token_embed), dim=1)
-        
                 next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(0)
             next_token_embed[batch_indices, 0, :] = next_latent_embed
         
@@ -309,16 +229,11 @@ def generate(
 
     # TODO: THIS CODE WILL BE REMOVED IN FUTURE VERSIONS
     # we dont need to store the latent pred values (used for debugging purposes to compare with the ground truth)
-    # if sum(len(sublist) for sublist in latent_pred_values) > 0:
-    #     # cat nested lists into a single tensor
-    #     latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
-    # else:
-    #     latent_pred_values = None
+    if sum(len(sublist) for sublist in latent_pred_values) > 0:
+        # cat nested lists into a single tensor
+        latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
+    else:
+        latent_pred_values = None
         
-
-    # return LanternGenerateOutput(
-    #     input_ids=input_ids,
-    #     latent_pred_values=latent_pred_values,
-    # )
 
     return input_ids

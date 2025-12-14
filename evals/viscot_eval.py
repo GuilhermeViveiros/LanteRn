@@ -47,7 +47,7 @@ def viscot_test(
     use_gt: bool = False,
     use_lvr: bool = True
 ):
-    judge = LLMJudge(model_id=judge_name)
+    judge = LLMJudge(model_id=judge_name, device="cuda")
     logger.info(f"Using judge: {judge_name}")
     model.eval()
     correct = 0 # number of correct answers
@@ -75,12 +75,16 @@ def viscot_test(
         
         # trim the generated ids to the length of the input ids
         generated_ids_trimmed = [
-            out_ids[len(in_ids) :] for in_ids, out_ids in zip(input_ids, generated_ids)
+            out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
         # decode the generated ids
         batch_decoded_output = processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
+
+        print(f"Batch decoded output: {batch_decoded_output}")
+        
+
         # extract the answer from the decoded output
         batch_parsed_output = [
             x.split('<answer>')[-1].split('</answer>')[0].strip()
@@ -130,7 +134,7 @@ if __name__ == "__main__":
         type=str,
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-700/",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.0/checkpoint-600/",
         help="Path to the model checkpoint"
     )
@@ -182,9 +186,9 @@ if __name__ == "__main__":
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
 
-    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True) 
+    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set

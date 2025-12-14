@@ -57,12 +57,10 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     print(f"model.config.vocab_size: {model.config.vocab_size}")
 
     # check if we should resume training from a checkpoint
-    if os.path.exists(training_params.output_dir):
-        # get the last checkpoint
-        resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+    resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+    if resume_from_checkpoint is not None:
         logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
-    else:
-        resume_from_checkpoint = None
+    
 
     # add special tokens for LantErn
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)

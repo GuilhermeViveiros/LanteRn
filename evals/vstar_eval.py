@@ -36,7 +36,10 @@ def extract_answer(response: str) -> str:
     given_answer = response.split('<answer>')[-1]
     given_answer = given_answer.split('</answer')[0].strip()
     if len(given_answer) > 1:
-        given_answer = re.findall(r"(?:Answer:\s*([A-Z])\b|\(([A-Z])\))", given_answer)[0][-1]
+        given_answer = re.findall(r"(?:Answer:\s*([A-Z])\b|\(([A-Z])\))", given_answer)
+    
+    if len(given_answer) > 1:
+        given_answer = given_answer[0][-1]
     
     return given_answer
 
@@ -57,7 +60,7 @@ def collate_fn(batch, processor: AutoProcessor):
                 "role": "user",
                 "content": [
                     {"type": "image", "image": dat['image']},
-                    {"type": "text", "text": text}
+                    {"type": "text", "text": "text"}
                 ]
             }
         ])
