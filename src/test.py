@@ -84,14 +84,15 @@ def viscot_test(
                 max_new_tokens=124,
                 do_sample=False,    
                 tokenizer=processor.tokenizer,
-                custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds if use_gt else None),
+                #custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds if use_gt else None),
                 use_cache=True,
             )
             time_end = time.time()
             print(f"Time taken for generation: {time_end - time_start} seconds with batch size {len(inputs.input_ids)}")
             
-            generated_ids = output.input_ids
-            pred_latent_embeds = output.latent_pred_values            
+            #generated_ids = output.input_ids
+            #pred_latent_embeds = output.latent_pred_values            
+            generated_ids = output
 
             generated_ids_trimmed = [
                 out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
