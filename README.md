@@ -1,7 +1,7 @@
 # LantErn: Latent Visual Structured Reasoning
 
 <p align="center">
-  <img src="imgs/Screenshot%202025-12-01%20at%2020.12.59.png" alt="LantErn Architecture" width="600"/>
+  <img src="imgs/lantern.png" alt="LantErn Architecture" width="600"/>
 </p>
 
 
