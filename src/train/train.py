@@ -1,6 +1,7 @@
 import os
 import logging
 import torch
+from torch.utils.data import DataLoader
 from transformers import HfArgumentParser
 from termcolor import colored
 from src.params import (TrainingParams, ModelParams, DataParams)
@@ -57,10 +58,13 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     print(f"model.config.vocab_size: {model.config.vocab_size}")
 
     # check if we should resume training from a checkpoint
-    resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+    resume_from_checkpoint = None
+    if training_params.use_ckpt:
+        resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
     if resume_from_checkpoint is not None:
         logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
-    
+    else:
+        logger.info(colored(f"Starting training from scratch", "cyan"))
 
     # add special tokens for LantErn
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
@@ -100,31 +104,44 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         training_params.test_steps = 0
     
     # Load data
-    data_module = make_sft_data_module(
-        processor=processor,
-        data_path=data_params.data_path,
-        latent_size=model_params.latent_size,
-        dummy=data_params.dummy,
-        split_percentages=data_params.split_percentages
-    )
+    if training_params.packed_data:
+        data_module = make_sft_data_packed_module(
+            processor=processor,
+            data_path=data_params.data_path,
+            latent_size=model_params.latent_size,
+            dummy=data_params.dummy,
+            split_percentages=data_params.split_percentages
+        )
+    else:
+        data_module = make_sft_data_module(
+            processor=processor,
+            data_path=data_params.data_path,
+            latent_size=model_params.latent_size,
+            dummy=data_params.dummy,
+            split_percentages=data_params.split_percentages,
+            per_device_eval_batch_size=training_params.per_device_eval_batch_size
+        )
 
     
     callbacks = [ProgressBarLossLogger()]
-    if training_params.test_steps > 0:
-        callbacks.append(VisCoTestLogger(
-            dataset=data_module.pop("test_dataset"), 
-            collate_fn=collate_fn_generate,
-            processor=processor, # necessary for the test script
-            test_steps=training_params.test_steps,
-            report_to="wandb"
-        ))
+    # if training_params.test_steps > 0:
+    #     callbacks.append(VisCoTestLogger(
+    #         dataset=data_module.pop("test_dataset"), 
+    #         collate_fn=collate_fn_generate,
+    #         processor=processor, # necessary for the test script
+    #         test_steps=training_params.test_steps,
+    #         report_to="wandb"
+    #     ))
 
+    
     # Train
     trainer = LantErnSFTrainer(
         model=model,
         args=training_params,
         gamma=training_params.gamma,
         callbacks=callbacks,
+        #tokenizer=processor.tokenizer,
+        processing_class=processor,
         **data_module
     )
 

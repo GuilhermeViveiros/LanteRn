@@ -3,6 +3,7 @@ from PIL import Image
 from typing import List, Tuple
 import torch
 import torch.distributed as dist
+import re
 
 def is_rank0() -> bool:
     """Return True if current process is rank 0, or if not in distributed mode."""
@@ -15,6 +16,18 @@ def get_rank():
         return dist.get_rank()
     else:
         return 0 
+
+def is_dist_avail_and_initialized():
+    if not dist.is_available():
+        return False
+    if not dist.is_initialized():
+        return False
+    return True
+
+def get_world_size():
+    if not is_dist_avail_and_initialized():
+        return 1
+    return dist.get_world_size()
 
 def center_and_crop_image(
     img: Image.Image,
@@ -66,3 +79,15 @@ def center_and_crop_image(
     return cropped
 
 
+def extract_mc_answer(response: str) -> str:
+    given_answer = response.split('<answer>')[-1]
+    given_answer = given_answer.split('</answer')[0].strip()
+    
+    if given_answer:
+        match = re.search(r"(?:Answer:\s*)?(?:\(|\b)([A-Z])(?:\)|\b)", given_answer)
+        if match:
+            given_answer = match.group(1)
+        else:
+            given_answer = None
+    
+    return given_answer

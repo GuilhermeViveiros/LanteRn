@@ -86,7 +86,7 @@ def generate(
     in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
-    latent_pred_values = [[] for _ in range(batch_size)]
+    #latent_pred_values = [[] for _ in range(batch_size)]
 
 
     latent_start_idx = model.config.lvr_start_id
@@ -154,11 +154,11 @@ def generate(
         # check if its the first generated token
         # HACK TO FORCE THE FIRST TOKEN TO BE THE <think> TOKEN 
         # Helps lantern generation to diverge from the distribution shift
-        if first_token:
-            # first token is the <think> token
-            next_tokens = torch.full_like(next_tokens, tokenizer.encode("<think>")[0])
-            print(f"First token: {next_tokens}, decoded: {tokenizer.batch_decode(next_tokens, skip_special_tokens=False)}")
-            first_token = False
+        # if first_token:
+        #     # first token is the <think> token
+        #     next_tokens = torch.full_like(next_tokens, tokenizer.encode("<think>")[0])
+        #     print(f"First token: {next_tokens}, decoded: {tokenizer.batch_decode(next_tokens, skip_special_tokens=False)}")
+        #     first_token = False
 
         # finished sentences should have their next token be a padding token
         if has_eos_stopping_criteria:
@@ -202,9 +202,9 @@ def generate(
             next_token_embed[batch_indices, 0, :] = next_latent_embed
         
             # store predicted latent embeddings per-sample for bookkeeping purposes (can be removed in the future)
-            for idx, latent_embed in enumerate(next_latent_embed[0]):
-                latent_pred_values[batch_indices[idx]].append(latent_embed)
-
+            # for idx, latent_embed in enumerate(next_latent_embed[0]):
+            #     latent_pred_values[batch_indices[idx]].append(latent_embed)
+        #import ipdb; ipdb.set_trace()
         # ---------------------------------------------------------    
         # 5) Update latent counters AFTER using the embedding
         #    For the samples that have terminated latent mode, set latent_num to 0

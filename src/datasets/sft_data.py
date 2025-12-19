@@ -6,7 +6,7 @@ from functools import partial
 import torch
 import json
 from PIL import Image
-from torch.utils.data import Dataset, random_split
+from torch.utils.data import Dataset, random_split, DataLoader
 from typing import List
 from src.utils import center_and_crop_image
 from transformers import AutoProcessor
@@ -22,11 +22,11 @@ class SFTDataset(Dataset):
         data_path: str,
         processor: AutoProcessor,
         dummy: bool = False,
-        latent_size: int = 4,
+        use_lvr: bool = True,
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
-        self.latent_size = latent_size
+        self.use_lvr = use_lvr
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
@@ -78,11 +78,27 @@ class SFTDataset(Dataset):
         # Extract the image and process bboxes
         img = Image.open(data["img_path"])
     
+        # here maybe add the bbox coordinates or the image if the variable prefix is not None
+        # cropped_imgs = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]
+        # version 1 uses only bboxs
+        #question += "".join(f"\nYou can answer the question by looking at the region {data['bboxs'][0]} in the image.")
+    
+        # version 2 uses the bboxs and the image
+        #cropped_img = center_and_crop_image(img, data["bboxs"][0])
+        # user_content = [
+        #     {"type": "text", "text": question},
+        #     {"type": "image", "image": cropped_img},
+        #     #{"type": "text", "text": "You can answer the question by looking at the following image region:"},
+        #     #{"type": "image", "image": cropped_img},
+        # ]
+
         # Build user content
         user_content = [
             {"type": "text", "text": question},
             {"type": "image", "image": img},
         ]
+
+ 
 
         # Build assistant content
         assistant_content = []
@@ -268,6 +284,7 @@ def make_sft_data_module(
     generate: bool = False,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
     seed: int = 42,
+    per_device_eval_batch_size: int = 1,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
@@ -293,7 +310,7 @@ def make_sft_data_module(
 
     logger.info(f"Total size: {len(sft_dataset)}, train: {train_size}, eval: {eval_size}, test: {test_size}")
 
-    train_dataset, eval_dataset, test_dataset = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
+    train_dataset, eval_dataset, _ = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
 
     # set the collate function
     collate_fn = collate_fn_sft if not generate else collate_fn_generate
@@ -306,9 +323,14 @@ def make_sft_data_module(
         out["eval_dataset"] = eval_dataset
     if test_size > 0:
         out["test_dataset"] = test_dataset
-    # return the out dictionary
+    
+    # HARDOCDED FOR NOW: we'll repace the testdataset with a custom version with MC questions
+    #from evals.eval import MCDataset, collate_fn_mc
+    #mc_dataset = MCDataset(["viscot", "vstar", "blink"])
+    #dataloader = DataLoader(data, batch_size=per_device_eval_batch_size, shuffle=True, collate_fn=partial(collate_fn_mc, processor=processor))
+    #logger.info(f"Number of samples in custom test dataloader: {len(dataloader)}")
+    # out["test_dataset"] = mc_dataset.data
     return out
-
 
 if __name__ == "__main__":
     from tqdm import tqdm
@@ -335,7 +357,7 @@ if __name__ == "__main__":
 
     # test with the dataloader
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(data_module["train_dataset"], batch_size=1, collate_fn=data_module["data_collator"], shuffle=False)
+    dataloader = DataLoader(data_module["train_dataset"], batch_size=per_device_eval_batch_size, collate_fn=data_module["data_collator"], shuffle=False)
     sizes = []
     for batch in tqdm(dataloader):
         sizes.append(batch["input_ids"].shape[1])

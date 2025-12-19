@@ -62,9 +62,9 @@ def collate_fn(batch, processor: AutoProcessor):
         categories.append(dat['category'])
         # HACK: remove the prefix from vstar
         # this prompt can mislead lantern generation
-        question = dat['text'].split("Answer with the option's letter from the given choices directly.")[0].strip()
-        opts = question.split("\n")[1:]
-        opts = [opt.split(" ")[-1].strip() for opt in opts]
+        question = dat['text'].split("Answer with the option's letter from the given choices directly.")[0]
+        opts = dat['text'].split("\n")[-1].strip()
+        opts = [opt.split(" ")[-1] for opt in opts]
         options.append(opts)
         messages.append([
             {
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-1062",
         help="Path to the model checkpoint"
     )
     # Qwen/Qwen2.5-VL-3B-Instruct

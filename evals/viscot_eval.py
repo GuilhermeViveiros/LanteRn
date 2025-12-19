@@ -59,9 +59,15 @@ def viscot_test(
 
     # print latent tokens
     logger.info(f"{'Using ground truth latent embeddings.' if use_gt else 'Using predicted latent embeddings.'}")
-    logger.info(f"latent tokens: {model.config.additional_special_tokens}")
+    #logger.info(f"latent tokens: {model.config.additional_special_tokens}")
 
     for step, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+        # get gt latent values
+        if "latent_values" in inputs:
+            if inputs["latent_grid_thw"].shape[0] != inputs["input_ids"].shape[0]:
+                logger.info(f"Warning: latent grid thw shape {inputs['latent_grid_thw'].shape} does not match input ids shape {inputs['input_ids'].shape}")
+                continue
+
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         # run batch inference
@@ -84,17 +90,19 @@ def viscot_test(
 
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
 
+        # import ipdb; ipdb.set_trace()
         # extract the answer from the decoded output
         batch_parsed_output = [
             x.split('<answer>')[-1].split('</answer>')[0].strip()
             if '<answer>' in x else None
             for x in batch_decoded_output
         ]
+        batch_parsed_output = batch_decoded_output
 
         try:
             results = judge.judge(batch_parsed_output, labels)
             logger.info(f"Answer: {batch_parsed_output} | Label: {labels} | Result: {results}")
-
+            #import ipdb; ipdb.set_trace()
             total += results.sum()
             correct += (results > 0.5).sum()
             
@@ -133,7 +141,7 @@ if __name__ == "__main__":
         type=str,
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995/",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-1062",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.0/checkpoint-600/",
         help="Path to the model checkpoint"
     )
@@ -217,12 +225,16 @@ if __name__ == "__main__":
     collator = data_module["data_collator"]
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collator, shuffle=False)
 
-    # main test function
-    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-3B-Instruct", use_gt=args.use_gt, use_lvr=args.lvr)
-    
     output_folder = f"{args.output_dir}/viscot/"
-    outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
     os.makedirs(output_folder, exist_ok=True)
+    outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_{'gt' if args.use_gt else 'pred'}.json"
+    logger.info(f"Saving results to {outfile_name}")
+    
+
+
+    # main test function
+    # results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen3-30B-A3B-Instruct-2507", use_gt=args.use_gt, use_lvr=args.lvr)
+    results = viscot_test(model, processor, dataloader, judge_name="Qwen/Qwen2.5-VL-3B-Instruct", use_gt=args.use_gt, use_lvr=args.lvr)
     
     # save the results to a json file
     with open(outfile_name, "w") as f:

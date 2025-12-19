@@ -70,9 +70,9 @@ class BlinkDataset(Dataset):
                 buffer = {
                     "question_id": idx,
                     "image": images,
-                    "query": question,
+                    "question": question,
                     "label": ans,
-                    "category": category
+                    "category": category,
                 }
                 processed_data.append(buffer)
         
@@ -80,6 +80,7 @@ class BlinkDataset(Dataset):
 
 # ==== Core utilities ====
 def extract_answer(response: str) -> str:
+    #given_answer.split('\n')[-1].strip()
     given_answer = response.split('<answer>')[-1]
     given_answer = given_answer.split('</answer')[0].strip()
     if " " in given_answer:
@@ -121,7 +122,6 @@ def collate_fn(batch, processor: AutoProcessor):
 
     return inputs, labels, categories
 
-
 def blink_eval(
     model, 
     processor,
@@ -151,7 +151,7 @@ def blink_eval(
         ]
         # decode the generated ids
         batch_decoded_output = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
         
         # extract the answer from the decoded output
