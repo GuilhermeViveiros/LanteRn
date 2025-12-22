@@ -29,7 +29,7 @@ class MCDataset(Dataset):
             if dataset == "viscot":
                 # load the viscot test dataset
                 #with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
-                with open("/mnt/home/gviveiros/LantErn/viscot_mc_test.jsonl", "r") as f:
+                with open("/mnt/scratch-artemis/gviveiros/lantern/oe_to_mc/viscot_mc_test.jsonl", "r") as f:
                     for line in f:
                         sample = json.loads(line)
                         sample["dataset"] = "viscot"
