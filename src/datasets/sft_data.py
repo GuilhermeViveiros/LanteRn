@@ -24,7 +24,6 @@ class SFTDataset(Dataset):
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
-        
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
@@ -43,16 +42,10 @@ class SFTDataset(Dataset):
         # remove cases where the image is too large and bboxs are more than 1
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
         logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
-        #self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
-        #logger.info(f"Number of examples of VisCoT data after removing examples with too large images: {len(self.dataset)}")
-
+        
         # if dummy, we only use the first 1000 examples
         if dummy:
-            #import random
-            #self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
             self.dataset = self.dataset[:1000]
-        
-        #self.dataset = self.dataset[:100]
 
     def __len__(self):
         return len(self.dataset)
@@ -256,18 +249,14 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
         end_pos = te + len(assistant_end_tokens) - 1 # remove the <|im_end|> token (1 token since its a special token)
         labels[i, start_pos:end_pos] = torch.tensor(ids[start_pos:end_pos], dtype=torch.long)
         #print(f"labels[i, start_pos:end_pos]: {processor.tokenizer.decode(labels[i, start_pos:end_pos], skip_special_tokens=False)}")
-    
-    
-    
+
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == processor.lvr_sep_id] = -100
     #print(f"labels != -100: {processor.tokenizer.decode(labels[labels != -100], skip_special_tokens=False)}")
     inputs["labels"] = labels
     inputs["latent_mask_out"] = mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
-
     # decode labels != -100
     decoded_labels = processor.tokenizer.decode(labels[labels != -100], skip_special_tokens=True)
-    
     # we are only interested in the latent images, so we return the latent inputs
     inputs["latent_values"] = latent_inputs["pixel_values"]
     inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
