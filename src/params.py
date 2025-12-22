@@ -5,20 +5,18 @@ from transformers import TrainingArguments as HFTrainingArguments
 @dataclass
 class ModelParams:
     model_id: str = field(default="Qwen/Qwen2.5-VL-3B-Instruct")
-    latent_size: int = field(default=4)
+    latent_size: int = field(default=-1) # -1 for dynamic latent size (same as visual tokens)
     use_cache: bool = field(default=True)
     attn_implementation: str = field(default="flash_attention_2")
     
 @dataclass
 class TrainingParams(HFTrainingArguments):
-    #run_name: str = field(default="LantErn-SFT-Qwen2.5VL-3B")
     output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
     save_steps: int = field(default=200)
     learning_rate: float = field(default=1e-5)
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
-    # warmup_steps: int = field(default=500)
     gamma: float = field(default=0.1) # weight for the latpent similarity loss
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)

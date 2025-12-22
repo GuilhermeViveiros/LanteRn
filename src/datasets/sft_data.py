@@ -11,7 +11,6 @@ from typing import List
 from src.utils import center_and_crop_image
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
-
 # import logger 
 import logging
 logger = logging.getLogger("LantErn-Dataset")
@@ -21,12 +20,10 @@ class SFTDataset(Dataset):
         self,
         data_path: str,
         processor: AutoProcessor,
-        dummy: bool = False,
-        latent_size: int = 4,
+        dummy: bool = False
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
-        self.latent_size = latent_size
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
@@ -45,16 +42,10 @@ class SFTDataset(Dataset):
         # remove cases where the image is too large and bboxs are more than 1
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
         logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
-        #self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if filter_too_large_images(data, idx)]
-        #logger.info(f"Number of examples of VisCoT data after removing examples with too large images: {len(self.dataset)}")
-
+        
         # if dummy, we only use the first 1000 examples
         if dummy:
-            #import random
-            #self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
             self.dataset = self.dataset[:1000]
-        
-        #self.dataset = self.dataset[:100]
 
     def __len__(self):
         return len(self.dataset)
@@ -103,11 +94,9 @@ class SFTDataset(Dataset):
                 assistant_content += pre_visual_latent_reasoning
             for img_bbox, post_visual_latent_reasoning in zip(img_bboxs, post_visual_latent_reasoning, strict=True):
                 latent_visuals.append(img_bbox)
-                # TODO: change different choices of latent tokens in the future
-                # lets inject the custom tokens - at this always inject 4 latent tokens
-                assistant_content += "<|lvr_start|>"+'<|lvr_sep|>'*self.latent_size + "<|lvr_end|>"
+                assistant_content += "<|lvr_start|><|lvr_sep|><|lvr_end|>" # lvr_sep will be replaced by the latent tokens in the forward pass (similar to visual_pad tokens)
                 assistant_content += post_visual_latent_reasoning
-            
+        
         # Add the final answer
         assistant_content += "</think>" + "<answer>" + answer + "</answer>"
         
@@ -175,7 +164,6 @@ def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
         # we are only interested in the latent images, so we return the latent inputs
         inputs["latent_values"] = latent_inputs["pixel_values"]
         inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
-        #inputs["labels"] = labels
 
     return (inputs, labels)
 
@@ -183,11 +171,40 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     text = processor.apply_chat_template(samples, tokenize=False)
-
     image_inputs, video_inputs = process_vision_info(samples)
     
-    #print([len(t) for t in text])
-    #print(image_inputs)
+    nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
+    # replace the <|lvr_sep|> token with the number of latent tokens
+    if nb_latent_visuals > 0:
+        # process the latent images
+        latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
+        latent_image_inputs, _ = process_vision_info(latent_visuals)
+        latent_inputs = processor(
+            text=latent_text,
+            images=latent_image_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        latent_visuals = latent_inputs["pixel_values"]
+        latent_grid_thw = latent_inputs["image_grid_thw"]
+        merge_length = processor.image_processor.merge_size ** 2
+
+        # Precompute num_latent_tokens efficiently using numpy where possible
+        if processor.latent_size == -1:
+            grid_prods = [int(g.prod()) if hasattr(g, "prod") else int(np.prod(g)) for g in latent_grid_thw]
+            num_latent_tokens = [g // merge_length for g in grid_prods]
+        else:
+            num_latent_tokens = [processor.latent_size] * len(latent_grid_thw)
+        
+        # Replace <|lvr_sep|> efficiently
+        lvr_sep = "<|lvr_sep|>"
+        for idx, latent_tokens in enumerate(num_latent_tokens):
+            if latent_tokens == 1:
+                # Simple case: just single replace
+                text[idx] = text[idx].replace(lvr_sep, lvr_sep, 1)
+            elif latent_tokens > 1:
+                # Replace with the desired number of tokens; join for fewer allocations
+                text[idx] = text[idx].replace(lvr_sep, lvr_sep * latent_tokens, 1)
 
     inputs = processor(
         text=text,
@@ -232,38 +249,23 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
         end_pos = te + len(assistant_end_tokens) - 1 # remove the <|im_end|> token (1 token since its a special token)
         labels[i, start_pos:end_pos] = torch.tensor(ids[start_pos:end_pos], dtype=torch.long)
         #print(f"labels[i, start_pos:end_pos]: {processor.tokenizer.decode(labels[i, start_pos:end_pos], skip_special_tokens=False)}")
-    
-    labels[labels == processor.tokenizer.pad_token_id] = -100
-    lvr_sep_id = processor.tokenizer.encode("<|lvr_sep|>")[0]
-    labels[labels == lvr_sep_id] = -100
-    inputs["labels"] = labels
-    inputs["latent_mask_out"] = mask_image_output_tokens(inputs["input_ids"], lvr_sep_id)
-    
 
-    # print("inputs: ", processor.tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True))
-    
-    nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
-    if nb_latent_visuals > 0:
-        # process the latent images
-        latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
-        latent_image_inputs, latent_video_inputs = process_vision_info(latent_visuals)
-        latent_inputs = processor(
-            text=latent_text,
-            images=latent_image_inputs,
-            videos=latent_video_inputs,
-            padding=True,
-            return_tensors="pt",
-        )
-        # we are only interested in the latent images, so we return the latent inputs
-        inputs["latent_values"] = latent_inputs["pixel_values"]
-        inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
+    labels[labels == processor.tokenizer.pad_token_id] = -100
+    labels[labels == processor.lvr_sep_id] = -100
+    #print(f"labels != -100: {processor.tokenizer.decode(labels[labels != -100], skip_special_tokens=False)}")
+    inputs["labels"] = labels
+    inputs["latent_mask_out"] = mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
+    # decode labels != -100
+    decoded_labels = processor.tokenizer.decode(labels[labels != -100], skip_special_tokens=True)
+    # we are only interested in the latent images, so we return the latent inputs
+    inputs["latent_values"] = latent_inputs["pixel_values"]
+    inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
 
     return inputs
     
 def make_sft_data_module(
     processor,
     data_path: str,
-    latent_size: int,
     dummy: bool = False,
     generate: bool = False,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
@@ -272,7 +274,7 @@ def make_sft_data_module(
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy, latent_size=latent_size
+        data_path=data_path, processor=processor, dummy=dummy
     )
 
     # split the dataset into train, eval and test
