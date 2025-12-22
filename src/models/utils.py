@@ -75,6 +75,8 @@ def get_last_checkpoint(output_dir: str):
     """
     Get the last checkpoint from the output directory
     """
+    if not os.path.exists(output_dir):
+        return None
     checkpoints = [f for f in os.listdir(output_dir) if f.startswith("checkpoint")]
     if len(checkpoints) == 0:
         return None

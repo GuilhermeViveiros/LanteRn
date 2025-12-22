@@ -112,13 +112,17 @@ def qwen2_5_mixed_modality_forward_lantern(
     if latent_values is not None:
         # compute the ground truth latent embeddings
         with torch.no_grad():
-            latent_embeds = apply_latent_compression(
-                self,
-                input_ids=input_ids,
-                latent_values=latent_values,
-                latent_grid_thw=latent_grid_thw,
-                latent_size=self.config.latent_size,
-            ).to(inputs_embeds.device, inputs_embeds.dtype)
+            if self.config.latent_size != -1:
+                # if latent_size is -1, compress the latent values to the latent size
+                latent_embeds = apply_latent_compression(
+                    self,
+                    input_ids=input_ids,
+                    latent_values=latent_values,
+                    latent_grid_thw=latent_grid_thw,
+                    latent_size=self.config.latent_size,
+                ).to(inputs_embeds.device, inputs_embeds.dtype)
+            else:
+                latent_embeds = latent_values.to(inputs_embeds.device, inputs_embeds.dtype)
        
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
