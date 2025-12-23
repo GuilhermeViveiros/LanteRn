@@ -1,9 +1,10 @@
 import time
 from PIL import Image
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import torch
 import torch.distributed as dist
 import re
+from fuzzywuzzy import fuzz
 
 def is_rank0() -> bool:
     """Return True if current process is rank 0, or if not in distributed mode."""
@@ -79,15 +80,42 @@ def center_and_crop_image(
     return cropped
 
 
-def extract_mc_answer(response: str) -> str:
+def extract_mc_answer(response: str, options: Optional[List[str]] = None) -> str:
+    """
+    Extract the answer from the response. Options is used as an optional parameter to help the model extract the answer.
+    When options are provided, and the extracted answer is None, example:
+    <answer>
+    man
+    </answer>
+    <options>
+    A) man
+    B) woman
+    </options>
+    We can use the options to extract the answer.
+    Args:
+        response: The response from the model.
+        options: The options from the question.
+    Returns:
+        The answer. 
+    """
     given_answer = response.split('<answer>')[-1]
     given_answer = given_answer.split('</answer')[0].strip()
     
     if given_answer:
         match = re.search(r"(?:Answer:\s*)?(?:\(|\b)([A-Z])(?:\)|\b)", given_answer)
         if match:
-            given_answer = match.group(1)
+            matched_given_answer = match.group(1)
         else:
-            given_answer = None
+            matched_given_answer = None
     
-    return given_answer
+    if options and matched_given_answer is None:
+        res = [fuzz.ratio(given_answer.lower(), option.lower()) for option in options]
+        # get maximum score and if its > 90, return the corresponding option
+        if max(res) > 90:
+            matched_given_answer = chr(ord('A') + res.index(max(res)))
+        else:
+            matched_given_answer = None
+        print(f"Given answer: {given_answer}", f"Options: {options}", f"Matched given answer: {matched_given_answer}")
+    # if matched_given_answer is None:
+    #     import ipdb; ipdb.set_trace()
+    return matched_given_answer

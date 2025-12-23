@@ -28,16 +28,44 @@ class MCDataset(Dataset):
                 # load the viscot test dataset
                 #with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
                 with open("/mnt/scratch-artemis/gviveiros/lantern/oe_to_mc/viscot_mc_test.jsonl", "r") as f:
+                    invalid_options = 0
                     for line in f:
                         sample = json.loads(line)
                         sample["dataset"] = "viscot"
                         sample["category"] = "viscot"
                         sample["label"] = sample.pop("answer")
-                        sample["question"] = sample["question"] + "\nOptions:\n" + "\n".join([f"{option}" for option in sample.pop("options")])
+
+                        # parse options
+                        options = sample["options"]
+                        # examples
+                        #['A. tree branches', 'B. cars', 'C. buildings', 'D. street']
+                        #['A. man B. woman C. child D. dog']
+                        def parse_options(options):
+                            # options should be a nested list of strings
+                            if len(options) != 4: # wrong format, return None
+                                return None
+                            else:
+                                # to remove 
+                                options = [option.replace(option.split(" ")[0]+" ", "") for option in options]
+                                # check if any option is None
+                                if any(option is None for option in options):
+                                    return None
+                                return options
+
+                        options = parse_options(options)
+                        if options is None:
+                            invalid_options += 1
+                            continue
+
+
+                        
+                        sample["question"] = sample["question"] + "\nOptions:\n" + "\n".join([f"{option}" for option in sample["options"]])                        
+                        sample["options"] = options
                         # To support distributed training and avoid too many open files,
                         # store image paths here; open images only in __getitem__.
                         sample["image"] = [sample["img_path"]]  # store path, open later
                         self.data.append(sample)
+                    print(f"Invalid options: {invalid_options}")
                     
             elif dataset == "vstar":
                 # load the vstar test dataset
@@ -101,7 +129,7 @@ class MCDataset(Dataset):
         # get cropped img bboxs
         # if not using lvr, modify the prompt for every other model
         #if not self.use_lvr:
-        sample["question"] += "\nAnswer with the option's letter from the given choices directly."
+        #sample["question"] += "\nAnswer with the option's letter from the given choices directly."
         if "bbox" in sample:
             cropped_imgs = [center_and_crop_image(Image.open(img), bbox) for img, bbox in zip(sample["image"], sample["bbox"])]
             sample["cropped_images"] = cropped_imgs
@@ -109,11 +137,15 @@ class MCDataset(Dataset):
         return sample
 
 def collate_fn_mc(samples, processor: AutoProcessor):
-    messages, labels = [], []
+    messages, labels, options = [], [], []
     cropped_images = []
     bboxs = []
     for sample in samples:
         labels.append(sample["label"])
+        if "options" in sample:
+            options.append(sample["options"])
+        else:
+            options.append(None)
         bboxs.append(sample["bbox"])
         cropped_images.append(sample["cropped_images"])
         messages.append([
@@ -136,7 +168,7 @@ def collate_fn_mc(samples, processor: AutoProcessor):
         padding=True,
         return_tensors="pt",
     )
-    return inputs, labels, bboxs, cropped_images
+    return inputs, labels, options, bboxs, cropped_images
 
 def get_gt_latent_values(cropped_images, processor):
     # run batch inference
@@ -179,10 +211,19 @@ if __name__ == "__main__":
         default=True,
         help="Whether to use lantern generate or the default generation"
     )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=6,
+        help="Batch size"
+    )
     args = parser.parse_args()
     print("-"*100)
     print(args)
     print("-"*100)
+
+    outfile_name = ''.join(args.model_ref.split('/')[-2:]) + '.json'
+    print(f"Output file name: {outfile_name}")
     #datasets = ["viscot", "vstar", "blink"]
     datasets = ["viscot"]
     dataset = MCDataset(datasets=datasets, use_lvr=args.lvr)
@@ -202,12 +243,13 @@ if __name__ == "__main__":
     
     #print(f"model.config.latent_size: {model.config.latent_size}")    
 
-    dataloader = DataLoader(dataset, batch_size=6, shuffle=True, collate_fn=partial(collate_fn_mc, processor=processor))
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor))
     bboxs_list = []
     correct_predictions = 0
+    latent_ratio = 0
     total_samples = 0
     pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc="Evaluating")
-    for step, (batch, labels, bboxs, cropped_images) in pbar:
+    for step, (batch, labels, options, bboxs, cropped_images) in pbar:
         bboxs_list.extend(bboxs)
         if args.lvr:
             gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
@@ -216,7 +258,9 @@ if __name__ == "__main__":
             batch.to(model.device)
         # run inference with the gt latent value
         generated_ids = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr)
-        
+        # calculate the latent ratio
+        latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
+
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(batch.input_ids, generated_ids)
         ]
@@ -224,17 +268,21 @@ if __name__ == "__main__":
         decoded_output = processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
+        print("-"*100)
+        print("Options: ", options)
         print("Decoded Output: ", decoded_output)
+        print("-"*100)
         # extract the answer from the decoded output
-        answers = [extract_mc_answer(x) for x in decoded_output]
+        answers = [extract_mc_answer(x, options) for x, options in zip(decoded_output, options)]
         correct_predictions += np.sum(np.array(answers) == np.array(labels))
 
         print("Answers: ", answers, "Labels: ", labels, "Correct Predictions: ", correct_predictions)
         total_samples += len(labels)
         current_accuracy = correct_predictions / total_samples
-        pbar.set_description(f"Evaluating | Accuracy: {current_accuracy:.4f}")
+        current_latent_ratio = latent_ratio / total_samples
+        pbar.set_description(f"Evaluating | Accuracy: {current_accuracy:.4f}, Latent Ratio: {current_latent_ratio:.4f}")
 
 # append the results to a csv file with model name and accuracy
-with open("mc_results.csv", "a") as f:
+with open(outfile_name, "w") as f:
     writer = csv.writer(f, delimiter="\t")
-    writer.writerow([args.model_ref, current_accuracy])
+    writer.writerow([args.model_ref, current_accuracy, current_latent_ratio])
