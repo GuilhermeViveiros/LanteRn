@@ -84,8 +84,6 @@ def generate(
 
     # -> Latent mode init
     in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_start = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
-    latent_end = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
     latent_pred_values = [[] for _ in range(batch_size)]

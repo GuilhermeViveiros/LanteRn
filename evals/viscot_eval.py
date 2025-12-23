@@ -62,6 +62,13 @@ def viscot_test(
     logger.info(f"latent tokens: {model.config.additional_special_tokens}")
 
     for step, (inputs, labels) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+        # get gt latent values
+        if "latent_values" in inputs:
+            if inputs["latent_grid_thw"].shape[0] != inputs["input_ids"].shape[0]:
+                logger.info(f"Warning: latent grid thw shape {inputs['latent_grid_thw'].shape} does not match input ids shape {inputs['input_ids'].shape}")
+                continue
+
+
         # move pixel values to the correct device
         inputs = inputs.to(model.device)
         # run batch inference
@@ -77,6 +84,9 @@ def viscot_test(
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
+
+        latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
+
         # decode the generated ids
         batch_decoded_output = processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False

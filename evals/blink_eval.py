@@ -151,7 +151,7 @@ def blink_eval(
         ]
         # decode the generated ids
         batch_decoded_output = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
         
         # extract the answer from the decoded output
@@ -230,10 +230,9 @@ if __name__ == "__main__":
 
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
-
-    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True) 
+    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
