@@ -86,7 +86,7 @@ def generate(
     in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
-    latent_pred_values = [[] for _ in range(batch_size)]
+    #latent_pred_values = [[] for _ in range(batch_size)]
 
 
     latent_start_idx = model.config.lvr_start_id
@@ -191,8 +191,8 @@ def generate(
             next_token_embed[batch_indices, 0, :] = next_latent_embed
         
             # store predicted latent embeddings per-sample for bookkeeping purposes (can be removed in the future)
-            for idx, latent_embed in enumerate(next_latent_embed[0]):
-                latent_pred_values[batch_indices[idx]].append(latent_embed)
+            # for idx, latent_embed in enumerate(next_latent_embed[0]):
+            #     latent_pred_values[batch_indices[idx]].append(latent_embed)
 
         # ---------------------------------------------------------    
         # 5) Update latent counters AFTER using the embedding
@@ -227,11 +227,11 @@ def generate(
 
     # TODO: THIS CODE WILL BE REMOVED IN FUTURE VERSIONS
     # we dont need to store the latent pred values (used for debugging purposes to compare with the ground truth)
-    if sum(len(sublist) for sublist in latent_pred_values) > 0:
-        # cat nested lists into a single tensor
-        latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
-    else:
-        latent_pred_values = None
+    # if sum(len(sublist) for sublist in latent_pred_values) > 0:
+    #     # cat nested lists into a single tensor
+    #     latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
+    # else:
+    #     latent_pred_values = None
         
 
     return input_ids
