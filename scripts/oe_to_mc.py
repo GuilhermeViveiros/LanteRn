@@ -265,7 +265,7 @@ if __name__ == "__main__":
                 print(f"Error processing sample {step}: {e}")
                 continue
         step += len(questions)
-        #import ipdb; ipdb.set_trace()
+        
         # save progress every 500 samples
         if step % 200 == 0:
             with open("oe_to_mc.jsonl", "a") as f:

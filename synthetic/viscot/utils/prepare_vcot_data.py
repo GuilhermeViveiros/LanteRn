@@ -35,7 +35,7 @@ def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: i
         if max(x1, x2) > img_width or max(y1, y2) > img_height:
             return False
         img_area = img_height * img_width
-        #import pdb; pdb.set_trace()
+        
         if not (bbox_area * context_scale > 0.05 * img_area and bbox_area * context_scale < 0.4 * img_area):
             return False
     return True
