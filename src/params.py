@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
 from transformers import TrainingArguments as HFTrainingArguments
+from trl import GRPOConfig
 
 @dataclass
 class ModelParams:
@@ -41,13 +42,80 @@ class TrainingParams(HFTrainingArguments):
     # per_device_train_batch_size: int = field(default=8)
     # gradient_accumulation_steps: int = field(default=1)
 
+@dataclass
+class GRPOArguments(GRPOConfig):
+    # ------------------------------------------------------------------
+    # Model Configuration
+    # ------------------------------------------------------------------
+    model_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")
+    freeze_vision_tower: bool = field(default=True)
+    freeze_merger: bool = field(default=True)
+    freeze_llm: bool = field(default=False)
 
+    # ------------------------------------------------------------------
+    # Output / run identity
+    # ------------------------------------------------------------------
+    output_dir: str = field(default="/mnt/scratch-hades/gviveiros/LantErn/")
+    report_to: List[str] = field(default_factory=lambda: ["wandb"])
+
+    # ------------------------------------------------------------------
+    # Precision & compute
+    # ------------------------------------------------------------------
+    bf16: bool = field(default=True)
+
+    # ------------------------------------------------------------------
+    # Optimization
+    # ------------------------------------------------------------------
+    learning_rate: float = field(default=5e-6)
+    warmup_ratio: float = field(default=0.03)
+    beta: float = field(default=0.1)
+
+    # ------------------------------------------------------------------
+    # Batching
+    # ------------------------------------------------------------------
+    per_device_train_batch_size: int = field(default=1)
+    gradient_accumulation_steps: int = field(default=4)
+
+    # ------------------------------------------------------------------
+    # Training schedule
+    # ------------------------------------------------------------------
+    num_train_epochs: int = field(default=1)
+
+    # ------------------------------------------------------------------
+    # Generation / decoding
+    # ------------------------------------------------------------------
+    num_generations: int = field(default=4)
+    max_completion_length: int = field(default=128)
+    temperature: float = field(default=0.6)
+    top_p: float = field(default=0.85)
+
+    # ------------------------------------------------------------------
+    # Low-level generation behavior
+    # ------------------------------------------------------------------
+    gradient_checkpointing: bool = field(default=False)
+    # if True, cache is disabled
+
+    # ------------------------------------------------------------------
+    logging_steps: int = field(default=20)
+    remove_unused_columns: bool = field(default=False)
+    log_completions: bool = field(default=True)
+    num_completions_to_print: Optional[int] = field(default=2)
+
+    # ------------------------------------------------------------------
+    # Rewards
+    # ------------------------------------------------------------------
+    reward_names: List[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])
+    reward_weights: List[float] = field(default_factory=lambda: [1.0, 1.0])
 
 
 @dataclass
-class DataParams:
+class SFTDataParams:
     data_path: str = field(default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json")
     dummy: bool = field(default=False)
-    shuffle_dataset: bool = field(default=True)
     #split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0.0))
     split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.097, 0.003))
+
+@dataclass
+class RLDataParams:
+    data_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json")
+    image_root: str = field(default="/mnt/data-hades/gviveiros/")

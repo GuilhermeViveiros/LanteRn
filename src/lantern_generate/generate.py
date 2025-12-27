@@ -204,6 +204,7 @@ def generate(
             in_latent_mode[latent_end_mask] = False
 
         
+        
         # ---------------------------------------------------------    
         # 6) Replace the input embeddings with the new embeddings
         # ---------------------------------------------------------
