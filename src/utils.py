@@ -79,7 +79,6 @@ def center_and_crop_image(
     #cropped.save("img_bbox_0.jpg")
     return cropped
 
-
 def extract_mc_answer(response: str, options: Optional[List[str]] = None) -> str:
     """
     Extract the answer from the response. Options is used as an optional parameter to help the model extract the answer.

@@ -1,0 +1,48 @@
+#!/bin/bash
+
+
+# model configs
+export WANDB_PROJECT="LantErn-GRPO"
+export OMP_NUM_THREADS=1
+export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
+
+MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
+REPO="/mnt/home/gviveiros/LantErn"
+RANDOM_SEED=42
+
+
+
+RUN_NAME="grpo_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
+CHECKPOINT_PATH="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062"
+LATENT_SIZE=4
+
+python $REPO/src/train/train_grpo.py \
+    --run_name "$RUN_NAME" \
+    --model_path "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062" \
+    --output_dir "/mnt/scratch-artemis/gviveiros/lantern/checkpoints" \
+    \
+    --learning_rate 5e-6 \
+    --warmup_ratio 0.03 \
+    --beta 0.1 \
+    \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 4 \
+    \
+    --num_generations 4 \
+    --max_completion_length 128 \
+    --temperature 0.6 \
+    --top_p 0.85 \
+    --latent_size $LATENT_SIZE \
+    \
+    --logging_steps 100 \
+    \
+    --reward_names format_reward \
+    --reward_weights 1.0 \
+    \
+    --data_path "/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json" \
+    --image_root "/mnt/data-hades/gviveiros/"\
+    --report_to none
+
+#--weight_decay 0.1 \
+#--image_folder $IMAGE_FOLDER \
+#--lazy_preprocess True \
