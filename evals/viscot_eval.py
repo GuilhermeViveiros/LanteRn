@@ -144,7 +144,7 @@ if __name__ == "__main__":
         type=str,
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/model_stage1/checkpoint-5000/",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse/checkpoint-600/",
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995/",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_dyn_lambda_0.1/checkpoint-1800",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.0/checkpoint-600/",
         help="Path to the model checkpoint"
     )

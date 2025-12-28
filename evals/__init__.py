@@ -25,10 +25,10 @@ def run_batch_inference(
             latent_grid_thw=inputs.pop("latent_grid_thw") if "latent_grid_thw" in inputs else None,
             latent_size=model.config.latent_size,
         )
-
+    
     inputs = inputs.to(model.device)
         
-    # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
+    # NOTE: I'll pass the ground truth latent embeddings to the generate function for debugging purposes
     # this will be removed in the future (just for stress testing purposes)
     output = model.generate(
         **inputs,

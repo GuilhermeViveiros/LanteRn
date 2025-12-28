@@ -99,8 +99,7 @@ class MCDataset(Dataset):
                     })
             else:
                 raise ValueError(f"Dataset {dataset} not supported")
-
-       
+   
     def stats(self):
         print(f"Dataset size: {len(self.data)}")
         # get the nuber of samples for each dataset
@@ -203,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_dyn_lambda_0.1/checkpoint-1800"
     )
     parser.add_argument(
         "--lvr",
@@ -211,6 +210,14 @@ if __name__ == "__main__":
         default=True,
         help="Whether to use lantern generate or the default generation"
     )
+
+    parser.add_argument(
+        "--use_gt",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to use ground truth latent embeddings"
+    )
+    
     parser.add_argument(
         "--batch_size",
         type=int,
@@ -241,46 +248,60 @@ if __name__ == "__main__":
         if not hasattr(model.config, "latent_size"):
             raise ValueError("Warning!!!! Latent size is not set")
     
-    #print(f"model.config.latent_size: {model.config.latent_size}")    
+    print(f"model.config.latent_size: {model.config.latent_size}")    
 
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor))
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=args.batch_size, 
+        shuffle=False, 
+        collate_fn=partial(
+            collate_fn_mc, processor=processor
+        )
+    )
     bboxs_list = []
     correct_predictions = 0
     latent_ratio = 0
     total_samples = 0
+    current_accuracy = 0
+    current_latent_ratio = 0
     pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc="Evaluating")
     for step, (batch, labels, options, bboxs, cropped_images) in pbar:
         bboxs_list.extend(bboxs)
-        if args.lvr:
-            gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
-            batch["latent_values"] = gt_latent_values
-            batch["latent_grid_thw"] = gt_latent_grid_thw
-            batch.to(model.device)
-        # run inference with the gt latent value
-        generated_ids = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr)
-        # calculate the latent ratio
-        latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
+        try:
+            if args.lvr:
+                gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
+                batch["latent_values"] = gt_latent_values
+                batch["latent_grid_thw"] = gt_latent_grid_thw
+                batch.to(model.device)
+            # run inference with the gt latent value
+            generated_ids = run_batch_inference(model, batch, use_gt=args.use_gt, use_lvr=args.lvr)
+            # calculate the latent ratio
+            latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
 
-        generated_ids_trimmed = [
-            out_ids[len(in_ids) :] for in_ids, out_ids in zip(batch.input_ids, generated_ids)
-        ]
-        # decode the generated ids
-        decoded_output = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-        )
-        print("-"*100)
-        print("Options: ", options)
-        print("Decoded Output: ", decoded_output)
-        print("-"*100)
-        # extract the answer from the decoded output
-        answers = [extract_mc_answer(x, options) for x, options in zip(decoded_output, options)]
-        correct_predictions += np.sum(np.array(answers) == np.array(labels))
+            generated_ids_trimmed = [
+                out_ids[len(in_ids) :] for in_ids, out_ids in zip(batch.input_ids, generated_ids)
+            ]
+            # decode the generated ids
+            decoded_output = processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
+            print("-"*100)
+            print("Options: ", options)
+            print("Decoded Output: ", decoded_output)
+            print("-"*100)
+            # extract the answer from the decoded output
+            answers = [extract_mc_answer(x, options) for x, options in zip(decoded_output, options)]
+            correct_predictions += np.sum(np.array(answers) == np.array(labels))
 
-        print("Answers: ", answers, "Labels: ", labels, "Correct Predictions: ", correct_predictions)
-        total_samples += len(labels)
-        current_accuracy = correct_predictions / total_samples
-        current_latent_ratio = latent_ratio / total_samples
-        pbar.set_description(f"Evaluating | Accuracy: {current_accuracy:.4f}, Latent Ratio: {current_latent_ratio:.4f}")
+            print("Answers: ", answers, "Labels: ", labels, "Correct Predictions: ", correct_predictions)
+            total_samples += len(labels)
+            current_accuracy = correct_predictions / total_samples
+            current_latent_ratio = latent_ratio / total_samples
+            pbar.set_description(f"Evaluating | Accuracy: {current_accuracy:.4f}, Latent Ratio: {current_latent_ratio:.4f}")
+        except Exception as e:
+            print(f"Error evaluating: {e}"*300)
+            continue
+        
 
 # append the results to a csv file with model name and accuracy
 with open(outfile_name, "w") as f:
