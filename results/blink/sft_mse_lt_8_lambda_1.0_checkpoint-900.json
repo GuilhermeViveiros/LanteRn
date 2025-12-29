@@ -1,0 +1,12 @@
+{
+    "Object_Localization": {
+        "accuracy": 0.5163934426229508,
+        "latent_ratio": 1.0,
+        "total": 122
+    },
+    "Spatial_Relation": {
+        "accuracy": 0.46853146853146854,
+        "latent_ratio": 0.972027972027972,
+        "total": 143
+    }
+}
