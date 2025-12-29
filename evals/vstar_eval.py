@@ -17,6 +17,7 @@ from datasets import load_dataset
 from evals import run_batch_inference
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
+from src.utils import extract_mc_answer
 
 
 
@@ -35,6 +36,7 @@ logger = logging.getLogger("LantErn-Test-VStar")
 def extract_answer(response: str) -> str:
     given_answer = response.split('<answer>')[-1]
     given_answer = given_answer.split('</answer')[0].strip()
+    import ipdb; ipdb.set_trace()
     if len(given_answer) > 1:
         given_answer = re.findall(r"(?:Answer:\s*([A-Z])\b|\(([A-Z])\))", given_answer)
     
@@ -42,6 +44,19 @@ def extract_answer(response: str) -> str:
         given_answer = given_answer[0][-1]
     
     return given_answer
+
+def parse_options(options):
+    # options should be a nested list of strings
+    if len(options) != 4: # wrong format, return None
+        return None
+    else:
+        # to remove 
+        options = [option.replace(option.split(" ")[0]+" ", "") for option in options]
+        # check if any option is None
+        if any(option is None for option in options):
+            return None
+        return options
+
 
 def collate_fn(batch, processor: AutoProcessor):
     messages = []
@@ -54,13 +69,18 @@ def collate_fn(batch, processor: AutoProcessor):
         # vstar has this text:
         # Answer with the option's letter from the given choices directly.
         # remove it
+        
         text = dat['text'].split("Answer with the option's letter from the given choices directly.")[0].strip()
+        # join the options in a string
+        options = text.split("\n")[1:]
+        options = parse_options(options)
+
         messages.append([
             {
                 "role": "user",
                 "content": [
                     {"type": "image", "image": dat['image']},
-                    {"type": "text", "text": "text"}
+                    {"type": "text", "text": text}
                 ]
             }
         ])
@@ -79,7 +99,7 @@ def collate_fn(batch, processor: AutoProcessor):
         return_tensors="pt",
     )
 
-    return inputs, labels, categories
+    return inputs, labels, categories, options
 
 
 def vstar_eval(
@@ -101,8 +121,9 @@ def vstar_eval(
             "total": 0,
         }
 
-    for step, (inputs, labels, categories) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+    for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
         # run batch inference
+        text = processor.batch_decode(inputs.input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
         generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr)
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         total_samples += len(inputs.input_ids)
@@ -114,13 +135,13 @@ def vstar_eval(
         batch_decoded_output = processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
-
-        print(f"Batch decoded output: {batch_decoded_output}")
         
         # extract the answer from the decoded output
-        answers = [extract_answer(x) for x in batch_decoded_output]
+        answers = [extract_mc_answer(x, options) for x, options in zip(batch_decoded_output, options)]
         # check if the answer is correct
         results = np.array([answers[i] == labels[i] for i in range(len(answers))])
+
+
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         accuracy += results.sum()
         for idx, (res, category) in enumerate(zip(results, categories)):
@@ -128,7 +149,7 @@ def vstar_eval(
             res_by_category[category]["latent_ratio"] += (generated_ids[idx] == model.config.lvr_start_id).sum().item()
             res_by_category[category]["total"] += 1
         
-        logging.info(f"Answer: {answers} | Label: {labels} | Result: {results} | Accuracy: {accuracy / total_samples} | Latent Ratio: {latent_samples / total_samples}")
+        logging.info(f"[{step}] Text: {text} | Response: {batch_decoded_output} | Options: {options} | Answer: {answers} | Label: {labels} | Result: {results} | Accuracy: {accuracy / total_samples} | Latent Ratio: {latent_samples / total_samples}")
     
     for category in res_by_category.keys():
         res_by_category[category]["accuracy"] /= res_by_category[category]["total"]

@@ -202,7 +202,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_dyn_lambda_0.1/checkpoint-1800"
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-800"
     )
     parser.add_argument(
         "--lvr",

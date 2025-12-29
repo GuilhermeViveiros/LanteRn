@@ -163,6 +163,7 @@ def blink_eval(
             res_by_category[category]["latent_ratio"] += (generated_ids[idx] == model.config.lvr_start_id).sum().item()
             res_by_category[category]["total"] += 1
 
+        
         logger.info(f"[{step}] Answer: {answers} | Label: {labels} | Result: {results}")
         
         
