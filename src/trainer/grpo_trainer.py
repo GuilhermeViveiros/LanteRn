@@ -33,7 +33,10 @@ from transformers.trainer import (
     SaveStrategy
 )
 
-from src.lantern_generate.generate import generate as lantern_generate
+from src.lantern_generate.generate import (
+    generate as lantern_generate,
+    LantErnGenerateOutput
+)
 
 from transformers.trainer_utils import seed_worker
 from transformers import (
@@ -108,12 +111,16 @@ class LantErnGRPOTrainer(GRPOTrainer):
             FSDP.summon_full_params(self.model_wrapped, recurse=False) if self.is_fsdp_enabled else nullcontext(),
         ):
             generate_inputs.to(device)
-            prompt_completion_ids = unwrapped_model.generate(
+            # NOTE: here we use the custom generate function to get the latent values and mask (outputs will be a LantErnGenerateOutput object)
+            outputs: LantErnGenerateOutput = unwrapped_model.generate(
                 **generate_inputs, 
                 generation_config=self.generation_config,
                 disable_compile=True,
                 custom_generate=lantern_generate,
             )
+            prompt_completion_ids = outputs.input_ids
+            latent_embeds = outputs.latent_embeds
+            latent_mask = outputs.latent_mask
         
         # Compute prompt length and extract completion ids
         prompt_ids, prompt_mask = generate_inputs["input_ids"], generate_inputs["attention_mask"]
@@ -129,7 +136,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
         prompt_ids = [p[m].tolist() for p, m in zip(prompt_ids, prompt_mask.bool(), strict=True)]
         completion_ids = [c[m].tolist() for c, m in zip(completion_ids, completion_mask.bool(), strict=True)]
         logprobs = None  # not used in this case
-        extra_fields = {}  # No extra fields for non-rollout_func paths
+        extra_fields = {
+            "latent_embeds": latent_embeds,
+            "latent_mask": latent_mask,
+        }  # No extra fields for non-rollout_func paths
 
         return prompt_ids, completion_ids, logprobs, extra_fields
     
@@ -157,8 +167,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
         pixel_attention_mask=None,
         image_sizes=None,
         token_type_ids=None,
+        latent_embeds=None,
+        latent_mask=None,
     ) -> dict[str, torch.Tensor | None]:
-        import ipdb; ipdb.set_trace()
+        
         """Compute log-probs and (optionally) entropies for each token."""
         batch_size = batch_size or input_ids.size(0)  # Chunk inputs into smaller batches to reduce memory peak
         all_logps = []
@@ -187,15 +199,22 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 model_inputs["image_sizes"] = image_sizes[start : start + batch_size]
             if token_type_ids is not None:
                 model_inputs["token_type_ids"] = token_type_ids[start : start + batch_size]
-
+            if latent_embeds is not None:
+                latent_size = model.config.latent_size
+                start_idx = start * latent_size
+                end_idx = (start_idx + batch_size) * latent_size
+                model_inputs["latent_embeds"] = latent_embeds[start_idx:end_idx]
+            if latent_mask is not None:
+                model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
             # Only add logits_to_keep if the model supports it
             if "logits_to_keep" in self.model_kwarg_keys:
                 # We add 1 to `logits_to_keep` because the last logits of the sequence is later excluded
                 model_inputs["logits_to_keep"] = logits_to_keep + 1
 
             model_inputs["use_cache"] = False  # only used in generation; set False to suppress warnings
-
+            
             logits = model(**model_inputs).logits
+            
             # Exclude the last value: it corresponds to the next token pred
             logits = logits[:, :-1, :]  # (B, L-1, H)
             # Only keep the last logits_to_keep. For model that support logits_to_keep, this is a no-op.
@@ -221,10 +240,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
     ) -> dict[str, torch.Tensor | Any]:
         device = self.accelerator.device
         mode = "train" if self.model.training else "eval"
-
         prompts = [x["prompt"] for x in inputs]
-        # IMAGES SHOULD BE A COLUMN
-
+        
         # TODO: here the check should be over the full batch, not just the first element
         if "images" in inputs[0]:
             images = [example.get("images") for example in inputs]
@@ -244,7 +261,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 prepare_multimodal_messages(prompt, image_list)
                 for prompt, image_list in zip(prompts, images, strict=True)
             ]
-
         
         (
             prompt_ids_list,
@@ -284,21 +300,15 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Concatenate prompt_mask with completion_mask for logit computation
         prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)  # (B, P+C)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)  # (B, P+C)
-
-        # NOTE: Add the mask of the latent tokens
         latent_mask = ~(completion_ids == self.model.config.lvr_sep_id) # (B, C)
-        # add the prompt mask to the latent mask
         latent_mask = torch.cat([prompt_mask, latent_mask], dim=1) # (B, P+C)
-        final_mask = attention_mask & latent_mask
-        
-
+        final_mask = attention_mask & latent_mask # (B, P+C) # Excludes the latent tokens
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
         batch_size = self.args.per_device_train_batch_size if mode == "train" else self.args.per_device_eval_batch_size
 
         num_images = [len(img_list) for img_list in images] if images is not None else None
 
         # Get forward_kwargs for models with multimodal inputs
-       
         if images is not None:
             prompts_text = [
                 apply_chat_template(
@@ -311,6 +321,11 @@ class LantErnGRPOTrainer(GRPOTrainer):
             forward_kwargs = {k: v for k, v in prompt_inputs.items() if k not in ["input_ids", "attention_mask"]}
         else:
             forward_kwargs = {}
+
+        if "latent_embeds" in extra_fields:
+            forward_kwargs["latent_embeds"] = extra_fields.pop("latent_embeds")
+        if "latent_mask" in extra_fields:
+            forward_kwargs["latent_mask"] = extra_fields.pop("latent_mask")
 
         # If token_type_ids are used, extend them with zeros for the completion part
         if "token_type_ids" in forward_kwargs:
@@ -335,8 +350,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if self.args.gradient_accumulation_steps % generate_every != 0 or (
                 self.use_vllm and self.vllm_importance_sampling_correction
             ):
-
-                print("Old per token logps computation...")
+                print("Model. Calculating old per token logps...")
                 old_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                     self.model,
                     prompt_completion_ids,
@@ -383,7 +397,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
             # Compute the per-token log probabilities for the reference model
             if self.beta != 0.0:
                 if self.ref_model is not None:
-                    print("Ref per token logps computation...")
+                    print("Referece model. Calculating per token logps...")
+                    
                     ref_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                         self.ref_model,
                         prompt_completion_ids,
@@ -416,7 +431,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
             print("Answer: ", answer)
             print("-"*100)
 
-
         
         # Merge extra_fields from rollout_func into inputs for reward functions
         if extra_fields:
@@ -434,7 +448,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
-        import ipdb; ipdb.set_trace()
+        
         # Compute grouped-wise rewards
         num_generations = self.num_generations if mode == "train" else self.num_generations_eval
         mean_grouped_rewards = rewards.view(-1, num_generations).mean(dim=1)
@@ -477,7 +491,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         self._metrics[mode]["reward_std"].append(std_rewards.mean().item())
         self._metrics[mode]["frac_reward_zero_std"].append(is_std_zero.float().mean().item())
 
-        import ipdb; ipdb.set_trace()
+
         # Log prompt and completion texts
         self._logs["prompt"].extend(gather_object(prompts_text))
         self._logs["completion"].extend(gather_object(completions_text))
@@ -555,7 +569,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
             output["tool_mask"] = tool_mask
         return output
 
-    
     def _compute_loss(self, model, inputs):
         # Compute the per-token log probabilities for the model
         prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]
@@ -565,6 +578,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
         # Compute the per_token_logps and the entropy at each position in the completion
+        print("Computing per token logps and entropies...")
         per_token_logps, entropies = self._get_per_token_logps_and_entropies(
             model,
             input_ids,
@@ -579,7 +593,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
             token_type_ids=inputs.get("token_type_ids"),
         )
 
-        import ipdb; ipdb.set_trace()
 
         if self.top_entropy_quantile < 1.0:
             mask = completion_mask if not self.tools else completion_mask * inputs["tool_mask"]

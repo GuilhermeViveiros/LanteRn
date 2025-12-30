@@ -18,21 +18,19 @@ LATENT_SIZE=4
 
 python $REPO/src/train/train_grpo.py \
     --run_name "$RUN_NAME" \
-    --model_path "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062" \
+    --model_path $CHECKPOINT_PATH \
     --output_dir "/mnt/scratch-artemis/gviveiros/lantern/checkpoints" \
     \
     --learning_rate 5e-6 \
     --warmup_ratio 0.03 \
     --beta 0.1 \
+    --gradient_accumulation_steps 1 \
     \
-    --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 4 \
-    \
-    --num_generations 4 \
+    --per_device_train_batch_size 2 \
+    --num_generations 2 \
     --max_completion_length 128 \
     --temperature 0.6 \
     --top_p 0.85 \
-    --latent_size $LATENT_SIZE \
     \
     --logging_steps 100 \
     \

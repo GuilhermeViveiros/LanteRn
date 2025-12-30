@@ -30,21 +30,20 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
-
+    # compute type
     compute_dtype = (torch.float16 if grpo_params.fp16 else (torch.bfloat16 if grpo_params.bf16 else torch.float32))
     logger.info(colored(f"Compute dtype: {compute_dtype}", "cyan"))
 
-    # Load Model
+    # load model
     model, processor = load_model(
         grpo_params.model_path,
         compute_dtype=compute_dtype,
         use_cache=model_params.use_cache
     )
-    print(f"model.config.vocab_size: {model.config.vocab_size}")
-
+    
     # set the latent tokens
-    assert model_params.latent_size > 0 or model_params.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
-    set_latent_tokens(processor, model, model_params.latent_size)
+    assert model.config.latent_size > 0 or model.config.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
+    set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
     
     
     # freeze specific components according to the training parameters
@@ -75,7 +74,6 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     trainer.train()
 
     logger.info("Training completed")
-
 
 if __name__ == "__main__":
     parser = HfArgumentParser((GRPOArguments, ModelParams, RLDataParams))

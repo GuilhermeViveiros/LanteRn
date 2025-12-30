@@ -130,6 +130,7 @@ class LantErnSFTrainer(Trainer):
             **inputs,
             return_dict=True
         )
+        
         ce_loss = outputs.loss
         hidden_states = outputs.hidden_states
         input_embeddings = outputs.inputs_embeds

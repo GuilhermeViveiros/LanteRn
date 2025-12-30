@@ -257,7 +257,8 @@ if __name__ == "__main__":
             batch["latent_grid_thw"] = gt_latent_grid_thw
             batch.to(model.device)
         # run inference with the gt latent value
-        generated_ids = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr)
+        output = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr)
+        generated_ids = output.input_ids
         # calculate the latent ratio
         latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
 

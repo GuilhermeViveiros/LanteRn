@@ -62,7 +62,8 @@ class GRPOArguments(GRPOConfig):
     # Precision & compute
     # ------------------------------------------------------------------
     bf16: bool = field(default=True)
-
+    fp16: bool = field(default=False)
+    
     # ------------------------------------------------------------------
     # Optimization
     # ------------------------------------------------------------------
@@ -74,7 +75,7 @@ class GRPOArguments(GRPOConfig):
     # Batching
     # ------------------------------------------------------------------
     per_device_train_batch_size: int = field(default=1)
-    gradient_accumulation_steps: int = field(default=4)
+    gradient_accumulation_steps: int = field(default=1)
 
     # ------------------------------------------------------------------
     # Training schedule
@@ -84,7 +85,7 @@ class GRPOArguments(GRPOConfig):
     # ------------------------------------------------------------------
     # Generation / decoding
     # ------------------------------------------------------------------
-    num_generations: int = field(default=4)
+    num_generations: int = field(default=2)
     max_completion_length: int = field(default=128)
     temperature: float = field(default=0.6)
     top_p: float = field(default=0.85)

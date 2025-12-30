@@ -30,7 +30,7 @@ def run_batch_inference(
         
     # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
     # this will be removed in the future (just for stress testing purposes)
-    output = model.generate(
+    return model.generate(
         **inputs,
         max_new_tokens=526,
         do_sample=False,
@@ -41,4 +41,3 @@ def run_batch_inference(
         use_cache=True,
     )
     
-    return output

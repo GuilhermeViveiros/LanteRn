@@ -8,9 +8,15 @@ import logging
 logger = logging.getLogger("LantErn-Generate")
 
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
-tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
-tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
-tokenizer.add_tokens("<|lvr_end|>", special_tokens=True)
+tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
+tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
+tokenizer.add_tokens("<|lvr_end|>", special_tokens=False)
+
+@dataclass
+class LantErnGenerateOutput:
+    input_ids: torch.LongTensor
+    latent_embeds: Optional[torch.FloatTensor]
+    latent_mask: Optional[torch.BoolTensor]
 
 def generate(
     model,
@@ -86,7 +92,9 @@ def generate(
     in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
-    #latent_pred_values = [[] for _ in range(batch_size)]
+    # latent_values: TODO: for now it only supports a fixed number of latent tokens per sample (MAX_LATENT_LEN)
+    latent_embeds = []
+    latent_mask = torch.zeros_like(input_ids, dtype=torch.bool)
 
 
     latent_start_idx = model.config.lvr_start_id
@@ -162,10 +170,12 @@ def generate(
         # ---------------------------------------------------------
         # 2) For samples already in_latent_mode:
         #    - Determine whether they still need pad tokens or should end
+        #    - Store the latent mask
         # ---------------------------------------------------------
         need_pad_mask = in_latent_mode & (latent_num < MAX_LATENT_LEN) & ~latent_start_mask
         latent_num[need_pad_mask] += 1
         latent_end_mask = in_latent_mode & (latent_num >= MAX_LATENT_LEN)
+        latent_mask = torch.cat((latent_mask, need_pad_mask.unsqueeze(1)), dim=1)
 
         # ---------------------------------------------------------
         # 3) Build the next_tokens
@@ -188,11 +198,10 @@ def generate(
                 next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(0)
             else:
                 next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(0)
-            next_token_embed[batch_indices, 0, :] = next_latent_embed
-        
-            # store predicted latent embeddings per-sample for bookkeeping purposes (can be removed in the future)
-            # for idx, latent_embed in enumerate(next_latent_embed[0]):
-            #     latent_pred_values[batch_indices[idx]].append(latent_embed)
+            
+            next_token_embed[batch_indices, 0, :] = next_latent_embed.to(dtype=torch.bfloat16)
+            # store the latent values
+            latent_embeds.extend(next_latent_embed.squeeze(0))
 
         # ---------------------------------------------------------    
         # 5) Update latent counters AFTER using the embedding
@@ -226,13 +235,11 @@ def generate(
     if streamer is not None:
         streamer.end()
 
-    # TODO: THIS CODE WILL BE REMOVED IN FUTURE VERSIONS
-    # we dont need to store the latent pred values (used for debugging purposes to compare with the ground truth)
-    # if sum(len(sublist) for sublist in latent_pred_values) > 0:
-    #     # cat nested lists into a single tensor
-    #     latent_pred_values = torch.stack([torch.stack(sublist)[:4,:] for sublist in latent_pred_values], dim=0)
-    # else:
-    #     latent_pred_values = None
-        
+    # if latent_mask is all False, don't return the latent values and mask (text-only prediction)
+    if not latent_mask.any():
+        latent_mask = None
+        latent_embeds = None
+    else:
+        latent_embeds = torch.stack(latent_embeds, dim=0)    
 
-    return input_ids
+    return LantErnGenerateOutput(input_ids=input_ids, latent_embeds=latent_embeds, latent_mask=latent_mask)
