@@ -2,38 +2,43 @@
 
 MODELS_TO_TEST=(
     # lt_4_lambda_0.2
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-200"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-600"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-800"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-1062"
+    #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-200"
+    #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-600"
+    #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-800"
+    #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.2/checkpoint-1062"
     # # # lt_4_lambda_0.1
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-200"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-600"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-800"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
-    # # # lt_8_lambda_0.1
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-200"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-600"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-800"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062"
-    # # # lt_16_lambda_0.1
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-200"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-600"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-800"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-1062"
-    # # # lt_32_lambda_0.1
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-200"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-600"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-800"
-    "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-1062"
+    #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-200"
+    #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-600"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-800"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
+#     # # # lt_8_lambda_0.1
+#     #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-200"
+#     #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-600"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-800"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062"
+#     # # # lt_16_lambda_0.1
+#     #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-200"
+#    # "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-600"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-800"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1/checkpoint-1062"
+#     # # # lt_32_lambda_0.1
+#     #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-200"
+#     #"/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-600"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-800"
+#     "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_32_lambda_0.1/checkpoint-1062"
     # # # next_token_prediction only
-    "/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-200"
-    "/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-600"
-    "/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995"
+    # "/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-200"
+    # "/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-600"
+    # "/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995"
     # qwen2.5-vl-3b-instruct
     #Qwen/Qwen2.5-VL-3B-Instruct
     # qwen2.5-vl-7b-instruct
     #Qwen/Qwen2.5-VL-7B-Instruct
+    /mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1_7b/checkpoint-995
+    /mnt/scratch-artemis/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_4_lambda_0.1/checkpoint-708
+    /mnt/scratch-artemis/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_8_lambda_0.1/checkpoint-708
+
+
 )
 
 # benchmarks=(
@@ -60,18 +65,19 @@ for model in "${MODELS_TO_TEST[@]}"; do
     if [[ "$model" == *"nuno"* || "$model" == *"Qwen"* ]]; then
         use_lvr="--no-lvr"
     fi
-        sbatch <<EOF
-#!/bin/bash
-#SBATCH --partition=a6000
-#SBATCH --qos=gpu-short
-#SBATCH --job-name=${job_name}_mc_high_duration
-#SBATCH --time=01:30:00
-#SBATCH --gpus=1
-#SBATCH --mem=120GB
-#SBATCH --cpus-per-task=40
+    python evals/eval.py --model_ref "$model" $use_lvr --batch_size 36
+#         sbatch <<EOF
+# #!/bin/bash
+# #SBATCH --partition=a6000
+# #SBATCH --qos=gpu-short
+# #SBATCH --job-name=${job_name}_mc_high_duration
+# #SBATCH --time=01:30:00
+# #SBATCH --gpus=1
+# #SBATCH --mem=120GB
+# #SBATCH --cpus-per-task=40
 
-python evals/eval.py --model_ref "$model" $use_lvr
-EOF
-    done
+# python evals/eval.py --model_ref "$model" $use_lvr
+# EOF
+#     done
 
 done

@@ -85,9 +85,15 @@ def generate(
     # -> Latent mode init
     in_latent_mode = torch.zeros(batch_size, dtype=torch.bool, device=input_ids.device)
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
-    MAX_LATENT_LEN = model.config.latent_size
-    #latent_pred_values = [[] for _ in range(batch_size)]
-
+    # -> Calculate the maximum number of latent tokens during inference
+    if gt_latent_embeds is not None:
+        # Use list comprehension with torch.as_tensor for direct batch conversion
+        MAX_LATENT_LEN = torch.as_tensor([le.shape[0] for le in gt_latent_embeds], device=input_ids.device)
+    else:
+        # Vectorized scalar broadcast using torch.full
+        latent_size = 8 if model.config.latent_size == -1 else model.config.latent_size
+        MAX_LATENT_LEN = torch.full((batch_size,), latent_size, device=input_ids.device)
+        
 
     latent_start_idx = model.config.lvr_start_id
     latent_end_idx = model.config.lvr_end_id
@@ -185,7 +191,20 @@ def generate(
             batch_indices = torch.nonzero(need_pad_mask, as_tuple=False).squeeze(1)
             if gt_latent_embeds is not None: # for debugging purposes (we can use the gt during the generation)
                 latent_positions = latent_num[need_pad_mask] - 1
-                next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(0)
+                if isinstance(gt_latent_embeds, list):
+                    if not hasattr(model, "_lt_warning_issued"):
+                        print(
+                            "[WARNING] gt_latent_embeds is a list. Computation may be slow. "
+                            "It is recommended to refactor gt_latent_embeds as a tensor for efficiency."
+                        )
+                        setattr(model, "_lt_warning_issued", True)
+                    
+                    next_latent_embed = torch.cat([
+                        gt_latent_embeds[b][p_i,:].unsqueeze(0)
+                        for b, p_i in zip(batch_indices.tolist(), latent_positions.tolist())
+                    ], dim=0)
+                else:
+                    next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(0)
             else:
                 next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(0)
             next_token_embed[batch_indices, 0, :] = next_latent_embed

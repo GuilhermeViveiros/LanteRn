@@ -13,7 +13,7 @@ class ModelParams:
 class TrainingParams(HFTrainingArguments):
     output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
-    save_steps: int = field(default=200)
+    save_steps: int = field(default=300)
     learning_rate: float = field(default=1e-5)
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
@@ -30,7 +30,7 @@ class TrainingParams(HFTrainingArguments):
     freeze_merger: bool = field(default=True)
     freeze_llm: bool = field(default=False)
     eval_strategy: str = field(default="steps")
-    eval_steps: int = field(default=100)
+    eval_steps: int = field(default=310)
     test_steps: int = field(default=100)
     dataloader_num_workers: int = field(default=4)
     dataloader_persistent_workers: bool = field(default=True)
