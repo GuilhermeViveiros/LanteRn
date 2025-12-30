@@ -74,7 +74,8 @@ from trl.trainer.grpo_trainer import nanstd
 
 
 class LantErnGRPOTrainer(GRPOTrainer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, ref_model: PreTrainedModel, *args, **kwargs):
+        self.ref_model = ref_model
         super().__init__(*args, **kwargs)
 
     def _generate_single_turn(self, prompts: list):
@@ -302,7 +303,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)  # (B, P+C)
         latent_mask = ~(completion_ids == self.model.config.lvr_sep_id) # (B, C)
         latent_mask = torch.cat([prompt_mask, latent_mask], dim=1) # (B, P+C)
-        final_mask = attention_mask & latent_mask # (B, P+C) # Excludes the latent tokens
+        #final_mask = attention_mask & latent_mask # (B, P+C) # Excludes the latent tokens
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
         batch_size = self.args.per_device_train_batch_size if mode == "train" else self.args.per_device_eval_batch_size
 
@@ -425,12 +426,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Decode
         prompts_text = self.processing_class.batch_decode(prompt_ids, skip_special_tokens=True)
         completions_text = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
-
-        for text, answer in zip(prompts_text, completions_text):
-            print("Prompt: ", text)
-            print("Answer: ", answer)
-            print("-"*100)
-
         
         # Merge extra_fields from rollout_func into inputs for reward functions
         if extra_fields:
@@ -445,6 +440,12 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
         rewards_per_func = self._calculate_rewards(inputs, prompts, completions, completion_ids_list)
+
+
+        for _, answer, reward in zip(prompts_text, completions_text, rewards_per_func):
+            print("Answer: ", answer)
+            print("Associated reward: ", reward)
+            print("-"*100)
 
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
@@ -546,6 +547,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
             "completion_mask": completion_mask,
             "advantages": advantages,
             "num_items_in_batch": num_items_in_batch,
+            "latent_mask": latent_mask,
+            #"final_mask": final_mask,
         }
         if old_per_token_logps is not None:
             output["old_per_token_logps"] = old_per_token_logps
@@ -573,8 +576,14 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Compute the per-token log probabilities for the model
         prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]
         completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"]
+        #import ipdb; ipdb.set_trace()
+        #final_mask = inputs["final_mask"]
+        latent_mask = inputs["latent_mask"][:, prompt_mask.size(1):] # (B, C)
+        combined_completion_mask = completion_mask & latent_mask
+
+        import ipdb; ipdb.set_trace()
         input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
-        attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
+        attention_mask = torch.cat([prompt_mask, combined_completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
         # Compute the per_token_logps and the entropy at each position in the completion
@@ -734,3 +743,20 @@ class LantErnGRPOTrainer(GRPOTrainer):
             self._metrics[mode]["cispo_clip_ratio"].append(gathered_cispo_clip_ratio.nanmean().item())
 
         return loss
+
+    # def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+    #     if return_outputs:
+    #         raise ValueError("The GRPOTrainer does not support returning outputs")
+
+    #     # Check if we need to generate new completions or use buffered ones
+    #     print("Global step: ", self.state.global_step)
+    #     if self.state.global_step % self.num_iterations == 0:
+    #         # print("computing _generate_and_score_completions!!!")
+    #         inputs = self._generate_and_score_completions(inputs)
+    #         # print("Adv obtained!!!")
+    #         self._buffered_inputs[self._step % self.args.gradient_accumulation_steps] = inputs
+    #     else:
+    #         inputs = self._buffered_inputs[self._step % self.args.gradient_accumulation_steps]
+    #     self._step += 1
+
+    #     return self._compute_loss(model, inputs)
