@@ -74,7 +74,8 @@ from trl.trainer.grpo_trainer import nanstd
 
 
 class LantErnGRPOTrainer(GRPOTrainer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, latent_size, *args, **kwargs):
+        self.latent_size = latent_size
         super().__init__(*args, **kwargs)
 
     def _generate_single_turn(self, prompts: list):
@@ -200,9 +201,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if token_type_ids is not None:
                 model_inputs["token_type_ids"] = token_type_ids[start : start + batch_size]
             if latent_embeds is not None:
-                latent_size = model.config.latent_size
-                start_idx = start * latent_size
-                end_idx = (start_idx + batch_size) * latent_size
+                start_idx = start * self.latent_size
+                end_idx = (start_idx + batch_size) * self.latent_size
                 model_inputs["latent_embeds"] = latent_embeds[start_idx:end_idx]
             if latent_mask is not None:
                 model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
@@ -606,6 +606,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # provide advantages with shape (B, T) (e.g., MiniLLM), we *conditionally* unsqueeze the tensor.
         if advantages.dim() == 1:
             advantages = advantages.unsqueeze(1)
+        
         # When num_iterations == 1 and steps_per_generation <= gradient_accumulation_steps,
         # old_per_token_logps == per_token_logps. In this case we can skip its computation
         # (see _generate_and_score_completions) and instead use per_token_logps.detach().
