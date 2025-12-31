@@ -86,7 +86,7 @@ class GRPOArguments(GRPOConfig):
     # Generation / decoding
     # ------------------------------------------------------------------
     num_generations: int = field(default=2)
-    max_completion_length: int = field(default=128)
+    max_completion_length: int = field(default=528)
     temperature: float = field(default=0.6)
     top_p: float = field(default=0.85)
 

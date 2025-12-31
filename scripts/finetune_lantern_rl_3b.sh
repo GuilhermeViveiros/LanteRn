@@ -7,7 +7,7 @@ export OMP_NUM_THREADS=1
 export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 
 MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
-REPO="/mnt/home/gviveiros/LantErn"
+REPO="/home/gviveiros/LantErn"
 RANDOM_SEED=42
 
 
@@ -34,8 +34,8 @@ python $REPO/src/train/train_grpo.py \
     \
     --logging_steps 100 \
     \
-    --reward_names format_reward \
-    --reward_weights 1.0 \
+    --reward_names accuracy structure \
+    --reward_weights 1.0 1.0 \
     \
     --data_path "/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json" \
     --image_root "/mnt/data-hades/gviveiros/"\

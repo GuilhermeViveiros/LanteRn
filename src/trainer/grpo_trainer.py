@@ -74,10 +74,9 @@ from trl.trainer.grpo_trainer import nanstd
 
 
 class LantErnGRPOTrainer(GRPOTrainer):
-    def __init__(self, latent_size, *args, **kwargs):
-        self.latent_size = latent_size
-    def __init__(self, ref_model: PreTrainedModel, *args, **kwargs):
+    def __init__(self, ref_model: PreTrainedModel, latent_size: int, *args, **kwargs):
         self.ref_model = ref_model
+        self.latent_size = latent_size
         super().__init__(*args, **kwargs)
 
     def _generate_single_turn(self, prompts: list):
@@ -149,7 +148,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
     def _calculate_rewards(self, inputs: list[dict[str, torch.Tensor | Any]], prompts: list[str], completions: list[str], completion_ids_list: list[torch.Tensor]):
         rewards_per_func = []
         for reward_func in self.reward_funcs:
-            rewards = reward_func(completions=completions)
+            rewards = reward_func(completions)
             rewards_per_func.append(rewards)
         
         rewards_per_func = [torch.tensor(r) for r in rewards_per_func]
@@ -244,6 +243,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
         mode = "train" if self.model.training else "eval"
         prompts = [x["prompt"] for x in inputs]
         
+        import pdb; pdb.set_trace()
+        # TODO: extract ground truth 
+        # inputs["ground_truth"]
+
         # TODO: here the check should be over the full batch, not just the first element
         if "images" in inputs[0]:
             images = [example.get("images") for example in inputs]
@@ -440,7 +443,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Calculate rewards for each reward function. rewards_per_func aggregates rewards across all processes. This is
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
-        rewards_per_func = self._calculate_rewards(inputs, prompts, completions, completion_ids_list)
+        # add groun_truth
+        rewards_per_func = self._calculate_rewards(inputs, prompts, completions, completion_ids_list, ground_truth)
 
 
         for _, answer, reward in zip(prompts_text, completions_text, rewards_per_func):
@@ -581,10 +585,12 @@ class LantErnGRPOTrainer(GRPOTrainer):
         #final_mask = inputs["final_mask"]
         latent_mask = inputs["latent_mask"][:, prompt_mask.size(1):] # (B, C)
         combined_completion_mask = completion_mask & latent_mask
+        # get ids where latent_mask is 0
+        #import numpy as np
+        #completion_ids_with_latent_mask_0 = np.where(((latent_mask[0]-1)*-1).cpu().numpy())[0]
 
-        import ipdb; ipdb.set_trace()
         input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
-        attention_mask = torch.cat([prompt_mask, combined_completion_mask], dim=1)
+        attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
         # Compute the per_token_logps and the entropy at each position in the completion
@@ -605,7 +611,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
 
         if self.top_entropy_quantile < 1.0:
-            mask = completion_mask if not self.tools else completion_mask * inputs["tool_mask"]
+            # mask = completion_mask if not self.tools else completion_mask * inputs["tool_mask"]
+            mask = combined_completion_mask if not self.tools else combined_completion_mask * inputs["tool_mask"]
             entropy_mask = self.get_high_entropy_mask(entropies, mask, 1 - self.top_entropy_quantile)
         else:
             entropy_mask = None
@@ -629,6 +636,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         if self.importance_sampling_level == "token":
             log_importance_weights = log_ratio
         elif self.importance_sampling_level == "sequence":
+            raise ValueError("Sequence level importance sampling is not supported for LantErn models yet")
             mask = completion_mask if not self.tools else completion_mask * inputs["tool_mask"]
             log_importance_weights = (log_ratio * mask).sum(-1) / mask.sum(-1).clamp(min=1.0)
             log_importance_weights = log_importance_weights.unsqueeze(-1)
@@ -686,7 +694,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         if self.beta != 0.0:
             per_token_loss = per_token_loss + self.beta * per_token_kl
 
-        mask = completion_mask if not self.tools else completion_mask * inputs["tool_mask"]
+        mask = combined_completion_mask if not self.tools else combined_completion_mask * inputs["tool_mask"]
         if self.loss_type in ["grpo", "sapo"]:
             loss = ((per_token_loss * mask).sum(-1) / mask.sum(-1).clamp(min=1.0)).mean()
             loss = loss / self.current_gradient_accumulation_steps

@@ -24,9 +24,9 @@ def build_accuracy_reward(model, **_kwargs):
     return accuracy_reward
 
 
-@register_reward("lvr_presence")
-def build_lvr_presence_reward(model, **_kwargs):
-    return make_lvr_presence_reward_from_ids(model)
+@register_reward("structure")
+def build_structure_reward(model, **_kwargs):
+    return make_structure_reward_from_ids(model)
 
 
 # ----------------------------
@@ -54,7 +54,7 @@ def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
     return out
 
 
-def make_lvr_presence_reward_from_ids(model):
+def make_structure_reward_from_ids(model, **kwargs):
     # Exact contiguous block in IDs
     lvr_block = (
         [model.config.lvr_start_id]
@@ -71,8 +71,9 @@ def make_lvr_presence_reward_from_ids(model):
                 return True
         return False
 
-    def lvr_reward(*, completions_ids=None, **kwargs):
+    def structure_reward(*, completions_ids=None, **kwargs):
         # TRL GRPO uses `completions_ids`; keep fallback just in case
+        import pdb; pdb.set_trace()
         if completions_ids is None:
             completions_ids = kwargs.get("completion_ids")
         if completions_ids is None:
@@ -82,7 +83,7 @@ def make_lvr_presence_reward_from_ids(model):
 
         return [1.0 if _find_subseq(ids, lvr_block) else 0.0 for ids in completions_ids]
 
-    return lvr_reward
+    return structure_reward
 
 
 # ----------------------------

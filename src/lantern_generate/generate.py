@@ -15,7 +15,7 @@ tokenizer.add_tokens("<|lvr_end|>", special_tokens=False)
 @dataclass
 class LantErnGenerateOutput:
     input_ids: torch.LongTensor
-    latent_embeds: Optional[torch.FloatTensor]
+    latent_embeds: Optional[torch.BFloat16Tensor]
     latent_mask: Optional[torch.BoolTensor]
 
 def generate(
@@ -26,7 +26,7 @@ def generate(
     generation_config: GenerationConfig,
     synced_gpus: bool = False,
     streamer: Optional["BaseStreamer"] = None,
-    gt_latent_embeds: Optional[torch.FloatTensor] = None,
+    gt_latent_embeds: Optional[torch.BFloat16Tensor] = None,
     **kwargs,
 ):
 
@@ -240,6 +240,6 @@ def generate(
         latent_mask = None
         latent_embeds = None
     else:
-        latent_embeds = torch.stack(latent_embeds, dim=0)    
+        latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)    
 
     return LantErnGenerateOutput(input_ids=input_ids, latent_embeds=latent_embeds, latent_mask=latent_mask)

@@ -3,7 +3,7 @@
 #conda activate lantern
 
 # model configs
-MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
+MODEL_ID="Qwen/Qwen2.5-VL-7B-Instruct"
 export WANDB_PROJECT="LantErn-SFT"
 REPO="/home/gviveiros/LantErn"
 #export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
@@ -14,8 +14,8 @@ REPO="/home/gviveiros/LantErn"
 RANDOM_SEED=42
 DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
-GLOBAL_BATCH_SIZE=120
-BATCH_PER_DEVICE=6
+GLOBAL_BATCH_SIZE=42
+BATCH_PER_DEVICE=3
 NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 echo "Number of GPUs: $NUM_DEVICES"
 # must be a multiple of BATCH_PER_DEVICE
@@ -41,6 +41,7 @@ LANTERN_LOSS_FCT=mse
 RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
 # ONLINE=True to enable online checkpointing with OCI
 OUTPUT_DIR="stage1_checkpoints/"
+LR=1e-5
 
 # if continue training, set checkpoint_name = checkpoint to continue;
 # --checkpoint_name checkpoint-1400
@@ -51,10 +52,11 @@ OUTPUT_DIR="stage1_checkpoints/"
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 
-LATENT_SIZE=4
-LAMBDA_LANTERN=1
-RUN_NAME="sft_mse_lt_4_lambda_1.0"
-deepspeed $REPO/src/train/train.py \
+LATENT_SIZE=-1
+LAMBDA_LANTERN=0.1
+RUN_NAME="qwen_7b_sft_mse_lt_dyn_lambda_0.1"
+export MASTER_PORT=29501
+deepspeed --master_port 29501 $REPO/src/train/train.py \
     --deepspeed scripts/zero3.json \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
@@ -68,4 +70,3 @@ deepspeed $REPO/src/train/train.py \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
     --report_to wandb \
-    --resume_from_checkpoint False
