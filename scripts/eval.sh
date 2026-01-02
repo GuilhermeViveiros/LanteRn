@@ -60,18 +60,19 @@ for model in "${MODELS_TO_TEST[@]}"; do
     if [[ "$model" == *"nuno"* || "$model" == *"Qwen"* ]]; then
         use_lvr="--no-lvr"
     fi
-        sbatch <<EOF
-#!/bin/bash
-#SBATCH --partition=a6000
-#SBATCH --qos=gpu-short
-#SBATCH --job-name=${job_name}_mc_high_duration
-#SBATCH --time=01:30:00
-#SBATCH --gpus=1
-#SBATCH --mem=120GB
-#SBATCH --cpus-per-task=40
+    python evals/eval.py --model_ref "$model" $use_lvr
+#         sbatch <<EOF
+# #!/bin/bash
+# #SBATCH --partition=a6000
+# #SBATCH --qos=gpu-short
+# #SBATCH --job-name=${job_name}_mc_high_duration
+# #SBATCH --time=01:30:00
+# #SBATCH --gpus=1
+# #SBATCH --mem=120GB
+# #SBATCH --cpus-per-task=40
 
-python evals/eval.py --model_ref "$model" $use_lvr
-EOF
+# python evals/eval.py --model_ref "$model" $use_lvr
+# EOF
     done
 
 done

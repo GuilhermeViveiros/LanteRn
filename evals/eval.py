@@ -204,7 +204,8 @@ if __name__ == "__main__":
         "--model_ref",
         type=str,
         default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
-    )
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.6/checkpoint-1180/"
+    ) 
     parser.add_argument(
         "--lvr",
         action=argparse.BooleanOptionalAction,

@@ -28,7 +28,7 @@ python $REPO/src/train/train_grpo.py \
     \
     --per_device_train_batch_size 2 \
     --num_generations 2 \
-    --max_completion_length 128 \
+    --max_completion_length 528 \
     --temperature 0.6 \
     --top_p 0.85 \
     \

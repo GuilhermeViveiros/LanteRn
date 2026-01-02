@@ -182,8 +182,11 @@ def generate(
         #    priority: latent_pad -> latent_end -> next_tokens
         #    latent_start is handled in the previous step
         # ---------------------------------------------------------
-        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
         next_tokens = torch.where(latent_end_mask,  torch.full_like(next_tokens, latent_end_idx), next_tokens)
+        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
+        
+
+        #print("need_pad_mask: ", need_pad_mask, " latent_end_mask: ", latent_end_mask, "next_tokens: ", next_tokens)
 
         # ---------------------------------------------------------
         # 4) Determine embedding for next token

@@ -34,7 +34,7 @@ def build_reward_funcs(grpo_params: GRPOArguments, model):  # noqa: F811
         available = ", ".join(sorted(rewards_module.REWARD_REGISTRY.keys()))
         raise ValueError(f"Unknown reward(s): {missing}. Available: [{available}]")
 
-    reward_funcs = [rewards_module.REWARD_REGISTRY[n](model) for n in names]
+    reward_funcs = [rewards_module.REWARD_REGISTRY[n] for n in names]
 
     if len(grpo_params.reward_weights) != len(reward_funcs):
         raise ValueError(
@@ -60,12 +60,14 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     logger.info(colored(f"Compute dtype: {compute_dtype}", "cyan"))
 
     # load model
+    logger.info(colored(f"Loading model from {grpo_params.model_path}", "cyan"))
     model, processor = load_model(
         grpo_params.model_path,
         compute_dtype=compute_dtype,
         use_cache=model_params.use_cache
     )
-
+    
+    logger.info(colored(f"Loading reference model from {grpo_params.model_path}", "cyan"))
     ref_model, _ = load_model(
         grpo_params.model_path,
         compute_dtype=compute_dtype,
@@ -77,8 +79,8 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     
     # set the latent tokens
     assert model.config.latent_size > 0 or model.config.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
-    set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
-    set_latent_tokens(processor, ref_model, model.config.latent_size, special_tokens=False)
+    set_latent_tokens(processor, model, model.config.latent_size, special_tokens=True)
+    set_latent_tokens(processor, ref_model, model.config.latent_size, special_tokens=True)
     
     
     # freeze specific components according to the training parameters

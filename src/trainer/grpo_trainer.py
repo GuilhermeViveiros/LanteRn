@@ -145,10 +145,15 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         return prompt_ids, completion_ids, logprobs, extra_fields
     
-    def _calculate_rewards(self, inputs: list[dict[str, torch.Tensor | Any]], prompts: list[str], completions: list[str], completion_ids_list: list[torch.Tensor]):
+    def _calculate_rewards(self, inputs, prompts, completions_text, ground_truth):
         rewards_per_func = []
+        obj_kwargs = {
+            "completions": completions_text,
+            "ground_truth": ground_truth,
+            "latent_size": self.latent_size,
+        }
         for reward_func in self.reward_funcs:
-            rewards = reward_func(completions)
+            rewards = reward_func(**obj_kwargs)
             rewards_per_func.append(rewards)
         
         rewards_per_func = [torch.tensor(r) for r in rewards_per_func]
@@ -242,11 +247,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
         device = self.accelerator.device
         mode = "train" if self.model.training else "eval"
         prompts = [x["prompt"] for x in inputs]
+        ground_truth = [x["ground_truth"] for x in inputs]
         
-        import pdb; pdb.set_trace()
-        # TODO: extract ground truth 
-        # inputs["ground_truth"]
-
         # TODO: here the check should be over the full batch, not just the first element
         if "images" in inputs[0]:
             images = [example.get("images") for example in inputs]
@@ -429,7 +431,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         # Decode
         prompts_text = self.processing_class.batch_decode(prompt_ids, skip_special_tokens=True)
-        completions_text = self.processing_class.batch_decode(completion_ids, skip_special_tokens=True)
+        completions_text = self.processing_class.batch_decode(completion_ids, skip_special_tokens=False)
         
         # Merge extra_fields from rollout_func into inputs for reward functions
         if extra_fields:
@@ -444,7 +446,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
         # add groun_truth
-        rewards_per_func = self._calculate_rewards(inputs, prompts, completions, completion_ids_list, ground_truth)
+        #import pdb; pdb.set_trace()
+        rewards_per_func = self._calculate_rewards(inputs, prompts, completions_text, ground_truth)
 
 
         for _, answer, reward in zip(prompts_text, completions_text, rewards_per_func):

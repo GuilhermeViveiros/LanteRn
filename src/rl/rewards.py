@@ -1,7 +1,11 @@
 import re
 from typing import Any, Dict, List, Union, Callable
-
-from src.rl.utils import extract_last_answer_from_text
+from fuzzywuzzy import fuzz
+from src.rl.utils import (
+    extract_last_answer_from_text,
+    ANSWER_RE,
+    THINK_RE
+)
 
 
 # builder: (model, **kwargs) -> reward_fn
@@ -18,22 +22,10 @@ def register_reward(name: str):
     return deco
 
 
-@register_reward("accuracy")
-def build_accuracy_reward(model, **_kwargs):
-    # model is always provided; unused here
-    return accuracy_reward
-
-
-@register_reward("structure")
-def build_structure_reward(model, **_kwargs):
-    return make_structure_reward_from_ids(model)
-
-
 # ----------------------------
 # Reward functions
 # ----------------------------
-
-
+@register_reward("accuracy")
 def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
     """
     Reason:
@@ -43,47 +35,69 @@ def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
       - if no <answer> => reward 0
     """
     out = []
-    for comp, gt in zip(completions, ground_truth):
-        # print(comp)
-        text = completion_to_text(comp)
+    for text, gt in zip(completions, ground_truth):
         pred = extract_last_answer_from_text(text)
         if pred == "":
             out.append(0.0)
         else:
-            out.append(1.0 if normalize_answer(pred) == normalize_answer(gt) else 0.0)
+            ratio = fuzz.ratio(normalize_answer(pred), normalize_answer(gt))
+            ratio = 0 if ratio < 80 else ratio / 100.0
+            out.append(ratio)
     return out
 
 
-def make_structure_reward_from_ids(model, **kwargs):
+@register_reward("structure")
+def structure_reward(
+    completions: List[str],
+    latent_size: int,
+    **kwargs
+    ) -> List[float]:
+
+    """
+    Reason:
+      - Reward is based on the structure of the completion.
+      - The structure should be: <think>...<lvr_start>...<lvr_end>...</think><answer>...<answer>...</answer>
+    Assumptions:
+      - if no <think> or no <answer> => reward 0
+      - if <think> and <answer> are present but <lvr_start>...</lvr_end> is not => reward 0.5
+
+    """
     # Exact contiguous block in IDs
     lvr_block = (
-        [model.config.lvr_start_id]
-        + [model.config.lvr_sep_id] * model.config.latent_size
-        + [model.config.lvr_end_id]
+        "<|lvr_start|>"
+        + "<|lvr_sep|>" * latent_size
+        + "<|lvr_end|>"
     )
 
-    def _find_subseq(seq, pat):
-        L = len(pat)
-        if L == 0 or len(seq) < L:
-            return False
-        for i in range(len(seq) - L + 1):
-            if seq[i : i + L] == pat:
-                return True
-        return False
+    def _find_subseq(seq: str, pat: str) -> int:
+        """
+        Check how many times a contiguous block of LVR tokens appears in a sequence.
+        """
+        pattern = re.escape(lvr_block)
+        return len(re.findall(pattern, seq))
 
-    def structure_reward(*, completions_ids=None, **kwargs):
-        # TRL GRPO uses `completions_ids`; keep fallback just in case
-        import pdb; pdb.set_trace()
-        if completions_ids is None:
-            completions_ids = kwargs.get("completion_ids")
-        if completions_ids is None:
-            raise ValueError(
-                "Reward func didn't receive completions_ids/completion_ids."
-            )
-
-        return [1.0 if _find_subseq(ids, lvr_block) else 0.0 for ids in completions_ids]
-
-    return structure_reward
+    # each sequence should have exactly one answer tag and >= 1 lvr tags
+    rewards = []
+    for seq in completions:
+        answer_tags = ANSWER_RE.findall(seq or "")
+        think_tags = THINK_RE.findall(seq or "")
+        lvr_tags = _find_subseq(seq, lvr_block)
+        
+        # if no answer tag return 0
+        if len(answer_tags) == 0 or len(answer_tags) > 1 or len(think_tags) == 0 or len(think_tags) > 1:
+            rewards.append(0.0)
+        # if answer, think and lvr are present add 1
+        elif len(answer_tags) == 1 and len(think_tags) == 1 and lvr_tags >= 1:
+            rewards.append(1.0)
+        # if answer and think are present but lvr is not return 0.5
+        elif len(answer_tags) == 1 and len(think_tags) == 1 and lvr_tags == 0:
+            rewards.append(0.5)
+        
+        else:
+            import pdb; pdb.set_trace()
+            rewards.append(0.0)
+    import pdb; pdb.set_trace()
+    return rewards
 
 
 # ----------------------------
