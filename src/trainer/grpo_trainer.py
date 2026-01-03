@@ -182,6 +182,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         batch_size = batch_size or input_ids.size(0)  # Chunk inputs into smaller batches to reduce memory peak
         all_logps = []
         all_entropies = []
+        latent_num_pointer = 0
         for start in range(0, input_ids.size(0), batch_size):
             input_ids_batch = input_ids[start : start + batch_size]
             attention_mask_batch = attention_mask[start : start + batch_size]
@@ -207,11 +208,12 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if token_type_ids is not None:
                 model_inputs["token_type_ids"] = token_type_ids[start : start + batch_size]
             if latent_embeds is not None:
-                start_idx = start * self.latent_size
-                end_idx = (start_idx + batch_size) * self.latent_size
-                model_inputs["latent_embeds"] = latent_embeds[start_idx:end_idx]
-            if latent_mask is not None:
                 model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
+                # latent embeds have a dynamic size per sample
+                current_latent_num = latent_mask[start : start + batch_size].sum()
+                model_inputs["latent_embeds"] = latent_embeds[latent_num_pointer: latent_num_pointer + current_latent_num]
+                # update latent_num_pointer
+                latent_num_pointer += current_latent_num
             # Only add logits_to_keep if the model supports it
             if "logits_to_keep" in self.model_kwarg_keys:
                 # We add 1 to `logits_to_keep` because the last logits of the sequence is later excluded
@@ -307,9 +309,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Concatenate prompt_mask with completion_mask for logit computation
         prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)  # (B, P+C)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)  # (B, P+C)
-        latent_mask = ~(completion_ids == self.model.config.lvr_sep_id) # (B, C)
-        latent_mask = torch.cat([prompt_mask, latent_mask], dim=1) # (B, P+C)
-        #final_mask = attention_mask & latent_mask # (B, P+C) # Excludes the latent tokens
+        latent_mask, \
+            latent_embeds = extra_fields["latent_mask"], extra_fields["latent_embeds"]
+        
+
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
         batch_size = self.args.per_device_train_batch_size if mode == "train" else self.args.per_device_eval_batch_size
 
@@ -329,10 +332,9 @@ class LantErnGRPOTrainer(GRPOTrainer):
         else:
             forward_kwargs = {}
 
-        if "latent_embeds" in extra_fields:
-            forward_kwargs["latent_embeds"] = extra_fields.pop("latent_embeds")
-        if "latent_mask" in extra_fields:
-            forward_kwargs["latent_mask"] = extra_fields.pop("latent_mask")
+        forward_kwargs["latent_embeds"] = latent_embeds
+        forward_kwargs["latent_mask"] = latent_mask
+
 
         # If token_type_ids are used, extend them with zeros for the completion part
         if "token_type_ids" in forward_kwargs:
@@ -405,7 +407,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if self.beta != 0.0:
                 if self.ref_model is not None:
                     print("Referece model. Calculating per token logps...")
-                    
                     ref_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                         self.ref_model,
                         prompt_completion_ids,
@@ -445,15 +446,16 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Calculate rewards for each reward function. rewards_per_func aggregates rewards across all processes. This is
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
-        # add groun_truth
-        #import pdb; pdb.set_trace()
         rewards_per_func = self._calculate_rewards(inputs, prompts, completions_text, ground_truth)
 
 
-        for _, answer, reward in zip(prompts_text, completions_text, rewards_per_func):
-            print("Answer: ", answer)
-            print("Associated reward: ", reward)
+        for prompt, answer, reward in zip(prompts_text, completions_text, rewards_per_func):
+            # replace <|endoftext|> with ''
             print("-"*100)
+            print("Prompt: ", prompt)
+            answer = answer.replace("<|endoftext|>", "")
+            print("Answer: ", answer)
+            print("Associated rewards - accuracy: ", reward[0], " structure: ", reward[1])
 
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
@@ -548,6 +550,11 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 nanmax(self.accelerator.gather(max_importance_sampling_ratio)).item()
             )
 
+        print("Passing latent_embeds and latent_mask to the model")
+        if latent_embeds is not None:
+            print("latent_embeds: ", latent_embeds.shape)
+            print("latent_mask: ", latent_mask.shape)
+            print(latent_mask.sum(axis=-1))
         output = {
             "prompt_ids": prompt_ids,
             "prompt_mask": prompt_mask,
@@ -555,8 +562,8 @@ class LantErnGRPOTrainer(GRPOTrainer):
             "completion_mask": completion_mask,
             "advantages": advantages,
             "num_items_in_batch": num_items_in_batch,
+            "latent_embeds": latent_embeds,
             "latent_mask": latent_mask,
-            #"final_mask": final_mask,
         }
         if old_per_token_logps is not None:
             output["old_per_token_logps"] = old_per_token_logps
@@ -582,22 +589,21 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
     def _compute_loss(self, model, inputs):
         # Compute the per-token log probabilities for the model
-        prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]
-        completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"]
-        #import ipdb; ipdb.set_trace()
-        #final_mask = inputs["final_mask"]
-        latent_mask = inputs["latent_mask"][:, prompt_mask.size(1):] # (B, C)
-        combined_completion_mask = completion_mask & latent_mask
-        # get ids where latent_mask is 0
-        #import numpy as np
-        #completion_ids_with_latent_mask_0 = np.where(((latent_mask[0]-1)*-1).cpu().numpy())[0]
+        prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"] # (B, P)
+        completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"] # (B, C)
+        latent_embeds, latent_mask = inputs["latent_embeds"], inputs["latent_mask"] # (B, P+C)
+        combined_completion_mask = completion_mask & latent_mask[:, prompt_mask.size(1):] # (B, P+C)
 
         input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
         # Compute the per_token_logps and the entropy at each position in the completion
+
         print("Computing per token logps and entropies...")
+        if latent_embeds is not None:
+            print("latent_embeds: ", latent_embeds.shape, "latent_mask: ", latent_mask.shape)
+            print(latent_mask.sum(axis=-1))
         per_token_logps, entropies = self._get_per_token_logps_and_entropies(
             model,
             input_ids,
@@ -610,8 +616,9 @@ class LantErnGRPOTrainer(GRPOTrainer):
             pixel_attention_mask=inputs.get("pixel_attention_mask"),
             image_sizes=inputs.get("image_sizes"),
             token_type_ids=inputs.get("token_type_ids"),
+            latent_embeds=latent_embeds,
+            latent_mask=latent_mask,
         )
-
 
         if self.top_entropy_quantile < 1.0:
             # mask = completion_mask if not self.tools else completion_mask * inputs["tool_mask"]
@@ -756,20 +763,3 @@ class LantErnGRPOTrainer(GRPOTrainer):
             self._metrics[mode]["cispo_clip_ratio"].append(gathered_cispo_clip_ratio.nanmean().item())
 
         return loss
-
-    # def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-    #     if return_outputs:
-    #         raise ValueError("The GRPOTrainer does not support returning outputs")
-
-    #     # Check if we need to generate new completions or use buffered ones
-    #     print("Global step: ", self.state.global_step)
-    #     if self.state.global_step % self.num_iterations == 0:
-    #         # print("computing _generate_and_score_completions!!!")
-    #         inputs = self._generate_and_score_completions(inputs)
-    #         # print("Adv obtained!!!")
-    #         self._buffered_inputs[self._step % self.args.gradient_accumulation_steps] = inputs
-    #     else:
-    #         inputs = self._buffered_inputs[self._step % self.args.gradient_accumulation_steps]
-    #     self._step += 1
-
-    #     return self._compute_loss(model, inputs)

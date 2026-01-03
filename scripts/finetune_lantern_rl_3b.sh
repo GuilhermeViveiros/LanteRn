@@ -12,9 +12,10 @@ RANDOM_SEED=42
 
 
 
+LATENT_SIZE=8
+LAMBDA_LANTERN=0.1
 RUN_NAME="grpo_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
-CHECKPOINT_PATH="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062"
-LATENT_SIZE=4
+CHECKPOINT_PATH="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}/checkpoint-1062"
 
 python $REPO/src/train/train_grpo.py \
     --run_name "$RUN_NAME" \
@@ -28,11 +29,13 @@ python $REPO/src/train/train_grpo.py \
     \
     --per_device_train_batch_size 2 \
     --num_generations 2 \
-    --max_completion_length 528 \
+    --max_completion_length 320 \
     --temperature 0.6 \
+    --seed $RANDOM_SEED \
     --top_p 0.85 \
     \
-    --logging_steps 100 \
+    --logging_strategy steps \
+    --logging_steps 50 \
     \
     --reward_names accuracy structure \
     --reward_weights 1.0 1.0 \
@@ -40,7 +43,3 @@ python $REPO/src/train/train_grpo.py \
     --data_path "/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json" \
     --image_root "/mnt/data-hades/gviveiros/"\
     --report_to none
-
-#--weight_decay 0.1 \
-#--image_folder $IMAGE_FOLDER \
-#--lazy_preprocess True \

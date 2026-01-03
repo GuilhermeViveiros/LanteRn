@@ -130,10 +130,10 @@ def qwen2_5_mixed_modality_forward_lantern(
     
     if latent_embeds is not None:
         # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
-        inputs_embeds[latent_mask] = latent_embeds
+        inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
 
     # either pass latent_values or latent_hidden_state
-    if latent_values is not None and latent_hidden_state is not None:
+    if latent_values is not None and latent_embeds is not None:
         raise ValueError("Only one of latent_values or latent_hidden_state can be passed, not both")
    
     if pixel_values_videos is not None:

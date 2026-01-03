@@ -4,6 +4,7 @@ from transformers import AutoTokenizer, StoppingCriteriaList, GenerationConfig, 
 from dataclasses import dataclass
 from typing import Optional
 import logging
+from itertools import chain
 
 logger = logging.getLogger("LantErn-Generate")
 
@@ -93,13 +94,15 @@ def generate(
     latent_num = torch.zeros(batch_size, dtype=torch.int, device=input_ids.device)
     MAX_LATENT_LEN = model.config.latent_size
     # latent_values: TODO: for now it only supports a fixed number of latent tokens per sample (MAX_LATENT_LEN)
-    latent_embeds = []
+    latent_embeds = [[] for _ in range(batch_size)] # every sample has its own latent embeds list (different sizes)
     latent_mask = torch.zeros_like(input_ids, dtype=torch.bool)
 
 
     latent_start_idx = model.config.lvr_start_id
     latent_end_idx = model.config.lvr_end_id
     latent_pad_idx = model.config.lvr_sep_id
+
+    tmp_value = 0
 
     while model._has_unfinished_sequences(this_peer_finished, synced_gpus, device=input_ids.device):
         # prepare model inputs
@@ -170,26 +173,41 @@ def generate(
         # ---------------------------------------------------------
         # 2) For samples already in_latent_mode:
         #    - Determine whether they still need pad tokens or should end
+        # ---------------------------------------------------------
+        need_pad_mask = in_latent_mode & (latent_num <= MAX_LATENT_LEN) & ~latent_start_mask
+        latent_num[need_pad_mask] += 1
+
+        # ---------------------------------------------------------    
+        # 3) Update latent counters if the latent mode terminated
+        #    - For samples that have terminated latent mode, set:
+        #      - latent_num to 0
+        #      - in_latent_mode to False
+        #      - need_pad_mask to False
         #    - Store the latent mask
         # ---------------------------------------------------------
-        need_pad_mask = in_latent_mode & (latent_num < MAX_LATENT_LEN) & ~latent_start_mask
-        latent_num[need_pad_mask] += 1
-        latent_end_mask = in_latent_mode & (latent_num >= MAX_LATENT_LEN)
+        latent_end_mask = in_latent_mode & (latent_num > MAX_LATENT_LEN)
+        if latent_end_mask.any():
+            latent_num[latent_end_mask] = 0
+            in_latent_mode[latent_end_mask] = False
+            need_pad_mask[latent_end_mask] = False
+
         latent_mask = torch.cat((latent_mask, need_pad_mask.unsqueeze(1)), dim=1)
 
-        # ---------------------------------------------------------
-        # 3) Build the next_tokens
-        #    priority: latent_pad -> latent_end -> next_tokens
-        #    latent_start is handled in the previous step
-        # ---------------------------------------------------------
-        next_tokens = torch.where(latent_end_mask,  torch.full_like(next_tokens, latent_end_idx), next_tokens)
-        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
+        # if need_pad_mask count
+        tmp_value += need_pad_mask.sum()
         
 
-        #print("need_pad_mask: ", need_pad_mask, " latent_end_mask: ", latent_end_mask, "next_tokens: ", next_tokens)
+        # ---------------------------------------------------------
+        # 4) Build the next_tokens
+        #    priority: latent_sep -> latent_end -> next_tokens
+        #    latent_start is handled in the previous step
+        # ---------------------------------------------------------
+        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),   next_tokens)
+        next_tokens = torch.where(latent_end_mask,  torch.full_like(next_tokens, latent_end_idx), next_tokens)
+        
 
         # ---------------------------------------------------------
-        # 4) Determine embedding for next token
+        # 5) Determine embedding for next token
         #    We'll construct next_token_embed of shape (batch_size, 1, embed_dim)
         # ---------------------------------------------------------
         next_token_embed = model.get_input_embeddings()(next_tokens[:, None])
@@ -198,24 +216,14 @@ def generate(
             batch_indices = torch.nonzero(need_pad_mask, as_tuple=False).squeeze(1)
             if gt_latent_embeds is not None: # for debugging purposes (we can use the gt during the generation)
                 latent_positions = latent_num[need_pad_mask] - 1
-                next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(0)
+                next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(1) # (batch_size, 1, embed_dim)
             else:
-                next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(0)
+                next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(1) # (batch_size, 1, embed_dim)
             
-            next_token_embed[batch_indices, 0, :] = next_latent_embed.to(dtype=torch.bfloat16)
-            # store the latent values
-            latent_embeds.extend(next_latent_embed.squeeze(0))
-
-        # ---------------------------------------------------------    
-        # 5) Update latent counters AFTER using the embedding
-        #    For the samples that have terminated latent mode, set latent_num to 0
-        # ---------------------------------------------------------
-        # latent_num = latent_num + need_pad_mask.long()
-        if latent_end_mask.any():
-            latent_num[latent_end_mask] = 0
-            in_latent_mode[latent_end_mask] = False
-
-        
+            next_token_embed[batch_indices] = next_latent_embed.to(dtype=torch.bfloat16)
+            # store the latent values (dynamic size per sample)
+            for idx, embed in zip(batch_indices, next_latent_embed):
+                latent_embeds[idx].append(embed.squeeze(0))
         
         # ---------------------------------------------------------    
         # 6) Replace the input embeddings with the new embeddings
@@ -240,9 +248,10 @@ def generate(
 
     # if latent_mask is all False, don't return the latent values and mask (text-only prediction)
     if not latent_mask.any():
-        latent_mask = None
         latent_embeds = None
     else:
-        latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)    
+        latent_embeds = [embed for embed in latent_embeds if len(embed) > 0] # ignore empty lists
+        latent_embeds = list(chain.from_iterable(latent_embeds)) # nested list to single list
+        latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)
 
     return LantErnGenerateOutput(input_ids=input_ids, latent_embeds=latent_embeds, latent_mask=latent_mask)

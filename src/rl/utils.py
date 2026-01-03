@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from src.rl.prompt import make_prompt_messages
 
@@ -45,7 +45,7 @@ def extract_last_answer_from_text(text: str) -> str:
     return matches[-1].strip() if matches else ""
 
 
-def convert_example(example: Dict[str, Any], system_prompt: str) -> Dict[str, Any]:
+def convert_example(example: Dict[str, Any], system_prompt: Optional[str] = None) -> Dict[str, Any]:
     """
     Reason:
       - Convert your JSON example into GRPO-friendly columns:
@@ -63,7 +63,7 @@ def convert_example(example: Dict[str, Any], system_prompt: str) -> Dict[str, An
     gt = extract_last_answer_from_text(asst_msg)
 
     return {
-        "prompt": make_prompt_messages(system_prompt, user_msg),
+        "prompt": "#SDDASDSA", #make_prompt_messages(user_msg, system_prompt),
         "images": example["images"],  # list of PIL after cast
         "ground_truth": gt,
         "id": str(example.get("id", "")),

@@ -14,14 +14,14 @@ def set_latent_tokens(processor, model, latent_size: int, special_tokens: bool =
     processor.latent_size = latent_size
     model.config.latent_size = latent_size
 
-    model.config.additional_special_tokens = [
-        "<|lvr_start|>",
-        "<|lvr_sep|>",
-        "<|lvr_end|>"
-    ]
+    # model.config.additional_special_tokens = [
+    #     "<|lvr_start|>",
+    #     "<|lvr_sep|>",
+    #     "<|lvr_end|>"
+    # ]
 
     # resize the model embeddings size
-    model.resize_token_embeddings(len(processor.tokenizer))
+    # model.resize_token_embeddings(len(processor.tokenizer))
 
     # get the ids of the special tokens -> used for the model and processor
     lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")

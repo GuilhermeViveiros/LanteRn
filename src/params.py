@@ -98,9 +98,11 @@ class GRPOArguments(GRPOConfig):
 
     # ------------------------------------------------------------------
     logging_steps: int = field(default=20)
+    logging_strategy: str = field(default="steps")
     remove_unused_columns: bool = field(default=False)
     log_completions: bool = field(default=True)
     num_completions_to_print: Optional[int] = field(default=2)
+    seed: int = field(default=42)
 
     # ------------------------------------------------------------------
     # Rewards

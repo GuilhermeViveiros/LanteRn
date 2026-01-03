@@ -7,6 +7,9 @@ from typing import Optional
 from torch.utils.data import Dataset
 from datasets import load_dataset
 from src.rl.utils import convert_example
+import logging
+
+logger = logging.getLogger("LantErn-GRPO-Dataset")
 
 class GRPODataset(Dataset):
     def __init__(self, data_path: str, image_root: str, system_prompt: Optional[str] = None):
@@ -28,9 +31,11 @@ class GRPODataset(Dataset):
         ds = ds.map(
             lambda ex: convert_example(ex, system_prompt), remove_columns=ds.column_names
         )
-
+        
         # add the dataset
         self.ds = ds
+        # log the number of examples
+        logger.info(f"\033[92mNumber of examples in GRPODataset: {len(self.ds)}\033[0m")
 
     def __len__(self):
         return len(self.ds)

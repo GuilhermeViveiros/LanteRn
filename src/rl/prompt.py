@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 def completion_to_text(
@@ -45,7 +45,7 @@ def _blocks_to_text(content_blocks: Any) -> str:
     return str(content_blocks)
 
 
-def make_prompt_messages(system_prompt: str, user_text: str) -> List[Dict[str, Any]]:
+def make_prompt_messages(user_text: str, system_prompt: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Reason:
       - This is the TRL multimodal chat format.
@@ -56,16 +56,21 @@ def make_prompt_messages(system_prompt: str, user_text: str) -> List[Dict[str, A
       - Exactly one image per example.
       - TRL pairs the dataset's 'images' list with the {"type":"image"} block(s).
     """
-    return [
-        {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "text": ""},  # keep 'text' key to avoid schema quirks
-                {"type": "text", "text": user_text},
-            ],
-        },
-    ]
+    prompt = {
+        "role": "user",
+        "content": [
+            {"type": "image", "text": ""},  # keep 'text' key to avoid schema quirks
+            {"type": "text", "text": user_text},
+        ],
+    }
+    if system_prompt is not None:
+        raise ValueError("System prompt is not supported yet")
+        return [
+            {"role": "system", "content": [{"type": "text", "text": system_prompt}]}, 
+            prompt
+        ]
+    else:
+        return [prompt]
 
 
 def build_system_prompt(latent_size: int) -> str:

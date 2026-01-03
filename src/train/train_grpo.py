@@ -66,6 +66,7 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
         compute_dtype=compute_dtype,
         use_cache=model_params.use_cache
     )
+    processor.tokenizer.bos_token_id = model.config.bos_token_id
     
     logger.info(colored(f"Loading reference model from {grpo_params.model_path}", "cyan"))
     ref_model, _ = load_model(

@@ -38,10 +38,14 @@ def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
     for text, gt in zip(completions, ground_truth):
         pred = extract_last_answer_from_text(text)
         if pred == "":
+            #print("Pred: ", pred, "GT: ", gt)
+            #print("-"*30)
             out.append(0.0)
         else:
             ratio = fuzz.ratio(normalize_answer(pred), normalize_answer(gt))
-            ratio = 0 if ratio < 80 else ratio / 100.0
+            #print("Pred: ", pred, "GT: ", gt, "Ratio: ", ratio)
+            ratio = 0 if ratio < 70 else ratio / 100.0
+            #print("-"*30)
             out.append(ratio)
     return out
 
@@ -94,9 +98,7 @@ def structure_reward(
             rewards.append(0.5)
         
         else:
-            import pdb; pdb.set_trace()
             rewards.append(0.0)
-    import pdb; pdb.set_trace()
     return rewards
 
 

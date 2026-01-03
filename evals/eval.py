@@ -203,8 +203,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.6/checkpoint-1180/"
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062"
     ) 
     parser.add_argument(
         "--lvr",
@@ -233,10 +234,12 @@ if __name__ == "__main__":
     # load the model
     from src.models import load_model
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
+
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
     processor.tokenizer.padding_side = "left"
+
     # check if the latent size is set
     if args.lvr:
         if not hasattr(model.config, "latent_size"):
