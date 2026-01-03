@@ -68,20 +68,15 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     processor.tokenizer.eos_token_id = model.config.eos_token_id
     
     logger.info(colored(f"Loading reference model from {grpo_params.model_path}", "cyan"))
-    ref_model, _ = load_model(
-        grpo_params.model_path,
-        compute_dtype=compute_dtype,
-        use_cache=model_params.use_cache
-    )
-    ref_model.requires_grad_(False)
-    ref_model.eval()
-
     
     # set the latent tokens
     assert model.config.latent_size > 0 or model.config.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
-    set_latent_tokens(processor, model, model.config.latent_size, special_tokens=True)
-    set_latent_tokens(processor, ref_model, model.config.latent_size, special_tokens=True)
+    set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
     
+    
+
+    # processor.tokenizer.vocab_size
+    # 151668
     
     # freeze specific components according to the training parameters
     configure_vision_tower(model, freeze_vision_tower=grpo_params.freeze_vision_tower, freeze_merger=grpo_params.freeze_merger)
@@ -97,7 +92,8 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     train_dataset = GRPODataset(
         data_path=data_params.data_path,
         image_root=data_params.image_root,
-        system_prompt=None
+        system_prompt=None,
+        dummy=True
     )
 
     # prepare rewards
@@ -107,7 +103,6 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     # Train
     trainer = LantErnGRPOTrainer(
         model=model,
-        ref_model=ref_model,
         latent_size=latent_size,
         args=grpo_params,
         processing_class=processor,

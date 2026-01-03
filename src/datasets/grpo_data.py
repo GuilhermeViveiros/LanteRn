@@ -12,13 +12,17 @@ import logging
 logger = logging.getLogger("LantErn-GRPO-Dataset")
 
 class GRPODataset(Dataset):
-    def __init__(self, data_path: str, image_root: str, system_prompt: Optional[str] = None):
+    def __init__(self, data_path: str, image_root: str, system_prompt: Optional[str] = None, dummy: bool = False):
         # Load data
         ds = load_dataset(
             "json",
             data_files=data_path,
             split="train"
         )
+        
+        if dummy:
+            logger.info(f"Using dummy dataset with {len(ds)} examples")
+            ds = ds.select(range(1000))
 
         # Create a stable 'images' list column containing absolute paths
         def add_images(ex, image_root: str):
@@ -34,6 +38,7 @@ class GRPODataset(Dataset):
         
         # add the dataset
         self.ds = ds
+
         # log the number of examples
         logger.info(f"\033[92mNumber of examples in GRPODataset: {len(self.ds)}\033[0m")
 

@@ -63,7 +63,7 @@ def convert_example(example: Dict[str, Any], system_prompt: Optional[str] = None
     gt = extract_last_answer_from_text(asst_msg)
 
     return {
-        "prompt": "#SDDASDSA", #make_prompt_messages(user_msg, system_prompt),
+        "prompt": make_prompt_messages(user_msg, system_prompt),
         "images": example["images"],  # list of PIL after cast
         "ground_truth": gt,
         "id": str(example.get("id", "")),

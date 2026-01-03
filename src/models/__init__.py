@@ -48,6 +48,7 @@ def load_model(
     min_pixels = 256 * 28 * 28 # TODO: Add this variables in the params.py file
     max_pixels = 3500 * 28 * 28 # TODO: Add this variables in the params.py file
 
+
     processor = AutoProcessor.from_pretrained(
         "Qwen/Qwen2.5-VL-3B-Instruct", 
         min_pixels=min_pixels,

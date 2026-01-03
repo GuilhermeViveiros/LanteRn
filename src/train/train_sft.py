@@ -82,6 +82,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     
     # Load data
     if training_params.packed_data:
+        # TODO: Implement packed data for SFT
+        raise NotImplementedError("Packed data is not implemented for SFT -> yet")
         data_module = make_sft_data_packed_module(
             processor=processor,
             data_path=data_params.data_path,

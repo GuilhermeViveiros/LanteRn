@@ -59,8 +59,7 @@ from trl.trainer.grpo_trainer import nanstd
 
 
 class LantErnGRPOTrainer(GRPOTrainer):
-    def __init__(self, ref_model: PreTrainedModel, latent_size: int, *args, **kwargs):
-        self.ref_model = ref_model
+    def __init__(self, latent_size: int, *args, **kwargs):
         self.latent_size = latent_size
         super().__init__(*args, **kwargs)
 
