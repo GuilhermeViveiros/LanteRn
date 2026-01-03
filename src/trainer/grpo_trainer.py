@@ -3,30 +3,14 @@ import sys
 import torch
 import torch.nn.functional as F
 from typing import Optional, Tuple
-
-import warnings
 import torch
-from torch import nn
-import datasets
-from typing import Union
-from collections import defaultdict, deque
-from collections.abc import Sized
 from contextlib import nullcontext
-from typing import Any, Callable, Optional, Union
-from datasets import Dataset, IterableDataset
-from packaging import version
-import transformers
-import textwrap
-
-from torch.utils.data import DataLoader, Sampler
-
-from accelerate.utils import is_peft_model, set_seed, broadcast_object_list, gather, gather_object
-from transformers.utils import is_datasets_available
-
+from typing import Any
 from transformers.trainer import (
     TRAINER_STATE_NAME,
     PREFIX_CHECKPOINT_DIR,
 )
+from accelerate.utils import gather_object
 
 from transformers.trainer import (
     ExportableState,
@@ -57,8 +41,9 @@ from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
 from trl.trainer.utils import selective_log_softmax
 from trl import GRPOTrainer
 from trl.trainer.grpo_config import GRPOConfig
-from trl.models import create_reference_model, prepare_deepspeed, unwrap_model_for_generation
+from trl.models import unwrap_model_for_generation
 
+from src.trainer.utils import prepare_latent_embeds
 
 # grpo functions that are not implemented
 from trl.data_utils import (
@@ -208,12 +193,15 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if token_type_ids is not None:
                 model_inputs["token_type_ids"] = token_type_ids[start : start + batch_size]
             if latent_embeds is not None:
-                model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
-                # latent embeds have a dynamic size per sample
-                current_latent_num = latent_mask[start : start + batch_size].sum()
-                model_inputs["latent_embeds"] = latent_embeds[latent_num_pointer: latent_num_pointer + current_latent_num]
-                # update latent_num_pointer
-                latent_num_pointer += current_latent_num
+                # get latent mask and latent embeds for the current batch
+                current_latent_num = latent_mask[start : start + batch_size].sum().item()
+                
+                if current_latent_num > 0:
+                    model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
+                    latent_embeds_batch = prepare_latent_embeds(latent_embeds)
+                    model_inputs["latent_embeds"] = latent_embeds_batch[latent_num_pointer: latent_num_pointer + current_latent_num]
+                    # update latent_num_pointer
+                    latent_num_pointer += current_latent_num
             # Only add logits_to_keep if the model supports it
             if "logits_to_keep" in self.model_kwarg_keys:
                 # We add 1 to `logits_to_keep` because the last logits of the sequence is later excluded
@@ -356,6 +344,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             # distribution mismatch between vLLM and the training model can be large and harm the training.
             generate_every = self.args.steps_per_generation * self.num_iterations  # generation frequency
             
+            print("self.args.gradient_accumulation_steps: ", self.args.gradient_accumulation_steps, "generate_every: ", generate_every)
             if self.args.gradient_accumulation_steps % generate_every != 0 or (
                 self.use_vllm and self.vllm_importance_sampling_correction
             ):
@@ -406,7 +395,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             # Compute the per-token log probabilities for the reference model
             if self.beta != 0.0:
                 if self.ref_model is not None:
-                    print("Referece model. Calculating per token logps...")
+                    print("Calculating per token logps with reference model -> KL LOSS")
                     ref_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                         self.ref_model,
                         prompt_completion_ids,
@@ -550,11 +539,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 nanmax(self.accelerator.gather(max_importance_sampling_ratio)).item()
             )
 
-        print("Passing latent_embeds and latent_mask to the model")
-        if latent_embeds is not None:
-            print("latent_embeds: ", latent_embeds.shape)
-            print("latent_mask: ", latent_mask.shape)
-            print(latent_mask.sum(axis=-1))
         output = {
             "prompt_ids": prompt_ids,
             "prompt_mask": prompt_mask,
@@ -600,10 +584,11 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         # Compute the per_token_logps and the entropy at each position in the completion
 
-        print("Computing per token logps and entropies...")
-        if latent_embeds is not None:
-            print("latent_embeds: ", latent_embeds.shape, "latent_mask: ", latent_mask.shape)
-            print(latent_mask.sum(axis=-1))
+        print("Computing per token logs for the model. KL Loss")
+        # if latent_embeds is not None:
+        #     print("latent_embeds: ", latent_embeds.shape, "latent_mask: ", latent_mask.shape)
+        #     print(latent_mask.sum(axis=-1))
+        
         per_token_logps, entropies = self._get_per_token_logps_and_entropies(
             model,
             input_ids,

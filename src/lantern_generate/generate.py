@@ -249,9 +249,9 @@ def generate(
     # if latent_mask is all False, don't return the latent values and mask (text-only prediction)
     if not latent_mask.any():
         latent_embeds = None
-    else:
-        latent_embeds = [embed for embed in latent_embeds if len(embed) > 0] # ignore empty lists
-        latent_embeds = list(chain.from_iterable(latent_embeds)) # nested list to single list
-        latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)
+    #else:
+        #latent_embeds = [embed for embed in latent_embeds if len(embed) > 0] # ignore empty lists
+        #latent_embeds = list(chain.from_iterable(latent_embeds)) # nested list to single list
+        #latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)
 
     return LantErnGenerateOutput(input_ids=input_ids, latent_embeds=latent_embeds, latent_mask=latent_mask)

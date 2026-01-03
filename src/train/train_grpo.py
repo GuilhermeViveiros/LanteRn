@@ -11,9 +11,6 @@ from src.datasets.grpo_data import GRPODataset
 from src.models import load_model
 from src.train import configure_vision_tower, configure_llm
 from src.trainer.grpo_trainer import LantErnGRPOTrainer
-from src.models.utils import get_last_checkpoint
-#from src.reward_funcs import format_reward
-#from src.rl.rewards import build_accuracy_reward, build_structure_reward
 from src.train import set_latent_tokens
 
 # custom rl utils
@@ -66,7 +63,9 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
         compute_dtype=compute_dtype,
         use_cache=model_params.use_cache
     )
+
     processor.tokenizer.bos_token_id = model.config.bos_token_id
+    processor.tokenizer.eos_token_id = model.config.eos_token_id
     
     logger.info(colored(f"Loading reference model from {grpo_params.model_path}", "cyan"))
     ref_model, _ = load_model(

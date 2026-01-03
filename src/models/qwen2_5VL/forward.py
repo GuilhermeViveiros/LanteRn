@@ -7,6 +7,7 @@ from transformers.utils import is_torchdynamo_compiling
 from transformers.modeling_outputs import ModelOutput
 from transformers.processing_utils import Unpack
 from src.models.utils import apply_latent_compression
+from itertools import chain
 
 @dataclass
 class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):

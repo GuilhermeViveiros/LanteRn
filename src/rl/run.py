@@ -62,7 +62,7 @@ def main(grpo_params: GRPOParams, json_path: str, image_root: str):
 
     processor.tokenizer.padding_side = "left"
     if processor.tokenizer.pad_token is None:
-        processor.tokenizer.pad_token = processor.tokenizer.eos_token
+       processor.tokenizer.pad_token = processor.tokenizer.eos_token
 
     # ensure_lvr_tokens(model, processor)
     configure_generation_cache(model)

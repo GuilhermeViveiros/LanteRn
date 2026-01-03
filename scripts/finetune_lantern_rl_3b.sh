@@ -25,7 +25,7 @@ python $REPO/src/train/train_grpo.py \
     --learning_rate 5e-6 \
     --warmup_ratio 0.03 \
     --beta 0.1 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 2 \
     \
     --per_device_train_batch_size 2 \
     --num_generations 2 \

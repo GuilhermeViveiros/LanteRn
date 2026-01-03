@@ -75,7 +75,8 @@ class GRPOArguments(GRPOConfig):
     # Batching
     # ------------------------------------------------------------------
     per_device_train_batch_size: int = field(default=1)
-    gradient_accumulation_steps: int = field(default=1)
+    gradient_accumulation_steps: int = field(default=1) #steps_per_generation
+    #steps_per_generation: int = field(default=1)
 
     # ------------------------------------------------------------------
     # Training schedule
