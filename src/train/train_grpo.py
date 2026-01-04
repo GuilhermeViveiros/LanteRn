@@ -74,9 +74,13 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
     
     
-
+    # import ipdb; ipdb.set_trace()
+    # processor.tokenizer.convert_tokens_to_ids("<|im_end|>")
     # processor.tokenizer.vocab_size
     # 151668
+    #processor.tokenizer.eos_token_id = model.config.eos_token_id
+    #processor.tokenizer.pad_token_id = model.config.pad_token_id
+    #processor.tokenizer.bos_token_id = model.config.bos_token_id
     
     # freeze specific components according to the training parameters
     configure_vision_tower(model, freeze_vision_tower=grpo_params.freeze_vision_tower, freeze_merger=grpo_params.freeze_merger)
@@ -109,6 +113,14 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
         train_dataset=train_dataset,
         reward_funcs=reward_funcs
     )
+
+    tok = processor.tokenizer
+    im_end_id = tok.convert_tokens_to_ids("<|im_end|>")
+    eot_id = tok.convert_tokens_to_ids("<|endoftext|>")
+    im_start_id = tok.convert_tokens_to_ids("<|im_start|>")
+    trainer.generation_config.eos_token_id = [im_end_id, eot_id]
+    trainer.generation_config.pad_token_id = tok.pad_token_id
+    trainer.generation_config.bad_words_ids = [[im_start_id]]
 
     trainer.train()
 

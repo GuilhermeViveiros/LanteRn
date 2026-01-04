@@ -8,11 +8,6 @@ from itertools import chain
 
 logger = logging.getLogger("LantErn-Generate")
 
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
-tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
-tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
-tokenizer.add_tokens("<|lvr_end|>", special_tokens=False)
-
 @dataclass
 class LantErnGenerateOutput:
     input_ids: torch.LongTensor

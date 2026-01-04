@@ -10,12 +10,18 @@ MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
 REPO="/home/gviveiros/LantErn"
 RANDOM_SEED=42
 
-
+NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+echo "Number of GPUs: $NUM_DEVICES"
 
 LATENT_SIZE=8
 LAMBDA_LANTERN=0.1
 RUN_NAME="grpo_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
 CHECKPOINT_PATH="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}/checkpoint-1062"
+
+#python $REPO/src/train/train_grpo.py \
+# if [ $NUM_DEVICES -gt 1 ]; then
+#     deepspeed --num_gpus $NUM_DEVICES $REPO/src/train/train_grpo.py \
+#         --deepspeed scripts/zero3.json \
 
 python $REPO/src/train/train_grpo.py \
     --run_name "$RUN_NAME" \
@@ -42,4 +48,4 @@ python $REPO/src/train/train_grpo.py \
     \
     --data_path "/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json" \
     --image_root "/mnt/data-hades/gviveiros/"\
-    --report_to none
+    --report_to wandb
