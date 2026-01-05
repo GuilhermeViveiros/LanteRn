@@ -402,7 +402,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
                         logits_to_keep,
                         batch_size=batch_size,
                         num_images=num_images,
-                        **forward_kwargs,  # may contain pixel_values, image_grid_thw, pixel_attention_mask and image_sizes
+                        **forward_kwargs,  # may contain pixel_values, image_grid_thw, pixel_attention_mask, image_sizes, latent_embeds and latent_mask
                     )
                 else:
                     with self.accelerator.unwrap_model(self.model).disable_adapter():
@@ -437,13 +437,14 @@ class LantErnGRPOTrainer(GRPOTrainer):
         rewards_per_func = self._calculate_rewards(inputs, prompts, completions_text, ground_truth)
 
 
-        for prompt, answer, reward in zip(prompts_text, completions_text, rewards_per_func):
+        for prompt, answer, reward, gt in zip(prompts_text, completions_text, rewards_per_func, ground_truth):
             # replace <|endoftext|> with ''
             print("-"*100)
-            print("Prompt: ", prompt)
+            print("Prompt: ", prompt, "GT: ", gt)
             answer = answer.replace("<|endoftext|>", "")
             print("Answer: ", answer)
             print("Associated rewards - accuracy: ", reward[0], " structure: ", reward[1])
+            print("-"*100)
 
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)

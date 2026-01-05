@@ -23,7 +23,9 @@ CHECKPOINT_PATH="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_$
 #     deepspeed --num_gpus $NUM_DEVICES $REPO/src/train/train_grpo.py \
 #         --deepspeed scripts/zero3.json \
 
-python $REPO/src/train/train_grpo.py \
+#python $REPO/src/train/train_grpo.py \
+deepspeed --num_gpus $NUM_DEVICES $REPO/src/train/train_grpo.py \
+    --deepspeed scripts/zero3.json \
     --run_name "$RUN_NAME" \
     --model_path $CHECKPOINT_PATH \
     --output_dir "/mnt/scratch-artemis/gviveiros/lantern/checkpoints" \
@@ -33,8 +35,8 @@ python $REPO/src/train/train_grpo.py \
     --beta 0.1 \
     --gradient_accumulation_steps 2 \
     \
-    --per_device_train_batch_size 2 \
-    --num_generations 2 \
+    --per_device_train_batch_size 4 \
+    --num_generations 8 \
     --max_completion_length 320 \
     --temperature 0.6 \
     --seed $RANDOM_SEED \

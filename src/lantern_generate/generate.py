@@ -97,8 +97,6 @@ def generate(
     latent_end_idx = model.config.lvr_end_id
     latent_pad_idx = model.config.lvr_sep_id
 
-    tmp_value = 0
-
     while model._has_unfinished_sequences(this_peer_finished, synced_gpus, device=input_ids.device):
         # prepare model inputs
         model_inputs = model.prepare_inputs_for_generation(input_ids, **model_kwargs)
@@ -187,10 +185,6 @@ def generate(
             need_pad_mask[latent_end_mask] = False
 
         latent_mask = torch.cat((latent_mask, need_pad_mask.unsqueeze(1)), dim=1)
-
-        # if need_pad_mask count
-        tmp_value += need_pad_mask.sum()
-        
 
         # ---------------------------------------------------------
         # 4) Build the next_tokens
