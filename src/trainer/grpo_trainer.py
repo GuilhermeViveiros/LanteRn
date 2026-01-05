@@ -37,7 +37,6 @@ from transformers import (
     is_wandb_available,
 )
 from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
-
 from trl.trainer.utils import selective_log_softmax
 from trl import GRPOTrainer
 from trl.trainer.grpo_config import GRPOConfig
@@ -56,7 +55,8 @@ from trl.extras.profiling import profiling_context
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from trl.models.utils import _ForwardRedirection, disable_gradient_checkpointing
 from trl.trainer.grpo_trainer import nanstd
-
+from accelerate.utils import gather
+import torch.distributed as dist
 
 class LantErnGRPOTrainer(GRPOTrainer):
     def __init__(self, latent_size: int, *args, **kwargs):
@@ -129,19 +129,21 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         return prompt_ids, completion_ids, logprobs, extra_fields
     
-    def _calculate_rewards(self, inputs, prompts, completions_text, ground_truth):
-        rewards_per_func = []
+    def _calculate_rewards(self, inputs, prompts, completions_text, ground_truth) -> torch.Tensor:
+        rewards_per_func = torch.zeros(len(prompts), len(self.reward_funcs), device=self.accelerator.device)
+        
         obj_kwargs = {
             "completions": completions_text,
             "ground_truth": ground_truth,
             "latent_size": self.latent_size,
         }
-        for reward_func in self.reward_funcs:
+        for i, reward_func in enumerate(self.reward_funcs):
             rewards = reward_func(**obj_kwargs)
-            rewards_per_func.append(rewards)
-        
-        rewards_per_func = [torch.tensor(r) for r in rewards_per_func]
-        rewards_per_func = torch.stack(rewards_per_func, dim=1).to(self.accelerator.device) # (B, num_reward_funcs)
+            rewards_per_func[:, i] = torch.tensor(rewards, device=self.accelerator.device)
+
+        # Gather across all ranks so each rank has the global tensor
+        rewards_per_func = gather(rewards_per_func)  # we need this because GRPO slices over the full reward batch, so we need to gather the rewards from all ranks
+
         return rewards_per_func
     
     def _get_per_token_logps_and_entropies(
@@ -267,7 +269,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
             sampling_per_token_logps_list,
             extra_fields,
         ) = self._generate(prompts)
-
         
         # Convert lists of token IDs to padded tensors
         prompt_ids = [torch.tensor(ids, device=device) for ids in prompt_ids_list]
@@ -437,14 +438,15 @@ class LantErnGRPOTrainer(GRPOTrainer):
         rewards_per_func = self._calculate_rewards(inputs, prompts, completions_text, ground_truth)
 
 
-        for prompt, answer, reward, gt in zip(prompts_text, completions_text, rewards_per_func, ground_truth):
-            # replace <|endoftext|> with ''
-            print("-"*100)
-            print("Prompt: ", prompt, "GT: ", gt)
-            answer = answer.replace("<|endoftext|>", "")
-            print("Answer: ", answer)
-            print("Associated rewards - accuracy: ", reward[0], " structure: ", reward[1])
-            print("-"*100)
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            for prompt, answer, reward, gt in zip(prompts_text, completions_text, rewards_per_func, ground_truth):
+                # replace <|endoftext|> with ''
+                print("-"*100)
+                print("Prompt: ", prompt, "GT: ", gt)
+                answer = answer.replace("<|endoftext|>", "")
+                print("Answer: ", answer)
+                print("Associated rewards - accuracy: ", reward[0], " structure: ", reward[1])
+                print("-"*100)
 
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
@@ -576,19 +578,14 @@ class LantErnGRPOTrainer(GRPOTrainer):
         prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"] # (B, P)
         completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"] # (B, C)
         latent_embeds, latent_mask = inputs["latent_embeds"], inputs["latent_mask"] # (B, P+C)
-        combined_completion_mask = completion_mask & latent_mask[:, prompt_mask.size(1):] # (B, P+C)
+        combined_completion_mask = completion_mask & ~latent_mask[:, prompt_mask.size(1):] # (B, P+C)
 
         input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
-        # Compute the per_token_logps and the entropy at each position in the completion
-
         print("Computing per token logs for the model. KL Loss")
-        # if latent_embeds is not None:
-        #     print("latent_embeds: ", latent_embeds.shape, "latent_mask: ", latent_mask.shape)
-        #     print(latent_mask.sum(axis=-1))
-        
+        # Compute the per_token_logps and the entropy at each position in the completion
         per_token_logps, entropies = self._get_per_token_logps_and_entropies(
             model,
             input_ids,
@@ -614,6 +611,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         # Compute the loss
         advantages = inputs["advantages"]
+        
         # In the base GRPO implementation, advantages are expected to have shape (B,). To support subclasses that
         # provide advantages with shape (B, T) (e.g., MiniLLM), we *conditionally* unsqueeze the tensor.
         if advantages.dim() == 1:
