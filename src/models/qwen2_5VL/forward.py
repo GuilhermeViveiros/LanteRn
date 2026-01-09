@@ -135,7 +135,7 @@ def qwen2_5_mixed_modality_forward_lantern(
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
         latent_mask = mask.unsqueeze(-1).expand_as(inputs_embeds)
         inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_embeds)
-       
+
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
         video_embeds = torch.cat(video_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)

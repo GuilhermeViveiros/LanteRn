@@ -45,8 +45,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     
 
     # freeze specific components according to the training parameters
-    configure_vision_tower(model, **training_params)
-    configure_llm(model, **training_params)
+    configure_vision_tower(model, freeze_vision_tower=training_params.freeze_vision_tower, freeze_merger=training_params.freeze_merger)
+    configure_llm(model, freeze_llm=training_params.freeze_llm)
 
     # Gradient Checkpointing
     if training_params.gradient_checkpointing:
@@ -91,7 +91,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     )
 
     trainer.train(
-        resume_from_checkpoint=resume_from_checkpoint
+        #resume_from_checkpoint=resume_from_checkpoint
     )
 
     logger.info("Training completed")
