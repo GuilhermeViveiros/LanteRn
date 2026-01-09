@@ -11,12 +11,13 @@ from functools import partial
 import torch
 from torch.utils.data import Dataset, DataLoader
 from src.models import load_model
-from src.datasets.sft_data import make_sft_data_module
-from src.models.utils import apply_latent_compression
+#from src.datasets.sft_data import make_sft_data_module
+#from src.models.utils import apply_latent_compression
 from datasets import load_dataset
 from evals import run_batch_inference
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
+from src.utils import extract_mc_answer
 
 
 
@@ -31,36 +32,37 @@ logging.basicConfig(
 
 logger = logging.getLogger("LantErn-Test-VStar")
 
-# ==== Core utilities ====
-def extract_answer(response: str) -> str:
-    given_answer = response.split('<answer>')[-1]
-    given_answer = given_answer.split('</answer')[0].strip()
-    if len(given_answer) > 1:
-        given_answer = re.findall(r"(?:Answer:\s*([A-Z])\b|\(([A-Z])\))", given_answer)
-    
-    if len(given_answer) > 1:
-        given_answer = given_answer[0][-1]
-    
-    return given_answer
+def parse_options(options):
+    # options should be a nested list of strings
+    if len(options) != 4: # wrong format, return None
+        return None
+    else:
+        # to remove 
+        options = [option.replace(option.split(" ")[0]+" ", "") for option in options]
+        # check if any option is None
+        if any(option is None for option in options):
+            return None
+        return options
+
 
 def collate_fn(batch, processor: AutoProcessor):
     messages = []
     labels = []
     categories = []
-
+    options = []
+    
     for dat in batch:
         labels.append(dat['label'])
         categories.append(dat['category'])
-        # vstar has this text:
-        # Answer with the option's letter from the given choices directly.
-        # remove it
+        # remove vstar prefix
         text = dat['text'].split("Answer with the option's letter from the given choices directly.")[0].strip()
+        options.append(parse_options(text.split("\n")[1:]))
         messages.append([
             {
                 "role": "user",
                 "content": [
                     {"type": "image", "image": dat['image']},
-                    {"type": "text", "text": "text"}
+                    {"type": "text", "text": text}
                 ]
             }
         ])
@@ -79,7 +81,7 @@ def collate_fn(batch, processor: AutoProcessor):
         return_tensors="pt",
     )
 
-    return inputs, labels, categories
+    return inputs, labels, categories, options
 
 
 def vstar_eval(
@@ -101,9 +103,11 @@ def vstar_eval(
             "total": 0,
         }
 
-    for step, (inputs, labels, categories) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+    for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
         # run batch inference
-        generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr)
+        outputs = run_batch_inference(model, inputs, use_lvr=use_lvr)
+        generated_ids = outputs.input_ids if use_lvr else outputs
+
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         total_samples += len(inputs.input_ids)
 
@@ -116,9 +120,10 @@ def vstar_eval(
         )
 
         print(f"Batch decoded output: {batch_decoded_output}")
-        
-        # extract the answer from the decoded output
-        answers = [extract_answer(x) for x in batch_decoded_output]
+        print("Prompt ", processor.batch_decode(inputs.input_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False))
+
+        answers = [extract_mc_answer(x, options) for x, options in zip(batch_decoded_output, options)]
+
         # check if the answer is correct
         results = np.array([answers[i] == labels[i] for i in range(len(answers))])
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
@@ -143,7 +148,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995",
+        default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-500",
         help="Path to the model checkpoint"
     )
 
@@ -180,9 +186,9 @@ if __name__ == "__main__":
     # load the model and processor
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
 
-    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
-    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True) 
+    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
     padding_side='left'   
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
@@ -204,7 +210,10 @@ if __name__ == "__main__":
 
     
     output_folder = f"{args.output_dir}/vstar/"
-    outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
+    if args.lvr:
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
+    else:
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
     os.makedirs(output_folder, exist_ok=True)
     
     # save the results to a json file

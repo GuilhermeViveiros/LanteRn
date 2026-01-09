@@ -14,7 +14,6 @@ from src.trainer.grpo_trainer import LantErnGRPOTrainer
 from src.train import set_latent_tokens
 
 # custom rl utils
-from src.rl.utils import convert_example
 from src.rl.prompt import build_system_prompt
 
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +40,6 @@ def build_reward_funcs(grpo_params: GRPOArguments, model):  # noqa: F811
         )
 
     return reward_funcs
-
 
 
 def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RLDataParams):
@@ -82,6 +80,13 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     #processor.tokenizer.pad_token_id = model.config.pad_token_id
     #processor.tokenizer.bos_token_id = model.config.bos_token_id
     
+
+    resume_from_checkpoint = "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500"
+    # get_last_checkpoint(grpo_params.output_dir)
+    if resume_from_checkpoint is not None:
+        logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
+    else:
+        logger.info(colored(f"Starting training from scratch", "cyan"))
     # freeze specific components according to the training parameters
     configure_vision_tower(model, freeze_vision_tower=grpo_params.freeze_vision_tower, freeze_merger=grpo_params.freeze_merger)
     configure_llm(model, freeze_llm=grpo_params.freeze_llm)
@@ -97,7 +102,7 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
         data_path=data_params.data_path,
         image_root=data_params.image_root,
         system_prompt=None,
-        dummy=True
+        dummy=False
     )
 
     # prepare rewards
@@ -122,7 +127,11 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     trainer.generation_config.pad_token_id = tok.pad_token_id
     trainer.generation_config.bad_words_ids = [[im_start_id]]
 
-    trainer.train()
+    trainer.train(
+        resume_from_checkpoint=resume_from_checkpoint
+    )
+    # save the tokenizer
+    processor.tokenizer.save_pretrained(grpo_params.output_dir)
 
     logger.info("Training completed")
 

@@ -195,7 +195,6 @@ def get_gt_latent_values(cropped_images, processor):
     
     return gt_latent_values, gt_latent_grid_thw
 
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -203,9 +202,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_4_lambda_0.1/checkpoint-1062"
-        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.6/checkpoint-1180/"
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062"
+        #default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153"
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-500"
     ) 
     parser.add_argument(
         "--lvr",
@@ -224,7 +222,10 @@ if __name__ == "__main__":
     print(args)
     print("-"*100)
 
-    outfile_name = ''.join(args.model_ref.split('/')[-2:]) + '.json'
+    if args.lvr:
+        outfile_name = ''.join(args.model_ref.split('/')[-2:]) + '_lvr.json'
+    else:
+        outfile_name = ''.join(args.model_ref.split('/')[-2:]) + '.json'
     print(f"Output file name: {outfile_name}")
     #datasets = ["viscot", "vstar", "blink"]
     datasets = ["viscot"]
@@ -235,6 +236,7 @@ if __name__ == "__main__":
     from src.models import load_model
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
 
+    
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
@@ -262,9 +264,10 @@ if __name__ == "__main__":
             batch.to(model.device)
         # run inference with the gt latent value
         output = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr)
-        generated_ids = output.input_ids
+        generated_ids = output.input_ids if args.lvr else output
         # calculate the latent ratio
-        latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
+        if args.lvr:
+            latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
 
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(batch.input_ids, generated_ids)

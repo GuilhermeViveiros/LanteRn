@@ -344,11 +344,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
             # distribution mismatch between vLLM and the training model can be large and harm the training.
             generate_every = self.args.steps_per_generation * self.num_iterations  # generation frequency
             
-            print("self.args.gradient_accumulation_steps: ", self.args.gradient_accumulation_steps, "generate_every: ", generate_every)
             if self.args.gradient_accumulation_steps % generate_every != 0 or (
                 self.use_vllm and self.vllm_importance_sampling_correction
             ):
-                print("Model. Calculating old per token logps...")
+                #print("Model. Calculating old per token logps...")
                 old_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                     self.model,
                     prompt_completion_ids,
@@ -395,7 +394,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             # Compute the per-token log probabilities for the reference model
             if self.beta != 0.0:
                 if self.ref_model is not None:
-                    print("Calculating per token logps with reference model -> KL LOSS")
+                    # print("Calculating per token logps with reference model -> KL LOSS")
                     ref_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                         self.ref_model,
                         prompt_completion_ids,
@@ -436,18 +435,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # important because rewards will be normalized per group, and completions are distributed. We will later slice
         # rewards_per_func to extract each process's subset.
         rewards_per_func = self._calculate_rewards(inputs, prompts, completions_text, ground_truth)
-
-
-        if not dist.is_initialized() or dist.get_rank() == 0:
-            for prompt, answer, reward, gt in zip(prompts_text, completions_text, rewards_per_func, ground_truth):
-                # replace <|endoftext|> with ''
-                print("-"*100)
-                print("Prompt: ", prompt, "GT: ", gt)
-                answer = answer.replace("<|endoftext|>", "")
-                print("Answer: ", answer)
-                print("Associated rewards - accuracy: ", reward[0], " structure: ", reward[1])
-                print("-"*100)
-
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
         
@@ -584,7 +571,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
 
-        print("Computing per token logs for the model. KL Loss")
+        # print("Computing per token logs for the model. KL Loss")
         # Compute the per_token_logps and the entropy at each position in the completion
         per_token_logps, entropies = self._get_per_token_logps_and_entropies(
             model,

@@ -18,25 +18,21 @@ LAMBDA_LANTERN=0.1
 RUN_NAME="grpo_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
 CHECKPOINT_PATH="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}/checkpoint-1062"
 
-#python $REPO/src/train/train_grpo.py \
-# if [ $NUM_DEVICES -gt 1 ]; then
-#     deepspeed --num_gpus $NUM_DEVICES $REPO/src/train/train_grpo.py \
-#         --deepspeed scripts/zero3.json \
-
-#python $REPO/src/train/train_grpo.py \
 deepspeed --num_gpus $NUM_DEVICES $REPO/src/train/train_grpo.py \
     --deepspeed scripts/zero3.json \
-    --run_name "$RUN_NAME" \
+    --run_name $RUN_NAME \
     --model_path $CHECKPOINT_PATH \
-    --output_dir "/mnt/scratch-artemis/gviveiros/lantern/checkpoints" \
+    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+    --save_steps 200 \
     \
     --learning_rate 5e-6 \
     --warmup_ratio 0.03 \
     --beta 0.1 \
-    --gradient_accumulation_steps 2 \
+    --gradient_checkpointing True \
+    --gradient_accumulation_steps 3 \
     \
-    --per_device_train_batch_size 4 \
-    --num_generations 8 \
+    --per_device_train_batch_size 12 \
+    --num_generations 6 \
     --max_completion_length 320 \
     --temperature 0.6 \
     --seed $RANDOM_SEED \

@@ -4,6 +4,7 @@ from fuzzywuzzy import fuzz
 from src.rl.utils import (
     extract_last_answer_from_text,
     ANSWER_RE,
+    ANSWER_TERM_RE,
     THINK_RE
 )
 
@@ -84,11 +85,16 @@ def structure_reward(
     rewards = []
     for seq in completions:
         answer_tags = ANSWER_RE.findall(seq or "")
+        answer_term_tags = ANSWER_TERM_RE.findall(seq or "")
+    
         think_tags = THINK_RE.findall(seq or "")
         lvr_tags = _find_subseq(seq, lvr_block)
         
+        # if multiple answer tags return 0
+        if len(answer_tags) > 1 or len(answer_term_tags) > 1:
+            rewards.append(0.0)
         # if no answer tag return 0
-        if len(answer_tags) == 0 or len(answer_tags) > 1 or len(think_tags) == 0 or len(think_tags) > 1:
+        elif len(answer_tags) == 0 or len(think_tags) == 0 or len(think_tags) > 1:
             rewards.append(0.0)
         # if answer, think and lvr are present add 1
         elif len(answer_tags) == 1 and len(think_tags) == 1 and lvr_tags >= 1:
@@ -162,3 +168,15 @@ def completion_to_text(
         return content if isinstance(content, str) else _blocks_to_text(content)
 
     return ""
+
+
+if __name__ == "__main__":
+    completions = [
+        "<think>I think the answer is 42.</think><answer>42</answer>",
+        "<think>I think the answer is 42.</think><answer>42</answer><answer>42</answer>",
+        "<think>I think the answer is 42.</think><answer>42</answer>42</answer>",
+    ]
+
+    rewards = structure_reward(completions, 8)
+
+    print(rewards)

@@ -47,3 +47,8 @@ class GRPODataset(Dataset):
 
     def __getitem__(self, idx):
         return self.ds[idx]
+
+
+if __name__ == "__main__":
+    ds = GRPODataset(data_path="/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json", image_root="/mnt/data-hades/gviveiros/", dummy=True)
+    print(ds[0])

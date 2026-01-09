@@ -17,6 +17,7 @@ from datasets import load_dataset
 from evals import run_batch_inference
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
+from src.utils import extract_mc_answer
 
 
 
@@ -53,11 +54,14 @@ class BlinkDataset(Dataset):
                 idx = dat["idx"]
                 choices = dat["choices"]
                 letters = ['A', 'B', 'C', 'D', 'E', 'F'][:len(choices)]
+
                 #letters = string.ascii_uppercase 
                 paired = list(zip(letters, choices))
                 option_string = ""
+                options = []
                 for letter, choice in paired:
                     option_string += f"{letter}. {choice}\n"
+                    options.append(f"{letter}. {choice}")
                 if len(dat['answer']) >1:
                     ans = dat['answer'][1].upper()
                 else:
@@ -72,29 +76,23 @@ class BlinkDataset(Dataset):
                     "image": images,
                     "query": question,
                     "label": ans,
-                    "category": category
+                    "category": category,
+                    "options": options
                 }
                 processed_data.append(buffer)
         
         return processed_data
 
-# ==== Core utilities ====
-def extract_answer(response: str) -> str:
-    given_answer = response.split('<answer>')[-1]
-    given_answer = given_answer.split('</answer')[0].strip()
-    if " " in given_answer:
-        given_answer = given_answer.split(" ")[0]
-    if len(given_answer) >1:
-        given_answer = given_answer[0]
-    return given_answer
 
 def collate_fn(batch, processor: AutoProcessor):
     messages = []
     labels = []
     categories = []
+    options = []
     for dat in batch:
         labels.append(dat['label'])
         categories.append(dat['category'])
+        options.append(dat['options'])
         messages.append([
             {
                 "role": "user",
@@ -119,7 +117,7 @@ def collate_fn(batch, processor: AutoProcessor):
         return_tensors="pt",
     )
 
-    return inputs, labels, categories
+    return inputs, labels, categories, options
 
 
 def blink_eval(
@@ -140,9 +138,10 @@ def blink_eval(
             "total": 0,
         }
 
-    for step, (inputs, labels, categories) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+    for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
         # run batch inference
-        generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr)
+        outputs = run_batch_inference(model, inputs, use_lvr=use_lvr)
+        generated_ids = outputs.input_ids if use_lvr else outputs
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         total_samples += len(inputs.input_ids)
 
@@ -155,7 +154,7 @@ def blink_eval(
         )
         
         # extract the answer from the decoded output
-        answers = [extract_answer(x) for x in batch_decoded_output]
+        answers = [extract_mc_answer(x, options) for x, options in zip(batch_decoded_output, options)]
         results = np.array([answers[i] == labels[i] for i in range(len(answers))])
 
         for idx, (res, category) in enumerate(zip(results, categories)):
@@ -187,7 +186,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/lambda_mse_0.2/checkpoint-995/",
+        default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-500",
         help="Path to the model checkpoint"
     )
 
@@ -255,7 +255,10 @@ if __name__ == "__main__":
     results = blink_eval(model, processor, dataloader, use_lvr=args.lvr)
     
     output_folder = f"{args.output_dir}/blink/"
-    outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
+    if args.lvr:
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
+    else:
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
     os.makedirs(output_folder, exist_ok=True)
     
     # save the results to a json file

@@ -7,7 +7,6 @@ from transformers.utils import is_torchdynamo_compiling
 from transformers.modeling_outputs import ModelOutput
 from transformers.processing_utils import Unpack
 from src.models.utils import apply_latent_compression
-from itertools import chain
 
 @dataclass
 class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
@@ -108,6 +107,14 @@ def qwen2_5_mixed_modality_forward_lantern(
         )
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
+    # either pass latent_values or latent_hidden_state
+    if latent_values is not None and latent_embeds is not None:
+      raise ValueError("Only one of latent_values or latent_hidden_state can be passed, not both")
+
+    if latent_embeds is not None:
+        # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
+        inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+
     if latent_values is not None:
         # compute the ground truth latent embeddings
         with torch.no_grad():
@@ -128,15 +135,7 @@ def qwen2_5_mixed_modality_forward_lantern(
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
         latent_mask = mask.unsqueeze(-1).expand_as(inputs_embeds)
         inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_embeds)
-    
-    if latent_embeds is not None:
-        # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
-        inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
-
-    # either pass latent_values or latent_hidden_state
-    if latent_values is not None and latent_embeds is not None:
-        raise ValueError("Only one of latent_values or latent_hidden_state can be passed, not both")
-   
+       
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
         video_embeds = torch.cat(video_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
@@ -207,8 +206,6 @@ def qwen2_5_mixed_modality_forward_lantern(
     if not return_dict:
         output = (logits,) + outputs[1:]
         return (loss,) + output if loss is not None else output
-
-    
     return Qwen2_5_VLCausalLMOutputWithPast(
         loss=loss,
         logits=logits,

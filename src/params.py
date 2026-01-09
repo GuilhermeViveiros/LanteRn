@@ -84,7 +84,7 @@ class GRPOArguments(GRPOConfig):
     num_train_epochs: int = field(default=1)
     save_steps: int = field(default=300)
     max_steps: int = field(default=-1) # -1 for no max steps
-    num_train_epochs: int = field(default=3)
+    num_train_epochs: int = field(default=1)
 
     # ------------------------------------------------------------------
     # Generation / decoding

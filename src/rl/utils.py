@@ -5,6 +5,7 @@ from src.rl.prompt import make_prompt_messages
 
 
 ANSWER_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", flags=re.DOTALL | re.IGNORECASE)
+ANSWER_TERM_RE = re.compile(r"</answer>", flags=re.DOTALL | re.IGNORECASE)
 THINK_RE = re.compile(r"<think>\s*(.*?)\s*</think>", flags=re.DOTALL | re.IGNORECASE)
 ANSWER_SPAN_RE = re.compile(r"<answer>.*?</answer>", flags=re.DOTALL | re.IGNORECASE)
 
