@@ -54,7 +54,7 @@ export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 LATENT_SIZE=4
 LAMBDA_LANTERN=1
 RUN_NAME="sft_mse_lt_4_lambda_1.0"
-deepspeed $REPO/src/train/train.py \
+deepspeed $REPO/src/train/train_sft.py \
     --deepspeed scripts/zero3.json \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
