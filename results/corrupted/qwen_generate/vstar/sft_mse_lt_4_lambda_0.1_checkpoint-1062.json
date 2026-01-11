@@ -1,0 +1,12 @@
+{
+    "direct_attributes": {
+        "accuracy": 0.6260869565217392,
+        "latent_ratio": 0.9739130434782609,
+        "total": 115
+    },
+    "relative_position": {
+        "accuracy": 0.40789473684210525,
+        "latent_ratio": 1.4078947368421053,
+        "total": 76
+    }
+}
