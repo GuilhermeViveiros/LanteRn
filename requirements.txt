@@ -1,2 +1,4 @@
 termcolor
 qwen-vl-utils
+#Attempting uninstall: transformers
+#Found existing installation: transformers 4.57.1
