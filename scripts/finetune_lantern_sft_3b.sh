@@ -36,24 +36,15 @@ LVR_HEAD=False
 # LantErn-related params
 LANTERN_LOSS_FCT=mse
 
-
-
-RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
-# ONLINE=True to enable online checkpointing with OCI
-OUTPUT_DIR="stage1_checkpoints/"
-
-# if continue training, set checkpoint_name = checkpoint to continue;
-# --checkpoint_name checkpoint-1400
-
-
-#DEEPSPEED=scripts/zero3.json
+LAMBDA_LANTERN=0.1
+LATENT_SIZE=8
+DATASET="Monet"
+RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}_${DATASET}"
 
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 
-LATENT_SIZE=4
-LAMBDA_LANTERN=1
-RUN_NAME="sft_mse_lt_4_lambda_1.0"
+#--data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
 deepspeed $REPO/src/train/train_sft.py \
     --deepspeed scripts/zero3.json \
     --run_name $RUN_NAME \
@@ -62,10 +53,10 @@ deepspeed $REPO/src/train/train_sft.py \
     --latent_size $LATENT_SIZE \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+    --dataset $DATASET \
     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
     --report_to wandb \
-    --resume_from_checkpoint False
+    --resume_from_checkpoint True
