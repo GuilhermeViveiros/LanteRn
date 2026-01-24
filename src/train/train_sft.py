@@ -93,6 +93,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     trainer.train(
         resume_from_checkpoint=resume_from_checkpoint
     )
+    # save processor 
+    processor.save_pretrained(training_params.output_dir)
 
     logger.info("Training completed")
 

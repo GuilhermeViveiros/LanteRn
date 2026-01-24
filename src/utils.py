@@ -99,14 +99,12 @@ def extract_mc_answer(response: str, options: Optional[List[str]] = None) -> str
     """
     given_answer = response.split('<answer>')[-1]
     given_answer = given_answer.split('</answer')[0].strip()
-    
+    matched_given_answer = None
     if given_answer:
         match = re.search(r"(?:Answer:\s*)?(?:\(|\b)([A-Z])(?:\)|\b)", given_answer)
         if match:
             matched_given_answer = match.group(1)
-        else:
-            matched_given_answer = None
-    
+
     if options and matched_given_answer is None:
         res = [fuzz.ratio(given_answer.lower(), option.lower()) for option in options]
         # get maximum score and if its > 90, return the corresponding option
