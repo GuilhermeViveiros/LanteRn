@@ -33,6 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger("LantErn-Test-Blink")
 
 BLINK_CATEGORIES =  ['Object_Localization', 'Spatial_Relation'] #'Art_Style', 'Functional_Correspondence', 'Multi-view_Reasoning', 'Relative_Reflectance', 'Visual_Correspondence', 'Counting', 'IQ_Test', 'Semantic_Correspondence', 'Visual_Similarity', 'Forensic_Detection', 'Jigsaw', 'Relative_Depth', 'Spatial_Relation']
+#BLINK_CATEGORIES = ['Relative_Reflectance', 'Visual_Correspondence', 'Counting']
 
 class BlinkDataset(Dataset):
     def __init__(self, categories=BLINK_CATEGORIES):
@@ -138,10 +139,10 @@ def blink_eval(
             "total": 0,
         }
 
-    for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
+    for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="Blink Test"):
         # run batch inference
-        outputs = run_batch_inference(model, inputs, use_lvr=use_lvr)
-        generated_ids = outputs.input_ids if use_lvr else outputs
+        generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr, return_dict=False)
+        #generated_ids = outputs.input_ids if use_lvr else outputs
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         total_samples += len(inputs.input_ids)
 
@@ -150,8 +151,10 @@ def blink_eval(
         ]
         # decode the generated ids
         batch_decoded_output = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            generated_ids_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False
         )
+
+        print("Batch decoded output ", batch_decoded_output)
         
         # extract the answer from the decoded output
         answers = [extract_mc_answer(x, options) for x, options in zip(batch_decoded_output, options)]
@@ -186,8 +189,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_Monet/checkpoint-890"
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-500",
+        #default="/mnt/scratch-artemis/gviveiros/Monet-SFT-7B/stage3/",
         help="Path to the model checkpoint"
     )
 
@@ -219,6 +224,14 @@ if __name__ == "__main__":
         help="Whether to use lantern generate or the default generation"
     )
 
+    parser.add_argument(
+        "--outfile_name",
+        type=str,
+        default=None,
+        help="Optional path to save the results. If not specified, a name will be auto-generated."
+    )
+
+
     args = parser.parse_args()
     
     logging.info('=='*20)
@@ -229,7 +242,7 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     # load the model and processor
-    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
+    model, processor = load_model(args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
@@ -246,6 +259,10 @@ if __name__ == "__main__":
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
     model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
 
+     # Monet
+    # model.config.lvr_start_id=model.config.latent_start_id
+    # model.config.lvr_end_id=model.config.latent_end_id
+    # model.config.lvr_sep_id=model.config.latent_token_id
 
     # Load data
     dataset = BlinkDataset()
@@ -260,6 +277,11 @@ if __name__ == "__main__":
     else:
         outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
     os.makedirs(output_folder, exist_ok=True)
+
+    if args.outfile_name:
+        outfile_name = args.outfile_name
+        if not outfile_name.lower().endswith(".json"):
+            outfile_name += ".json"
     
     # save the results to a json file
     with open(outfile_name, "w") as f:

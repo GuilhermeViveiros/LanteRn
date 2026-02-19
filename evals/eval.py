@@ -3,6 +3,7 @@ import json
 from functools import partial
 from tqdm import tqdm
 import numpy as np
+import os
 import torch
 import argparse
 from typing import List
@@ -100,7 +101,6 @@ class MCDataset(Dataset):
             else:
                 raise ValueError(f"Dataset {dataset} not supported")
 
-       
     def stats(self):
         print(f"Dataset size: {len(self.data)}")
         # get the nuber of samples for each dataset
@@ -136,6 +136,10 @@ class MCDataset(Dataset):
         
         return sample
 
+#TODO: Improve this... hardcoded just to evaluate monet model
+#system_content = "You can generate abstract visual tokens that represent a cropped image region or images with auxiliary information like lines, bounding boxes, etc. When you decide to generate abstract visual tokens, put them in <|lvr_start|>...<|lvr_end|>. Put your final answer inside <answer> tags"
+system_content = "Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
+
 def collate_fn_mc(samples, processor: AutoProcessor):
     messages, labels, options = [], [], []
     cropped_images = []
@@ -150,6 +154,10 @@ def collate_fn_mc(samples, processor: AutoProcessor):
         cropped_images.append(sample["cropped_images"])
         messages.append([
             {
+                "role": "system",
+                "content": [{"type": "text", "text": system_content}]
+            },
+            {
                 "role": "user",
                 "content": [
                     *[{"type": "image", "image": img} for img in sample["image"]],
@@ -161,7 +169,9 @@ def collate_fn_mc(samples, processor: AutoProcessor):
     inputs = processor.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
+    
     image_inputs, _ = process_vision_info(messages)
+    
     inputs = processor(
         text=inputs,
         images=image_inputs,
@@ -202,8 +212,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        #default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153"
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-500"
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-3000/"
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_Monet/checkpoint-890"
+        default="/mnt/scratch-artemis/gviveiros/Monet-SFT-7B/stage3/"
+        #default="/mnt/scratch-artemis/gviveiros/Monet-7B/"
+        #default="/mnt/scratch-artemis/gviveiros/LVR-7B/"
     ) 
     parser.add_argument(
         "--lvr",
@@ -214,18 +227,26 @@ if __name__ == "__main__":
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=6,
+        default=1,
         help="Batch size"
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="results",
+        help="Path to the output directory"
     )
     args = parser.parse_args()
     print("-"*100)
     print(args)
     print("-"*100)
 
+    output_folder = f"{args.output_dir}/mc_results/"
     if args.lvr:
-        outfile_name = ''.join(args.model_ref.split('/')[-2:]) + '_lvr.json'
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
     else:
-        outfile_name = ''.join(args.model_ref.split('/')[-2:]) + '.json'
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
+    os.makedirs(output_folder, exist_ok=True)
     print(f"Output file name: {outfile_name}")
     #datasets = ["viscot", "vstar", "blink"]
     datasets = ["viscot"]
@@ -234,20 +255,32 @@ if __name__ == "__main__":
 
     # load the model
     from src.models import load_model
+    from src.train import set_latent_tokens
     model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
-
     
-    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
-    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
-    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
-    processor.tokenizer.padding_side = "left"
+    # Monet
+    model.config.lvr_start_id=model.config.latent_start_id
+    model.config.lvr_end_id=model.config.latent_end_id
+    model.config.lvr_sep_id=model.config.latent_token_id
+
+    # LVR
+    # model.config.lvr_start_id=model.config.lvr_start_id
+    # model.config.lvr_end_id=model.config.lvr_latent_end_id
+    # model.config.lvr_sep_id=model.config.lvr_id
+
+    #processor.tokenizer.lvr_start_id=processor.tokenizer.latent_start_id
+    #processor.tokenizer.lvr_end_id=processor.tokenizer.latent_end_id
+    #processor.tokenizer.lvr_sep_id=processor.tokenizer.latent_token_id
+
+
+    #processor.tokenizer.padding_side = "left"
 
     # check if the latent size is set
     if args.lvr:
         if not hasattr(model.config, "latent_size"):
             raise ValueError("Warning!!!! Latent size is not set")
+        #set_latent_tokens(processor, model, model.config.latent_size)
     
-    #print(f"model.config.latent_size: {model.config.latent_size}")    
 
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor))
     bboxs_list = []
@@ -257,14 +290,17 @@ if __name__ == "__main__":
     pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc="Evaluating")
     for step, (batch, labels, options, bboxs, cropped_images) in pbar:
         bboxs_list.extend(bboxs)
-        if args.lvr:
-            gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
-            batch["latent_values"] = gt_latent_values
-            batch["latent_grid_thw"] = gt_latent_grid_thw
-            batch.to(model.device)
+        if step > 200:
+            break
+        #if args.lvr:
+        #    gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
+        #    batch["latent_values"] = gt_latent_values
+        #    batch["latent_grid_thw"] = gt_latent_grid_thw
+        #    batch.to(model.device)
+
         # run inference with the gt latent value
-        output = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr)
-        generated_ids = output.input_ids if args.lvr else output
+        generated_ids = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr, return_dict=False)
+        # generated_ids = output.input_ids if args.lvr else output
         # calculate the latent ratio
         if args.lvr:
             latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
@@ -274,8 +310,17 @@ if __name__ == "__main__":
         ]
         # decode the generated ids
         decoded_output = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            generated_ids_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False
         )
+
+        # TODO: remove this after evaluation        
+        # monet model has som bug... workaround stop after the first point
+        # maybe its related to the prompt being used..
+        #decoded_output = [x.split(".")[0] for x in decoded_output]
+        # change observation with answer
+        #decoded_output = [x.replace("<observation>", "<answer>").replace("</observation>","</answer>") for x in decoded_output]
+
+
         print("-"*100)
         print("Options: ", options)
         print("Decoded Output: ", decoded_output)
@@ -290,7 +335,7 @@ if __name__ == "__main__":
         current_latent_ratio = latent_ratio / total_samples
         pbar.set_description(f"Evaluating | Accuracy: {current_accuracy:.4f}, Latent Ratio: {current_latent_ratio:.4f}")
 
-# append the results to a csv file with model name and accuracy
-with open(outfile_name, "w") as f:
-    writer = csv.writer(f, delimiter="\t")
-    writer.writerow([args.model_ref, current_accuracy, current_latent_ratio])
+    # append the results to a csv file with model name and accuracy
+    with open(outfile_name, "w") as f:
+        writer = csv.writer(f, delimiter="\t")
+        writer.writerow([args.model_ref, current_accuracy, current_latent_ratio])

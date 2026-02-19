@@ -105,8 +105,8 @@ def vstar_eval(
 
     for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="VisCot Test"):
         # run batch inference
-        outputs = run_batch_inference(model, inputs, use_lvr=use_lvr)
-        generated_ids = outputs.input_ids if use_lvr else outputs
+        generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr, return_dict=False)
+        #generated_ids = outputs.input_ids if use_lvr else outputs
 
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         total_samples += len(inputs.input_ids)
@@ -148,7 +148,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153",
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-3000/",
+        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_Monet/checkpoint-890"
+        #default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl/checkpoint-16153",
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-500",
         help="Path to the model checkpoint"
     )
@@ -174,6 +176,13 @@ if __name__ == "__main__":
         help="Whether to use lantern generate or the default generation"
     )
 
+    parser.add_argument(
+        "--outfile_name",
+        type=str,
+        default=None,
+        help="Optional path to save the results. If not specified, a name will be auto-generated."
+    )
+
     args = parser.parse_args()
     
     logging.info('=='*20)
@@ -184,7 +193,7 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
 
     # load the model and processor
-    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
+    model, processor = load_model(model_ref=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
 
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
@@ -208,13 +217,13 @@ if __name__ == "__main__":
     # evaluate vstar
     results = vstar_eval(model, processor, dataloader, use_lvr=args.lvr)
 
-    
-    output_folder = f"{args.output_dir}/vstar/"
-    if args.lvr:
-        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
-    else:
-        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
-    os.makedirs(output_folder, exist_ok=True)
+    if args.outfile_name:
+        output_folder = f"{args.output_dir}/vstar/"
+        if args.lvr:
+            outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
+        else:
+            outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
+        os.makedirs(output_folder, exist_ok=True)
     
     # save the results to a json file
     with open(outfile_name, "w") as f:

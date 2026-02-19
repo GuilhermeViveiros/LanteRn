@@ -113,6 +113,5 @@ def extract_mc_answer(response: str, options: Optional[List[str]] = None) -> str
         else:
             matched_given_answer = None
         print(f"Given answer: {given_answer}", f"Options: {options}", f"Matched given answer: {matched_given_answer}")
-    # if matched_given_answer is None:
-    #     import ipdb; ipdb.set_trace()
+    
     return matched_given_answer

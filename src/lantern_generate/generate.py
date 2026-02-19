@@ -5,14 +5,16 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 from itertools import chain
+from transformers.generation.utils import GenerateDecoderOnlyOutput
 
 logger = logging.getLogger("LantErn-Generate")
 
 @dataclass
-class LantErnGenerateOutput:
-    input_ids: torch.LongTensor
-    latent_embeds: Optional[torch.BFloat16Tensor]
-    latent_mask: Optional[torch.BoolTensor]
+class LantErnGenerateOutput(GenerateDecoderOnlyOutput):
+    # By inheriting from GenerateDecoderOnlyOutput, all its fields are inherited.
+    # You only need to add new fields that are unique to this subclass.
+    latent_embeds: Optional[torch.BFloat16Tensor] = None
+    latent_mask: Optional[torch.BoolTensor] = None
 
 def generate(
     model,
@@ -160,6 +162,7 @@ def generate(
         # ---------------------------------------------------------
         # 1) Determine if the model entered latent mode
         # ---------------------------------------------------------
+        #latent_start_mask = in_latent_mode
         latent_start_mask = ~in_latent_mode & (next_tokens == latent_start_idx)
         in_latent_mode[latent_start_mask] = True
 
@@ -197,6 +200,7 @@ def generate(
 
         # ---------------------------------------------------------
         # 5) Determine embedding for next token
+        #    If in latent model, get the previous hidden states
         #    We'll construct next_token_embed of shape (batch_size, 1, embed_dim)
         # ---------------------------------------------------------
         next_token_embed = model.get_input_embeddings()(next_tokens[:, None])
@@ -209,6 +213,19 @@ def generate(
             else:
                 next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(1) # (batch_size, 1, embed_dim)
             
+
+            # use random white noise during generation
+            # For debugging: print statistics about the latent embeddings
+            # Use the maximum (last) value representable by bfloat16 instead of 0
+            #next_latent_embed = torch.randn_like(next_latent_embed)
+            #next_latent_embed = torch.zeros_like(next_latent_embed)
+            #import pdb; pdb.set_trace()
+            # next_latent_embed = model.get_input_embeddings()(torch.tensor([100]).to("cuda:0")).unsqueeze(0)
+
+            print(f"next_latent_embed stats -- shape: {next_latent_embed.shape}, dtype: {next_latent_embed.dtype},"
+                  f" min: {next_latent_embed.min().item()}, max: {next_latent_embed.max().item()},"
+                  f" mean: {next_latent_embed.mean().item()}, std: {next_latent_embed.std().item()}")
+
             next_token_embed[batch_indices] = next_latent_embed.to(dtype=torch.bfloat16)
             # store the latent values (dynamic size per sample)
             for idx, embed in zip(batch_indices, next_latent_embed):
@@ -242,5 +259,17 @@ def generate(
         #latent_embeds = [embed for embed in latent_embeds if len(embed) > 0] # ignore empty lists
         #latent_embeds = list(chain.from_iterable(latent_embeds)) # nested list to single list
         #latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)
-
-    return LantErnGenerateOutput(input_ids=input_ids, latent_embeds=latent_embeds, latent_mask=latent_mask)
+    
+    if return_dict_in_generate:
+        return LantErnGenerateOutput(
+            sequences=input_ids,
+            latent_embeds=latent_embeds,
+            latent_mask=latent_mask,
+            scores=scores,
+            logits=raw_logits,
+            attentions=decoder_attentions,
+            hidden_states=decoder_hidden_states,
+            past_key_values=model_kwargs.get("past_key_values"),
+        )
+    else:
+        return input_ids
