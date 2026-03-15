@@ -4,7 +4,6 @@ import torch
 # TODO: I could vectorize this function to avoid the loop. However since we're still in an experimental stage, the latent tokens can vary in the future, per image, so I'll leave it as is for now
 def apply_latent_compression(
     self,
-    input_ids,
     latent_values,
     latent_grid_thw,
     latent_size,
@@ -19,22 +18,10 @@ def apply_latent_compression(
 
     Args:
         self: Model object with callable `get_image_features` method and `config`.
-        input_ids (torch.Tensor): Batch of token ids, shape (batch_size, seq_length).
-          Used to count, per sample, the number of <|lvr_sep|> tokens (i.e., expected latent slots).
         latent_values (torch.Tensor): Batch of latent visual values (typically images or features),
           batched as required by `get_image_features`.
-        latent_grid_thw (torch.LongTensor): Batch of grid dimensions for each latent input, used 
-          by `get_image_features` to extract visual features.
+        latent_grid_thw (torch.LongTensor): Batch of grid dimensions for each latent input, used by `get_image_features` to extract visual features.
         latent_size (int): Desired number of averaged latent embeddings per sample.
-
-    Returns:
-        torch.Tensor: Patch-averaged latent embeddings of shape (batch_size, latent_size, hidden_dim),
-          suitable for masked scattering onto <|lvr_sep|> token positions in the LLM embedding sequence.
-
-    Notes:
-        - If the number of extracted visual features does not exactly match the desired latent_size,
-          features are grouped and averaged such that the final output per sample matches `latent_size`.
-        - Excess features are dropped (from the end) to ensure divisibility, to minimize feature skew.
     """
 
     # ---------------------------------------------------------
@@ -50,10 +37,9 @@ def apply_latent_compression(
 
     for i, le in enumerate(latent_image_embeds):
         # Count how many latent tokens exist in input
-        n_latent_tokens = (input_ids[i] == self.config.lvr_sep_id).sum().item()
         n_features = le.shape[0]
 
-        if n_latent_tokens != n_features:
+        if latent_size != n_features:
             leave_out = n_features % latent_size # Make divisible
             if leave_out > 0:
                 le = le[:-leave_out, :]

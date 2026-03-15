@@ -97,6 +97,7 @@ def qwen2_5_mixed_modality_forward_lantern(
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
     if inputs_embeds is None:
+        #import pdb; pdb.set_trace()
         inputs_embeds = self.get_input_embeddings()(input_ids)
      
     if pixel_values is not None:
@@ -108,14 +109,15 @@ def qwen2_5_mixed_modality_forward_lantern(
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     # either pass latent_values or latent_hidden_state
-    if latent_values is not None and latent_embeds is not None:
-      raise ValueError("Only one of latent_values or latent_hidden_state can be passed, not both")
+    assert not (latent_values is not None and latent_embeds is not None), "Only one of latent_values or latent_hidden_state can be passed, not both"
 
     if latent_embeds is not None:
         # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
+        import pdb; pdb.set_trace()
         inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
 
     if latent_values is not None:
+        import pdb; pdb.set_trace()
         # compute the ground truth latent embeddings
         with torch.no_grad():
             if self.config.latent_size != -1:
@@ -206,6 +208,7 @@ def qwen2_5_mixed_modality_forward_lantern(
     if not return_dict:
         output = (logits,) + outputs[1:]
         return (loss,) + output if loss is not None else output
+    
     return Qwen2_5_VLCausalLMOutputWithPast(
         loss=loss,
         logits=logits,

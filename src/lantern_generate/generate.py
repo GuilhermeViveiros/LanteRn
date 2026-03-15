@@ -208,6 +208,7 @@ def generate(
         if need_pad_mask.any():
             batch_indices = torch.nonzero(need_pad_mask, as_tuple=False).squeeze(1)
             if gt_latent_embeds is not None: # for debugging purposes (we can use the gt during the generation)
+                #print("using gt latent embeddings", gt_latent_embeds.shape, "mean value", gt_latent_embeds.mean().item(), "min value", gt_latent_embeds.min().item(), "max value", gt_latent_embeds.max().item())
                 latent_positions = latent_num[need_pad_mask] - 1
                 next_latent_embed = gt_latent_embeds[batch_indices, latent_positions,:].unsqueeze(1) # (batch_size, 1, embed_dim)
             else:
@@ -222,9 +223,9 @@ def generate(
             #import pdb; pdb.set_trace()
             # next_latent_embed = model.get_input_embeddings()(torch.tensor([100]).to("cuda:0")).unsqueeze(0)
 
-            print(f"next_latent_embed stats -- shape: {next_latent_embed.shape}, dtype: {next_latent_embed.dtype},"
-                  f" min: {next_latent_embed.min().item()}, max: {next_latent_embed.max().item()},"
-                  f" mean: {next_latent_embed.mean().item()}, std: {next_latent_embed.std().item()}")
+            # print(f"next_latent_embed stats -- shape: {next_latent_embed.shape}, dtype: {next_latent_embed.dtype},"
+            #       f" min: {next_latent_embed.min().item()}, max: {next_latent_embed.max().item()},"
+            #       f" mean: {next_latent_embed.mean().item()}, std: {next_latent_embed.std().item()}")
 
             next_token_embed[batch_indices] = next_latent_embed.to(dtype=torch.bfloat16)
             # store the latent values (dynamic size per sample)

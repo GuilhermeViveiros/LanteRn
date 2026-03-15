@@ -20,7 +20,8 @@ class SFTDataset(Dataset):
         self,
         data_path: str,
         processor: AutoProcessor,
-        dummy: bool = False
+        dummy: bool = False,
+        filter_ids_path: Optional[str] = None,
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
@@ -31,18 +32,25 @@ class SFTDataset(Dataset):
             if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
                 self.dataset.remove(data)
 
+        # optionally keep only samples whose original index is in keep_ids
+        if filter_ids_path is not None:
+            with open(filter_ids_path, "r") as f:
+                keep_ids = set(json.load(f)["keep_ids"])
+            self.dataset = [data for idx, data in enumerate(self.dataset) if idx in keep_ids]
+            logger.info(f"Filtered to {len(self.dataset)} samples using {filter_ids_path}")
+
         def pre_validation(data, idx):
             # ignore samples with more than 1 bbox
             if len(data["bboxs"]) > 1:
                 return False
             return True
-    
-        
+
+
         logger.info(f"Number of examples of VisCoT data: {len(self.dataset)}")
         # remove cases where the image is too large and bboxs are more than 1
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
         logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
-        
+
         # if dummy, we only use the first 1000 examples
         if dummy:
             self.dataset = self.dataset[:1000]

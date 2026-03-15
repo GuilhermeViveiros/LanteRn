@@ -6,6 +6,7 @@ import numpy as np
 import logging
 import argparse
 from tqdm import tqdm
+import random
 from functools import partial
 import torch
 from torch.utils.data import Dataset, DataLoader
@@ -14,7 +15,8 @@ from src.datasets.sft_data import make_sft_data_module
 from src.lantern_generate.generate import generate as lantern_generate
 from src.models.utils import apply_latent_compression
 from datasets import load_dataset
-from evals import run_batch_inference
+from evals import run_batch_inference, get_gt_latent_values, random_crop_bbox
+from src.utils import center_and_crop_image
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 from src.utils import extract_mc_answer
@@ -45,7 +47,7 @@ class BlinkDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.processed_data[idx]
-
+    
     def load_dataset(self):
         processed_data = []
         for category in BLINK_CATEGORIES:
@@ -90,10 +92,12 @@ def collate_fn(batch, processor: AutoProcessor):
     labels = []
     categories = []
     options = []
+    first_images = []  # first image per sample, for random crop ablation
     for dat in batch:
         labels.append(dat['label'])
         categories.append(dat['category'])
         options.append(dat['options'])
+        first_images.append(dat['image'][0])
         messages.append([
             {
                 "role": "user",
@@ -103,7 +107,7 @@ def collate_fn(batch, processor: AutoProcessor):
                 ]
             }
         ])
-    
+
     # Preparation for inference
     text = processor.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
@@ -118,14 +122,17 @@ def collate_fn(batch, processor: AutoProcessor):
         return_tensors="pt",
     )
 
-    return inputs, labels, categories, options
+    return inputs, labels, categories, options, first_images
 
 
 def blink_eval(
-    model, 
+    model,
     processor,
     dataloader: DataLoader,
-    use_lvr: bool
+    use_lvr: bool,
+    use_gt: bool = False,
+    bbox_ablation: str = None,
+    max_steps: int = 300,
 ):
     model.eval()
     accuracy = 0 # number of correct answers
@@ -139,9 +146,16 @@ def blink_eval(
             "total": 0,
         }
 
-    for step, (inputs, labels, categories, options) in tqdm(enumerate(dataloader), total=len(dataloader), desc="Blink Test"):
-        # run batch inference
-        generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr, return_dict=False)
+    for step, (inputs, labels, categories, options, first_images) in tqdm(enumerate(dataloader), total=len(dataloader), desc="Blink Test"):
+        if step >= max_steps:
+            break
+        if use_lvr and bbox_ablation == "random":
+            cropped_images = [[center_and_crop_image(img, random_crop_bbox(img))] for img in first_images]
+            gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
+            inputs["latent_values"] = gt_latent_values
+            inputs["latent_grid_thw"] = gt_latent_grid_thw
+        inputs.to(model.device)
+        generated_ids = run_batch_inference(model, inputs, use_lvr=use_lvr, use_gt=(use_gt or bbox_ablation == "random"), return_dict=False)
         #generated_ids = outputs.input_ids if use_lvr else outputs
         latent_samples += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
         total_samples += len(inputs.input_ids)
@@ -198,7 +212,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--use_gt",
-        type=bool,
+        action=argparse.BooleanOptionalAction,
         default=False,
         help="Whether to use ground truth latent embeddings"
     )
@@ -232,8 +246,16 @@ if __name__ == "__main__":
     )
 
 
+    parser.add_argument(
+        "--bbox_ablation",
+        type=str,
+        default=None,
+        choices=["random"],
+        help="'random': randomly crop the first image and use as latent input."
+    )
+
     args = parser.parse_args()
-    
+
     logging.info('=='*20)
     logging.info('Testing model...')
     logging.info(f"Arguments: {args}")
@@ -269,11 +291,13 @@ if __name__ == "__main__":
     dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=partial(collate_fn, processor=processor), shuffle=False)
 
     # evaluate blink
-    results = blink_eval(model, processor, dataloader, use_lvr=args.lvr)
-    
+    results = blink_eval(model, processor, dataloader, use_lvr=args.lvr, use_gt=args.use_gt, bbox_ablation=args.bbox_ablation)
+
     output_folder = f"{args.output_dir}/blink/"
+    ablation_suffix = f"_bbox_{args.bbox_ablation}" if args.bbox_ablation else ""
+    gt_suffix = "" if args.use_gt else "_no_gt"
     if args.lvr:
-        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr{gt_suffix}{ablation_suffix}.json"
     else:
         outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
     os.makedirs(output_folder, exist_ok=True)

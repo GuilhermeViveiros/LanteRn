@@ -209,3 +209,4 @@ wandb/
 logs/
 scripts/img2repr.py
 *.json
+sample*

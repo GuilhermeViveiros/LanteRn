@@ -2,6 +2,7 @@ import csv
 import json
 from functools import partial
 from tqdm import tqdm
+import random
 import numpy as np
 import os
 import torch
@@ -12,18 +13,18 @@ from datasets import load_dataset
 from torch.utils.data import Dataset, DataLoader
 from transformers import AutoProcessor
 from src.utils import center_and_crop_image
-from evals import run_batch_inference
+from evals import run_batch_inference, get_gt_latent_values
 from evals.blink_eval import BlinkDataset
 from qwen_vl_utils import process_vision_info
 from src.utils import extract_mc_answer
 
-
 class MCDataset(Dataset):
     # mcdataset is a multiple choice dataset that aggregates different datasets into a single one
-    def __init__(self, datasets: List[str], use_lvr: bool = True):
+    def __init__(self, datasets: List[str], use_lvr: bool = True, bbox_ablation: str = None):
         # categories that to be represented in each dataset
         self.data = []
         self.use_lvr = use_lvr
+        self.bbox_ablation = bbox_ablation
         for dataset in datasets:
             if dataset == "viscot":
                 # load the viscot test dataset
@@ -131,10 +132,29 @@ class MCDataset(Dataset):
         #if not self.use_lvr:
         #sample["question"] += "\nAnswer with the option's letter from the given choices directly."
         if "bbox" in sample:
-            cropped_imgs = [center_and_crop_image(Image.open(img), bbox) for img, bbox in zip(sample["image"], sample["bbox"])]
+            cropped_imgs = []
+            for img_path, bbox in zip(sample["image"], sample["bbox"]):
+                img = Image.open(img_path)
+                effective_bbox = self._ablate_bbox(bbox, img, self.bbox_ablation)
+                cropped_imgs.append(center_and_crop_image(img, effective_bbox))
             sample["cropped_images"] = cropped_imgs
-        
+
         return sample
+
+    @staticmethod
+    def _ablate_bbox(bbox, img: Image.Image, mode: str):
+        """Return a (possibly modified) bbox for ablation experiments."""
+        if mode is None or mode == "none":
+            return bbox
+        if mode == "random":
+            # Preserve bbox dimensions but place it at a random location in the image.
+            x1, y1, x2, y2 = bbox
+            W, H = img.width, img.height
+            bw, bh = int(x2 - x1), int(y2 - y1)
+            new_x1 = random.randint(0, max(0, W - bw))
+            new_y1 = random.randint(0, max(0, H - bh))
+            return [new_x1, new_y1, new_x1 + bw, new_y1 + bh]
+        raise ValueError(f"Unknown bbox_ablation mode: {mode!r}")
 
 #TODO: Improve this... hardcoded just to evaluate monet model
 #system_content = "You can generate abstract visual tokens that represent a cropped image region or images with auxiliary information like lines, bounding boxes, etc. When you decide to generate abstract visual tokens, put them in <|lvr_start|>...<|lvr_end|>. Put your final answer inside <answer> tags"
@@ -180,30 +200,6 @@ def collate_fn_mc(samples, processor: AutoProcessor):
     )
     return inputs, labels, options, bboxs, cropped_images
 
-def get_gt_latent_values(cropped_images, processor):
-    # run batch inference
-    messages = [
-        [{
-            "role": "assistant",
-            "content": [{"type": "image", "image": img[0]}]
-        }] for img in cropped_images
-    ]
-    # apply processor
-    texts = [
-        processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
-        for msg in messages
-    ]
-    image_inputs, _ = process_vision_info(messages)
-    inputs = processor(
-        text=texts,
-        images=image_inputs,
-        padding=True,
-        return_tensors="pt",
-    )
-    gt_latent_values = inputs["pixel_values"]
-    gt_latent_grid_thw = inputs["image_grid_thw"]
-    
-    return gt_latent_values, gt_latent_grid_thw
 
 if __name__ == "__main__":
 
@@ -214,9 +210,8 @@ if __name__ == "__main__":
         type=str,
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-3000/"
         #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_Monet/checkpoint-890"
-        default="/mnt/scratch-artemis/gviveiros/Monet-SFT-7B/stage3/"
-        #default="/mnt/scratch-artemis/gviveiros/Monet-7B/"
-        #default="/mnt/scratch-artemis/gviveiros/LVR-7B/"
+        #default="/mnt/scratch-artemis/gviveiros/Monet-SFT-7B/stage3/"
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/",
     ) 
     parser.add_argument(
         "--lvr",
@@ -236,41 +231,45 @@ if __name__ == "__main__":
         default="results",
         help="Path to the output directory"
     )
+    parser.add_argument(
+        "--bbox_ablation",
+        type=str,
+        default=None,
+        choices=["random"],
+        help="Ablation mode for the ground-truth bbox used to build LVR latents. "
+             "'random': same bbox size, random location within the image."
+    )
+    parser.add_argument(
+        "--use_gt",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Whether to replace predicted latent tokens with GT latent embeddings. "
+             "Only relevant when --lvr is set."
+    )
     args = parser.parse_args()
     print("-"*100)
     print(args)
     print("-"*100)
 
     output_folder = f"{args.output_dir}/mc_results/"
+    ablation_suffix = f"_bbox_{args.bbox_ablation}" if args.bbox_ablation else ""
+    gt_suffix = "" if args.use_gt else "_no_gt"
     if args.lvr:
-        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr.json"
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr{gt_suffix}{ablation_suffix}.json"
     else:
-        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}.json"
+        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}{ablation_suffix}.json"
     os.makedirs(output_folder, exist_ok=True)
     print(f"Output file name: {outfile_name}")
     #datasets = ["viscot", "vstar", "blink"]
     datasets = ["viscot"]
-    dataset = MCDataset(datasets=datasets, use_lvr=args.lvr)
+    dataset = MCDataset(datasets=datasets, use_lvr=args.lvr, bbox_ablation=args.bbox_ablation)
     dataset.stats()
 
     # load the model
     from src.models import load_model
     from src.train import set_latent_tokens
-    model, processor = load_model(model_path=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
+    model, processor = load_model(model_ref=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
     
-    # Monet
-    model.config.lvr_start_id=model.config.latent_start_id
-    model.config.lvr_end_id=model.config.latent_end_id
-    model.config.lvr_sep_id=model.config.latent_token_id
-
-    # LVR
-    # model.config.lvr_start_id=model.config.lvr_start_id
-    # model.config.lvr_end_id=model.config.lvr_latent_end_id
-    # model.config.lvr_sep_id=model.config.lvr_id
-
-    #processor.tokenizer.lvr_start_id=processor.tokenizer.latent_start_id
-    #processor.tokenizer.lvr_end_id=processor.tokenizer.latent_end_id
-    #processor.tokenizer.lvr_sep_id=processor.tokenizer.latent_token_id
 
 
     #processor.tokenizer.padding_side = "left"
@@ -279,7 +278,7 @@ if __name__ == "__main__":
     if args.lvr:
         if not hasattr(model.config, "latent_size"):
             raise ValueError("Warning!!!! Latent size is not set")
-        #set_latent_tokens(processor, model, model.config.latent_size)
+        # set_latent_tokens(processor, model, model.config.latent_size)
     
 
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor))
@@ -290,16 +289,16 @@ if __name__ == "__main__":
     pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc="Evaluating")
     for step, (batch, labels, options, bboxs, cropped_images) in pbar:
         bboxs_list.extend(bboxs)
-        if step > 200:
+        if step >= 300:
             break
-        #if args.lvr:
-        #    gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
-        #    batch["latent_values"] = gt_latent_values
-        #    batch["latent_grid_thw"] = gt_latent_grid_thw
-        #    batch.to(model.device)
-
-        # run inference with the gt latent value
-        generated_ids = run_batch_inference(model, batch, use_gt=False, use_lvr=args.lvr, return_dict=False)
+        if args.lvr and args.use_gt:
+            gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
+            batch["latent_values"] = gt_latent_values
+            batch["latent_grid_thw"] = gt_latent_grid_thw
+        batch.to(model.device)
+        
+        # generate ids
+        generated_ids = run_batch_inference(model, batch, use_gt=args.use_gt, use_lvr=args.lvr, return_dict=False)
         # generated_ids = output.input_ids if args.lvr else output
         # calculate the latent ratio
         if args.lvr:
