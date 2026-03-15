@@ -38,8 +38,9 @@ LANTERN_LOSS_FCT=mse
 
 LAMBDA_LANTERN=0.1
 LATENT_SIZE=8
-DATASET="Monet"
-RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}_${DATASET}"
+CORRUPT_IMAGE=True
+CORRUPTION_TYPE="bbox_blackout"
+RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}_corrupt_${CORRUPTION_TYPE}"
 
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
@@ -53,10 +54,11 @@ deepspeed $REPO/src/train/train_sft.py \
     --latent_size $LATENT_SIZE \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --dataset $DATASET \
     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
     --report_to wandb \
-    --resume_from_checkpoint True
+    --resume_from_checkpoint True \
+    --corrupt_image $CORRUPT_IMAGE \
+    --corruption_type $CORRUPTION_TYPE

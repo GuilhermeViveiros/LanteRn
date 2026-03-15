@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 from functools import partial
 import torch
 import json
-from PIL import Image
+from PIL import Image, ImageDraw
 from torch.utils.data import Dataset, random_split
 from typing import List
 from src.utils import center_and_crop_image
@@ -20,10 +20,14 @@ class SFTDataset(Dataset):
         self,
         data_path: str,
         processor: AutoProcessor,
-        dummy: bool = False
+        dummy: bool = False,
+        corrupt_image: bool = False,
+        corruption_type: str = "bbox_blackout",
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
+        self.corrupt_image = corrupt_image
+        self.corruption_type = corruption_type
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
@@ -68,11 +72,24 @@ class SFTDataset(Dataset):
             
         # Extract the image and process bboxes
         img = Image.open(data["img_path"])
-    
+
+        # Corrupt the main image if requested; latent crops always use the original
+        if self.corrupt_image and data.get("bboxs"):
+            img_main = img.copy().convert("RGB")
+            if self.corruption_type == "bbox_blackout":
+                draw = ImageDraw.Draw(img_main)
+                for bbox in data["bboxs"]:
+                    x1, y1, x2, y2 = bbox
+                    draw.rectangle([x1, y1, x2, y2], fill=(0, 0, 0))
+            else:
+                raise ValueError(f"Unknown corruption_type: {self.corruption_type}")
+        else:
+            img_main = img
+
         # Build user content
         user_content = [
             {"type": "text", "text": question},
-            {"type": "image", "image": img},
+            {"type": "image", "image": img_main},
         ]
 
         # Build assistant content
@@ -270,11 +287,14 @@ def make_sft_data_module(
     generate: bool = False,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
     seed: int = 42,
+    corrupt_image: bool = False,
+    corruption_type: str = "bbox_blackout",
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy
+        data_path=data_path, processor=processor, dummy=dummy,
+        corrupt_image=corrupt_image, corruption_type=corruption_type,
     )
 
     # split the dataset into train, eval and test

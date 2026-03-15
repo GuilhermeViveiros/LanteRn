@@ -67,7 +67,9 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         processor=processor,
         data_path=data_params.data_path,
         dummy=data_params.dummy,
-        split_percentages=data_params.split_percentages
+        split_percentages=data_params.split_percentages,
+        corrupt_image=data_params.corrupt_image,
+        corruption_type=data_params.corruption_type,
     )
 
     

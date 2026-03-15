@@ -14,7 +14,8 @@ class ModelParams:
 class TrainingParams(HFTrainingArguments):
     output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
-    save_steps: int = field(default=200)
+    save_steps: float = field(default=0.2)
+    save_total_limit: int = field(default=2)
     learning_rate: float = field(default=1e-5)
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
@@ -121,6 +122,8 @@ class SFTDataParams:
     dummy: bool = field(default=False)
     #split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0.0))
     split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.097, 0.003))
+    corrupt_image: bool = field(default=False)
+    corruption_type: str = field(default="bbox_blackout")
 
 @dataclass
 class RLDataParams:
