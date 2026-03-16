@@ -43,7 +43,15 @@ srun --partition=h100 --qos=gpu-h100 --job-name=ev --time=06:00:00 \
 
 ## Results
 
-### Blink
+### Summary (all three benchmarks)
+
+| Condition | VisCoT | Blink Avg | VStar Avg |
+|-----------|-------:|----------:|----------:|
+| `--lvr --no-use_gt` | 0.784 | 0.622 | 0.637 |
+| `--no-lvr` | 0.785 | 0.582 | 0.629 |
+| `--lvr --bbox_ablation random` | 0.779 | 0.623 | 0.638 |
+
+### Blink (per-category)
 
 | Condition | Object_Localization | Spatial_Relation | Avg |
 |-----------|--------------------:|----------------:|----:|
@@ -51,7 +59,7 @@ srun --partition=h100 --qos=gpu-h100 --job-name=ev --time=06:00:00 \
 | `--no-lvr` | 0.516 | 0.636 | 0.582 |
 | `--lvr --bbox_ablation random` | 0.533 | 0.699 | 0.623 |
 
-### VStar
+### VStar (per-category)
 
 | Condition | direct_attributes | relative_position | Avg |
 |-----------|------------------:|------------------:|----:|

@@ -53,38 +53,45 @@ Alternative (if bbox blackout is too easy): Gaussian noise over the full image.
 
 ## Planned Runs
 
-- [ ] **Train** — SFT with bbox blur corruption
-- [ ] **Eval** — corrupted model, `--lvr`
-- [ ] **Eval** — corrupted model, `--no-lvr`
+- [x] **Train** — SFT with bbox blackout corruption
+- [ ] **Eval (VisCoT)** — corrupted model, `--lvr --use_gt`
+- [ ] **Eval (VisCoT)** — corrupted model, `--lvr --no-use_gt`
+- [ ] **Eval (VisCoT)** — corrupted model, `--no-lvr`
+- [ ] **Eval (Blink)** — corrupted model, `--lvr`
+- [ ] **Eval (Blink)** — corrupted model, `--no-lvr`
+- [ ] **Eval (VStar)** — corrupted model, `--lvr`
+- [ ] **Eval (VStar)** — corrupted model, `--no-lvr`
 
-## Command Template (Training — TBD after branch is created)
+**Checkpoint:** `/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_corrupt_bbox_blackout/checkpoint-1062`
 
-```bash
-# Branch: agnv/corrupt-image-ablation (to be created from main)
-# Cluster: hades (h200), 4 GPUs
-srun --partition=hades --qos=gpu-h200 --job-name=train-corrupt --time=3-00:00:00 \
-     --nodes=4 --gpus-per-node=4 --tasks-per-node=1 --mem=200GB \
-  bash -c 'export PYTHONPATH=/mnt/home/gviveiros/LantErn:$PYTHONPATH && \
-  bash scripts/finetune_lantern_sft_3b.sh'
-```
-
-Set in `finetune_lantern_sft_3b.sh` before running:
-```bash
-RUN_NAME="sft_mse_lt_8_lambda_0.1_corrupt_blur"
-# add --corrupt_image True --corruption_type bbox_blur to the deepspeed call
-```
-
-## Command Template (Eval)
+## Command Templates (Eval)
 
 ```bash
-srun --partition=hades --qos=gpu-h200 --job-name=ev --time=04:00:00 \
+CKPT=/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_corrupt_bbox_blackout/checkpoint-1062
+
+# VisCoT
+srun --partition=h100 --qos=gpu-h100 --job-name=ev-corrupt-viscot --time=06:00:00 \
      --gpus-per-node=1 --tasks-per-node=1 --mem=50GB \
   bash -c 'export PYTHONPATH=/mnt/home/gviveiros/LantErn:$PYTHONPATH && \
-  python -m evals.eval \
-    --model_ref /mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_corrupt_bbox/<checkpoint>/ \
-    --[lvr|no-lvr] \
-    --batch_size 16 \
-    --output_dir results/corrupted_image_ablation'
+  python -u -m evals.eval \
+    --model_ref $CKPT --[lvr|no-lvr] --batch_size 4 \
+    --output_dir results/corrupted_image_ablation > results/ev_corrupt_viscot_[lvr|nolvr].log 2>&1'
+
+# Blink
+srun --partition=h100 --qos=gpu-h100 --job-name=ev-corrupt-blink --time=06:00:00 \
+     --gpus-per-node=1 --tasks-per-node=1 --mem=50GB \
+  bash -c 'export PYTHONPATH=/mnt/home/gviveiros/LantErn:$PYTHONPATH && \
+  python -u -m evals.blink_eval \
+    --model_ref $CKPT --[lvr|no-lvr] --batch_size 4 \
+    --output_dir results/corrupted_image_ablation > results/ev_corrupt_blink_[lvr|nolvr].log 2>&1'
+
+# VStar
+srun --partition=h100 --qos=gpu-h100 --job-name=ev-corrupt-vstar --time=06:00:00 \
+     --gpus-per-node=1 --tasks-per-node=1 --mem=50GB \
+  bash -c 'export PYTHONPATH=/mnt/home/gviveiros/LantErn:$PYTHONPATH && \
+  python -u -m evals.vstar_eval \
+    --model_ref $CKPT --[lvr|no-lvr] --batch_size 4 \
+    --output_dir results/corrupted_image_ablation > results/ev_corrupt_vstar_[lvr|nolvr].log 2>&1'
 ```
 
 ## Files to Change (backlog — not yet implemented)
@@ -97,10 +104,14 @@ srun --partition=hades --qos=gpu-h200 --job-name=ev --time=04:00:00 \
 
 ## Results
 
-| Run | Latent Mode | Accuracy | Notes |
-|-----|-------------|----------|-------|
-| Corrupted + GT latents | `--lvr` | — | key result |
-| Corrupted + no latents | `--no-lvr` | — | lower bound |
+| Condition | VisCoT | Blink Avg | VStar Avg |
+|-----------|-------:|----------:|----------:|
+| Corrupted + GT latents (`--lvr --use_gt`) | **0.747** | — (no GT bboxes) | — (no GT bboxes) |
+| Corrupted + random bbox (`--bbox_ablation random`) | 0.677 | 0.564 | 0.572 |
+| Corrupted + own latents (`--lvr --no-use_gt`) | 0.617 | 0.560 | 0.548 |
+| Corrupted + no latents (`--no-lvr`) | 0.607 | 0.385 | 0.397 |
+
+*Blink/VStar: corruption not applied at eval (no GT bboxes on those benchmarks). VisCoT: 300 steps × bs=1.*
 
 ## Expected Outcomes & Interpretation
 
@@ -112,4 +123,16 @@ srun --partition=hades --qos=gpu-h200 --job-name=ev --time=04:00:00 \
 
 ## Conclusions
 
-_(fill in after runs complete)_
+**The architecture works — the training signal doesn't.**
+GT latents +14pp over no-LVR on VisCoT (0.747 vs 0.607). The model CAN route through the latent channel to recover information lost in the corrupted main image. This is the clearest evidence yet that the mechanism is architecturally sound.
+
+**Own latents remain uninformative.**
+Own latents ≈ no-LVR on VisCoT (+1pp). Despite training with corruption that forces the model to depend on latents, the latent prediction head still fails to generate useful visual representations. The MSE loss on compressed features is not sufficient to teach the model what to encode.
+
+**Corruption training increased latent slot dependency on all benchmarks.**
+On Blink/VStar, no-LVR dropped massively (-17.5pp Blink, -15pp VStar) vs the original model (-4pp, -0.8pp). The model learned to structurally depend on the latent slot. But since it can't fill it with useful content, own latents ≈ random bbox ≈ any visual noise.
+
+**Random bbox is a surprisingly strong baseline (+7pp over no-LVR on VisCoT).**
+Any visual crop from the image is more useful than nothing when the main image is corrupted — the model extracts some partial signal even from the wrong region.
+
+**Root cause:** The latent prediction head receives a MSE loss against compressed GT visual features, but there is no direct gradient signal encouraging the model to encode information that is *actually used* downstream for the answer. The model learns to produce embeddings that minimize reconstruction error in feature space, not embeddings that drive correct predictions.

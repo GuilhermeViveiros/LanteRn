@@ -50,10 +50,10 @@ Note: eval runs 300 steps max (≈ 4800 samples at batch_size=16).
 
 ## Results
 
-| Run | Accuracy | Latent Ratio | Notes |
-|-----|----------|--------------|-------|
-| Baseline (GT bbox) | 0.793 | 0.491 | batch_size=4, 300 steps |
-| Random bbox | 0.779 | 0.491 | batch_size=4, 300 steps |
+| Condition | VisCoT | Blink Avg | VStar Avg |
+|-----------|-------:|----------:|----------:|
+| GT bbox (`--lvr --use_gt`) | **0.793** | — (no GT bboxes) | — (no GT bboxes) |
+| Random bbox (`--bbox_ablation random`) | 0.779 | 0.623 | 0.638 |
 
 ## Conclusions
 

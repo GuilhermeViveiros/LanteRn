@@ -20,13 +20,13 @@
 
 ### Accuracy
 
-| Condition | Accuracy |
-|-----------|----------|
-| `gt_latents` | **0.7933** |
-| `zeros` | 0.7858 |
-| `no_lvr` | 0.7850 |
-| `own_latents` | 0.7842 |
-| `random_bbox` | 0.7792 |
+| Condition | VisCoT | Blink Avg | VStar Avg |
+|-----------|-------:|----------:|----------:|
+| `gt_latents` | **0.793** | — (no GT bboxes) | — (no GT bboxes) |
+| `zeros` | 0.786 | — | — |
+| `no_lvr` | 0.785 | 0.582 | 0.629 |
+| `own_latents` | 0.784 | 0.622 | 0.637 |
+| `random_bbox` | 0.779 | 0.623 | 0.638 |
 
 ### Directional Flip Counts (A wins → A correct, B wrong)
 
@@ -45,27 +45,18 @@
 
 ## Conclusions
 
-**GT latents carry genuine signal.** +10 net wins over no_lvr, +11 over own_latents.
-The model CAN use visual information from GT bbox crops effectively.
+**1. The LVR mechanism works architecturally.**
+GT latents consistently outperform no-LVR on VisCoT (+0.8pp, +10 net directional wins). The model *can* exploit visual content from latent tokens when that content is correct.
 
-**The model's own predicted latents are nearly uninformative.** Own_latents ≈ no_lvr
-(tied 20-19). The latent prediction head is not learning to generate useful visual
-representations — its outputs are functionally equivalent to not having latents at all.
+**2. Self-generated latents are nearly uninformative on VisCoT.**
+Own latents ≈ no-LVR on VisCoT (tied 20-19 directionally). The MSE training signal is insufficient to make the latent prediction head generate useful representations.
 
-**Random bbox actively misleads.** random_bbox < no_lvr (-7 net). Injecting visual
-features from the wrong spatial location is worse than injecting nothing. The model
-attends to latent positions and is sensitive to their content — but only benefits when
-the content is correct.
+**3. LVR shows clear gains on Blink/VStar — but content doesn't matter.**
+Own latents beats no-LVR by +4pp on Blink, +0.8pp on VStar. However, random bbox crops match own latents almost exactly (Blink: 0.623 vs 0.622; VStar: 0.638 vs 0.637). The gain comes from the *structural presence* of latent tokens, not their visual content.
 
-**Zeros are safer than random crops.** zeros > random_bbox (+8 net). Zero embeddings
-are marginally better than no_lvr (+1 net) — the structural presence of the latent slot
-provides a tiny benefit, but without content it's nearly neutral.
+**4. Wrong content is worse than no content (on VisCoT).**
+Random bbox is the worst condition on VisCoT (-7 net wins vs no-LVR). When the task requires fine-grained visual reasoning, injecting features from the wrong location actively misleads the model.
 
-**Core diagnosis:** The LVR mechanism works (model uses latents, GT latents help), but
-the model has not learned to generate useful latent content on its own. The training
-signal for the latent prediction head (MSE loss on compressed visual features) is not
-sufficient to produce representations that improve downstream accuracy.
+**Core diagnosis:** The model has learned that latent token slots *exist* in the sequence and benefits from any visual occupant (Blink/VStar), but has not learned to generate the *right* visual content (VisCoT). The corrupted image ablation is the deciding experiment: if the model can route through GT latents to recover blacked-out bbox regions, the failure is a training signal problem (not architectural).
 
-**Implication for training:** The GRPO/RL training should focus on reward-shaping the
-latent content — not just whether latent tokens appear, but whether they encode
-spatially relevant visual information.
+**Implication for training:** The GRPO/RL training should focus on reward-shaping the latent content — not just whether latent tokens appear, but whether they encode spatially relevant visual information.

@@ -37,11 +37,11 @@ srun --partition=h100 --qos=gpu-h100 --job-name=ev --time=06:00:00 \
 
 ## Results
 
-| Run | Accuracy | Latent Ratio | Notes |
-|-----|----------|--------------|-------|
-| With GT latents (`--lvr --use_gt`) | 0.793 | 0.491 | batch_size=4, 300 steps |
-| Model's own latents (`--lvr --no-use_gt`) | 0.784 | 0.491 | batch_size=4, 300 steps |
-| Without latents (`--no-lvr`) | 0.785 | 0.0 | batch_size=4, 300 steps |
+| Condition | VisCoT | Blink Avg | VStar Avg |
+|-----------|-------:|----------:|----------:|
+| GT latents (`--lvr --use_gt`) | **0.793** | — (no GT bboxes) | — (no GT bboxes) |
+| Own latents (`--lvr --no-use_gt`) | 0.784 | 0.622 | 0.637 |
+| No latents (`--no-lvr`) | 0.785 | 0.582 | 0.629 |
 
 ## Conclusions
 
