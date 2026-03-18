@@ -126,7 +126,7 @@ def run_inference(model, processor, inputs):
     inputs = inputs.to(model.device)
     out_ids = model.generate(**inputs, max_new_tokens=128, do_sample=False, use_cache=True)
     trimmed = [o[len(i):] for i, o in zip(inputs.input_ids, out_ids)]
-    return processor.batch_decode(trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False)
+    return processor.batch_decode(trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
 
 @torch.no_grad()
