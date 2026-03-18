@@ -73,7 +73,7 @@ def center_and_crop_image(
     if output_shape is not None:
         cropped = cropped.resize(output_shape)
     
-    cropped.parent_filename = img.filename
+    cropped.parent_filename = getattr(img, "filename", None)
 
     # save cropped image
     #cropped.save("img_bbox_0.jpg")

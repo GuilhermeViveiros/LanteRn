@@ -57,4 +57,10 @@ Note: eval runs 300 steps max (≈ 4800 samples at batch_size=16).
 
 ## Conclusions
 
-_(fill in after runs complete)_
+**Spatial location matters on VisCoT (+1.4pp).** GT bbox (0.793) beats random bbox (0.779). The directional flip count (33 GT wins vs 16 random wins, net +17) is the strongest flip margin across any pair in the full ablation — stronger even than GT vs no-LVR (+10). The model is genuinely exploiting the correct spatial crop, not just benefiting from receiving *a* visual token.
+
+**Wrong-location crops are worse than no latents at all.** Random bbox is the lowest-performing condition on VisCoT, sitting below no-LVR by 7 net directional wins. When the task requires fine-grained visual reasoning (VisCoT), injecting features from the wrong image region actively misleads the model — the incorrect content is a confound, not a neutral placeholder.
+
+**On Blink/VStar, location is irrelevant.** Random bbox (0.623/0.638) ≈ own latents (0.622/0.637). Those benchmarks don't have GT bboxes and use a random crop at a fixed size. The near-identical performance confirms that on these tasks the structural presence of a latent token drives the gain, not its spatial content.
+
+**Implication.** The model has internalized spatial priors from training — it expects the latent token to encode the specific region the question refers to. This is a positive sign architecturally, but it raises the bar for the latent prediction head: the model needs to generate latents that are both present *and* spatially relevant, not just syntactically well-formed.

@@ -20,11 +20,12 @@ from src.utils import extract_mc_answer
 
 class MCDataset(Dataset):
     # mcdataset is a multiple choice dataset that aggregates different datasets into a single one
-    def __init__(self, datasets: List[str], use_lvr: bool = True, bbox_ablation: str = None):
+    def __init__(self, datasets: List[str], use_lvr: bool = True, bbox_ablation: str = None, corrupt_image: bool = False):
         # categories that to be represented in each dataset
         self.data = []
         self.use_lvr = use_lvr
         self.bbox_ablation = bbox_ablation
+        self.corrupt_image = corrupt_image
         for dataset in datasets:
             if dataset == "viscot":
                 # load the viscot test dataset
@@ -125,21 +126,31 @@ class MCDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # check if the image is a path
-        sample = self.data[idx]
-        # get cropped img bboxs
-        # if not using lvr, modify the prompt for every other model
-        #if not self.use_lvr:
-        #sample["question"] += "\nAnswer with the option's letter from the given choices directly."
+        sample = dict(self.data[idx])  # shallow copy to avoid mutating self.data
         if "bbox" in sample:
             cropped_imgs = []
+            main_imgs = []
             for img_path, bbox in zip(sample["image"], sample["bbox"]):
-                img = Image.open(img_path)
-                effective_bbox = self._ablate_bbox(bbox, img, self.bbox_ablation)
-                cropped_imgs.append(center_and_crop_image(img, effective_bbox))
+                img_clean = Image.open(img_path).convert("RGB")
+                img_main = self._blackout_bbox(img_clean, bbox) if self.corrupt_image else img_clean
+                # latent crops always use the clean image, matching training setup
+                effective_bbox = self._ablate_bbox(bbox, img_clean, self.bbox_ablation)
+                cropped_imgs.append(center_and_crop_image(img_clean, effective_bbox))
+                main_imgs.append(img_main)
             sample["cropped_images"] = cropped_imgs
+            if self.corrupt_image:
+                sample["image"] = main_imgs  # replace paths with corrupted PIL images
 
         return sample
+
+    @staticmethod
+    def _blackout_bbox(img: Image.Image, bbox) -> Image.Image:
+        """Return a copy of img with the bbox region zeroed out (black)."""
+        import numpy as np
+        arr = np.array(img)
+        x1, y1, x2, y2 = [int(v) for v in bbox]
+        arr[y1:y2, x1:x2] = 0
+        return Image.fromarray(arr)
 
     @staticmethod
     def _ablate_bbox(bbox, img: Image.Image, mode: str):
@@ -246,6 +257,13 @@ if __name__ == "__main__":
         help="Whether to replace predicted latent tokens with GT latent embeddings. "
              "Only relevant when --lvr is set."
     )
+    parser.add_argument(
+        "--corrupt_image",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Black out the GT bbox region in the main image before inference. "
+             "Use when evaluating a model trained with bbox blackout corruption."
+    )
     args = parser.parse_args()
     print("-"*100)
     print(args)
@@ -262,7 +280,7 @@ if __name__ == "__main__":
     print(f"Output file name: {outfile_name}")
     #datasets = ["viscot", "vstar", "blink"]
     datasets = ["viscot"]
-    dataset = MCDataset(datasets=datasets, use_lvr=args.lvr, bbox_ablation=args.bbox_ablation)
+    dataset = MCDataset(datasets=datasets, use_lvr=args.lvr, bbox_ablation=args.bbox_ablation, corrupt_image=args.corrupt_image)
     dataset.stats()
 
     # load the model

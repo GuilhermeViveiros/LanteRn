@@ -27,17 +27,18 @@ class SFTDataset(Dataset):
         self.processor = processor
         with open(data_path, "r") as f:
             self.dataset = json.load(f)
-        # remove sample textvqa/34084d4c3c347b83.jpg
-        for data in self.dataset: # MINOR BUGG: ignore this sample for now
-            if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
-                self.dataset.remove(data)
 
         # optionally keep only samples whose original index is in keep_ids
+        # must happen before any removals so indices match the raw file
         if filter_ids_path is not None:
             with open(filter_ids_path, "r") as f:
                 keep_ids = set(json.load(f)["keep_ids"])
             self.dataset = [data for idx, data in enumerate(self.dataset) if idx in keep_ids]
             logger.info(f"Filtered to {len(self.dataset)} samples using {filter_ids_path}")
+
+        # remove sample textvqa/34084d4c3c347b83.jpg
+        self.dataset = [data for data in self.dataset  # MINOR BUGG: ignore this sample for now
+                        if data["img_path"] != "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg"]
 
         def pre_validation(data, idx):
             # ignore samples with more than 1 bbox
@@ -108,7 +109,6 @@ class SFTDataset(Dataset):
         # Add the final answer
         assistant_content += "</think>" + "<answer>" + answer + "</answer>"
         
-        import pdb; pdb.set_trace()
         return [
             {"role": "user","content": user_content},
             {"role": "assistant","content": [{"type": "text", "text": assistant_content}]},
@@ -277,13 +277,14 @@ def make_sft_data_module(
     data_path: str,
     dummy: bool = False,
     generate: bool = False,
+    filter_ids_path: Optional[str] = None,
     split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
     seed: int = 42,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy
+        data_path=data_path, processor=processor, dummy=dummy, filter_ids_path=filter_ids_path
     )
 
     # split the dataset into train, eval and test

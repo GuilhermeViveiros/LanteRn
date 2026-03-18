@@ -1,3 +1,4 @@
+import os
 import transformers
 import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
@@ -8,8 +9,7 @@ import logging
 logger = logging.getLogger("LantErn-Trainer")
 
 def load_model(
-    model_id=None,
-    model_path=None,
+    model_ref=None,
     compute_dtype: torch.dtype = torch.float16,
     use_cache: bool = False,
     **kwargs
@@ -21,25 +21,28 @@ def load_model(
     TODO: Check if this model is supported (currently only Qwen2.5-VL-*B-Instruct is supported)
     """
 
-    model_ref = model_path if model_path is not None else model_id
-    if model_ref is None:
-        raise ValueError("Must provide either model_id or model_path.")
+    assert model_ref, "Model ref must be defined, either a local path or HF path"
 
-    #if not "Qwen2.5-VL" in str(model_ref):
-    #    raise ValueError(f"Model {model_ref} is not supported")
+    use_local = False
+    if os.path.isdir(str(model_ref)) or (os.path.exists(str(model_ref)) and os.path.isfile(os.path.join(str(model_ref), "config.json"))):
+        # It's a local directory or contains config file
+        use_local = True
 
-    #if "Qwen2.5-VL-3B-Instruct" in str(model_ref):
+
     transformers.models.qwen2_5_vl.modeling_qwen2_5_vl.Qwen2_5_VLForConditionalGeneration.forward = qwen2_5_mixed_modality_forward_lantern
     
     # If model_path is given, always load from the local folder (including local configs)
     # use flash attention 2 if use_liger_kernel is True
     #kwargs["attn_implementation"] = "flash_attention_2"
+    kwargs["local_files_only"] = use_local
     logger.info(f"Loading model from {model_ref} with compute dtype {compute_dtype} and kwargs: {kwargs}")
 
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_ref,
         torch_dtype=compute_dtype,
         use_cache=use_cache,
+        #attn_implementation="eager",
+        #output_attentions=True,
         **kwargs
     )
 
@@ -48,13 +51,20 @@ def load_model(
     min_pixels = 256 * 28 * 28 # TODO: Add this variables in the params.py file
     max_pixels = 3500 * 28 * 28 # TODO: Add this variables in the params.py file
 
-
-    processor = AutoProcessor.from_pretrained(
-        "Qwen/Qwen2.5-VL-3B-Instruct", 
-        min_pixels=min_pixels,
-        max_pixels=max_pixels,
-        **kwargs
-    )
+    try:
+        processor = AutoProcessor.from_pretrained(
+            model_ref, #"Qwen/Qwen2.5-VL-3B-Instruct", 
+            min_pixels=min_pixels,
+            max_pixels=max_pixels,
+            **kwargs
+        )
+    except Exception as e:
+        processor = AutoProcessor.from_pretrained(
+            "Qwen/Qwen2.5-VL-3B-Instruct", 
+            min_pixels=min_pixels,
+            max_pixels=max_pixels,
+            **kwargs
+        )
     #else:
     #    raise ValueError(f"Only Qwen2.5-VL-3B-Instruct is currently supported (got {model_ref})")
 
