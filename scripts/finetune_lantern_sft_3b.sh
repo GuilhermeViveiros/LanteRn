@@ -36,18 +36,20 @@ LVR_HEAD=False
 # LantErn-related params
 LANTERN_LOSS_FCT=mse
 
-LAMBDA_LANTERN=0.1
+LAMBDA_LANTERN=0.8
 LATENT_SIZE=8
 CORRUPT_IMAGE=True
 CORRUPTION_TYPE="bbox_blackout"
+FREEZE_LATENT_ONLY=False
 RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}_corrupt_${CORRUPTION_TYPE}"
 
 export OMP_NUM_THREADS=1
 export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
 
 #--data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+#--deepspeed scripts/zero3.json \
 deepspeed $REPO/src/train/train_sft.py \
-    --deepspeed scripts/zero3.json \
+    --deepspeed scripts/zero2.json \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
     --num_train_epochs 1 \
@@ -61,4 +63,5 @@ deepspeed $REPO/src/train/train_sft.py \
     --report_to wandb \
     --resume_from_checkpoint True \
     --corrupt_image $CORRUPT_IMAGE \
-    --corruption_type $CORRUPTION_TYPE
+    --corruption_type $CORRUPTION_TYPE \
+    --freeze_latent_only $FREEZE_LATENT_ONLY

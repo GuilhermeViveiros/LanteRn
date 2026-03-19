@@ -8,7 +8,7 @@ from src.datasets.sft_data import make_sft_data_module, collate_fn_generate, SFT
 from src.models import load_model
 from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger
 from src.models.utils import get_last_checkpoint
-from src.train import configure_vision_tower, configure_llm, set_latent_tokens
+from src.train import configure_vision_tower, configure_llm, configure_latent_only, set_latent_tokens
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -119,8 +119,11 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     
 
     # freeze specific components according to the training parameters
-    configure_vision_tower(model, freeze_vision_tower=training_params.freeze_vision_tower, freeze_merger=training_params.freeze_merger)
-    configure_llm(model, freeze_llm=training_params.freeze_llm)
+    if training_params.freeze_latent_only:
+        configure_latent_only(model)
+    else:
+        configure_vision_tower(model, freeze_vision_tower=training_params.freeze_vision_tower, freeze_merger=training_params.freeze_merger)
+        configure_llm(model, freeze_llm=training_params.freeze_llm)
 
     # Gradient Checkpointing
     if training_params.gradient_checkpointing:

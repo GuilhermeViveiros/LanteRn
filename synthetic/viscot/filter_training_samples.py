@@ -51,8 +51,8 @@ from qwen_vl_utils import process_vision_info
 from src.utils import center_and_crop_image
 
 DATA_PATH = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
-# MODEL_ID  = "Qwen/Qwen2.5-VL-32B-Instruct"
-MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct" # debug purpouses
+MODEL_ID  = "Qwen/Qwen2.5-VL-32B-Instruct"
+# MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct" # debug purpouses
 
 ANSWER_SYSTEM = "Answer the question concisely. Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
 

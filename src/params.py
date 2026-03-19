@@ -31,6 +31,7 @@ class TrainingParams(HFTrainingArguments):
     freeze_vision_tower: bool = field(default=True)
     freeze_merger: bool = field(default=True)
     freeze_llm: bool = field(default=False)
+    freeze_latent_only: bool = field(default=False)  # if True, freeze everything except latent token embeddings
     eval_strategy: str = field(default="steps")
     eval_steps: int = field(default=100)
     test_steps: int = field(default=100)
