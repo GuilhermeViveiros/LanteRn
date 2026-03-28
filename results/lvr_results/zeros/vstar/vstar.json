@@ -1,0 +1,1148 @@
+[
+  {
+    "id": "0",
+    "label": "A",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "1",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "2",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "3",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "4",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "5",
+    "label": "D",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "6",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "7",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "8",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "9",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "10",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "11",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "12",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "13",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "14",
+    "label": "B",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "15",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "16",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "17",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "18",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "19",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "20",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "21",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "22",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "23",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "24",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "25",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "26",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "27",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "28",
+    "label": "C",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "29",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "30",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "31",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "32",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "33",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "34",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "35",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "36",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "37",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "38",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "39",
+    "label": "C",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "40",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "41",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "42",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "43",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "44",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "45",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "46",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "47",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "48",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "49",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "50",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "51",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "52",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "53",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "54",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "55",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "56",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "57",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "58",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "59",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "60",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "61",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "62",
+    "label": "D",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "63",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "64",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "65",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "66",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "67",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "68",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "69",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "70",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "71",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "72",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "73",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "74",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "75",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "76",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "77",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "78",
+    "label": "C",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "79",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "80",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "81",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "82",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "83",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "84",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "85",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "86",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "87",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "88",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "89",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "90",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "91",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "92",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "93",
+    "label": "A",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "94",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "95",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "96",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "97",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "98",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "99",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "100",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "101",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "102",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "103",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "104",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "105",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "106",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "107",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "108",
+    "label": "D",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "109",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "110",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "111",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "112",
+    "label": "D",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> D </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "113",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "114",
+    "label": "C",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> C </answer><|im_end|>",
+    "category": "direct_attributes"
+  },
+  {
+    "id": "115",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "116",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "117",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "118",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "119",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "120",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "121",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "122",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "123",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "124",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "125",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "126",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "127",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "128",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "129",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "130",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "131",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "132",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "133",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "134",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "135",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "136",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "137",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "138",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "139",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "140",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "141",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "142",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "143",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "144",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "145",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "146",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "147",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "148",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "149",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "150",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "151",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "152",
+    "label": "A",
+    "prediction": "<|lvr_start|><|endoftext|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "153",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "154",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "155",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "156",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "157",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "158",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "159",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "160",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "161",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "162",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "163",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "164",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "165",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "166",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "167",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "168",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "169",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "170",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "171",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "172",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "173",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "174",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "175",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "176",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "177",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "178",
+    "label": "B",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "179",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "180",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "181",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "182",
+    "label": "A",
+    "prediction": "<|lvr_start|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "183",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "184",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "185",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "186",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "187",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "188",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "189",
+    "label": "B",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> B </answer><|im_end|>",
+    "category": "relative_position"
+  },
+  {
+    "id": "190",
+    "label": "A",
+    "prediction": "<|lvr_start|> <|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_latent_end|><|lvr_end|>\n<answer> A </answer><|im_end|>",
+    "category": "relative_position"
+  }
+]

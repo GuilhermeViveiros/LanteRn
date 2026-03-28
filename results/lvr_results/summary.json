@@ -1,0 +1,31 @@
+{
+  "model": "vincentleebang/LVR-7B",
+  "own": {
+    "viscot": {
+      "accuracy": 0.731532820604543,
+      "correct": 4090,
+      "total": 5591
+    }
+  },
+  "zeros": {
+    "viscot": {
+      "accuracy": 0.766946878912538,
+      "correct": 4288,
+      "total": 5591
+    }
+  },
+  "no_lvr": {
+    "viscot": {
+      "accuracy": 0.7853693435879091,
+      "correct": 4391,
+      "total": 5591
+    }
+  },
+  "random_bbox": {
+    "viscot": {
+      "accuracy": 0.738508316937936,
+      "correct": 4129,
+      "total": 5591
+    }
+  }
+}
