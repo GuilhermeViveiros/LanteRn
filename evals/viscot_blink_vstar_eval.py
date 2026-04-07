@@ -22,7 +22,7 @@ Usage:
        --gpus-per-node=1 --tasks-per-node=1 --mem=50GB \\
     bash -c 'export PYTHONPATH=/path/to/LantErn:$PYTHONPATH && \\
              python -u -m evals.viscot_blink_vstar_eval \\
-               --model_ref /e/project1/jureap126/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500 \\
+               --model_ref /mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500 \\
                --benchmarks blink vstar \\
                --output_dir results/lantern_ablation \\
                > results/lantern_ablation.log 2>&1'
@@ -49,11 +49,12 @@ from src.models.utils import apply_latent_compression
 from src.lantern_generate.generate import generate as lantern_generate
 from src.utils import extract_mc_answer, center_and_crop_image
 
-# /e/project1/jureap126/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/
-# /e/project1/jureap126/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500/
+# /mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/
+# /mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500/
 
-VISCOT_TEST_PATH = "/e/project1/jureap126/gviveiros/lantern/viscot_mc_test.jsonl"
-IMG_ROOT         = "/e/project1/jureap126/gviveiros/lantern/"
+from src.constants import VISCOT_MC_TEST_PATH, SCRATCH_ARTEMIS
+VISCOT_TEST_PATH = VISCOT_MC_TEST_PATH
+IMG_ROOT         = SCRATCH_ARTEMIS + "/"
 BLINK_CATEGORIES = ["Object_Localization", "Spatial_Relation"]
 LATENT_SIZE      = 8
 

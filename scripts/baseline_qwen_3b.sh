@@ -12,10 +12,10 @@ for benchmark in viscot blink vstar tetris; do
         --gres=gpu:1 \
         --time=12:00:00 \
         --job-name="baseline-3b-${benchmark}" \
-        --output="/e/project1/jureap126/gviveiros/lantern/logs/baseline_qwen_3b_${benchmark}_%j.out" \
-        --error="/e/project1/jureap126/gviveiros/lantern/logs/baseline_qwen_3b_${benchmark}_%j.err" \
+        --output="/mnt/scratch-artemis/gviveiros/lantern/logs/baseline_qwen_3b_${benchmark}_%j.out" \
+        --error="/mnt/scratch-artemis/gviveiros/lantern/logs/baseline_qwen_3b_${benchmark}_%j.err" \
         --wrap="
-            mkdir -p /e/project1/jureap126/gviveiros/lantern/logs
+            mkdir -p /mnt/scratch-artemis/gviveiros/lantern/logs
             export PYTHONPATH=${REPO}:\$PYTHONPATH
             python -m evals.baseline_qwen_eval \
                 --model_ref Qwen/Qwen2.5-VL-3B-Instruct \

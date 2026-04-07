@@ -72,7 +72,7 @@ def enumerate_configs() -> list:
 def parse_args():
     p = argparse.ArgumentParser(description="Generate visual analogy synthetic dataset.")
     p.add_argument("--output_dir", type=str,
-                   default="/e/project1/jureap131/gviveiros/lantern/analogy_data",
+                   default="/mnt/scratch-nyx/gviveiros/lantern/analogy_data",
                    help="Directory to save images and JSON.")
     p.add_argument("--grid_size",  type=int, default=8,
                    help="Square grid rows/cols for option panels.")
@@ -109,11 +109,11 @@ def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx
     sample["intermediate_img"].save(inter_path)
 
     trace = fill_reasoning_traces(sample, rng=rng)
-    trace["intermediate_img_path"] = os.path.abspath(inter_path)
+    trace["intermediate_img_path"] = os.path.join("images", inter_filename)
 
     return {
         "sample_id":             sample_id,
-        "img_path":              os.path.abspath(img_path),
+        "img_path":              os.path.join("images", img_filename),
         "question":              ANALOGY_QUESTION.format(
             transform_description=sample["transform_description"]
         ),

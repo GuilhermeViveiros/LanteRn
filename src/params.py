@@ -2,6 +2,10 @@ from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
 from transformers import TrainingArguments as HFTrainingArguments
 from trl import GRPOConfig
+from src.constants import (
+    CHECKPOINTS_DIR, SCRATCH_NYX, SCRATCH_HADES,
+    VISCOT_DATA_PATH, RL_DATA_PATH, RL_IMAGE_ROOT,
+)
 
 @dataclass
 class ModelParams:
@@ -12,7 +16,7 @@ class ModelParams:
     
 @dataclass
 class TrainingParams(HFTrainingArguments):
-    output_dir: str = field(default="/e/project1/jureap126/gviveiros/lantern/checkpoints")
+    output_dir: str = field(default=CHECKPOINTS_DIR)
     num_train_epochs: int = field(default=1)
     save_steps: float = field(default=0.2)
     save_total_limit: int = field(default=2)
@@ -49,7 +53,7 @@ class GRPOArguments(GRPOConfig):
     # ------------------------------------------------------------------
     # Model Configuration
     # ------------------------------------------------------------------
-    model_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")
+    model_path: str = field(default=f"{SCRATCH_HADES}/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")
     freeze_vision_tower: bool = field(default=True)
     freeze_merger: bool = field(default=True)
     freeze_llm: bool = field(default=False)
@@ -57,7 +61,7 @@ class GRPOArguments(GRPOConfig):
     # ------------------------------------------------------------------
     # Output / run identity
     # ------------------------------------------------------------------
-    output_dir: str = field(default="/mnt/scratch-hades/gviveiros/LantErn/")
+    output_dir: str = field(default=f"{SCRATCH_NYX}/")
     report_to: List[str] = field(default_factory=lambda: ["wandb"])
 
     # ------------------------------------------------------------------
@@ -119,20 +123,22 @@ class GRPOArguments(GRPOConfig):
 
 @dataclass
 class SFTDataParams:
-    data_path: str = field(default="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json")
+    data_path: str = field(default=VISCOT_DATA_PATH)
     dummy: bool = field(default=False)
     #split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0.0))
-    split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.097, 0.003))
+    split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0))
     corrupt_image: bool = field(default=False)
     corruption_type: str = field(default="bbox_blackout")
     filter_ids_path: Optional[str] = field(default=None)
     dataset_type: str = field(default="viscot",
                               metadata={"help": "viscot | tetris"})
+    max_train_samples: Optional[int] = field(default=None,
+                              metadata={"help": "Cap training set size. None = use all samples."})
     use_lvr: bool = field(default=True,
                           metadata={"help": "Use latent visual reasoning tokens (LantErn). "
                                             "Set False for NTP baseline."})
 
 @dataclass
 class RLDataParams:
-    data_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json")
-    image_root: str = field(default="/mnt/data-hades/gviveiros/")
+    data_path: str = field(default=RL_DATA_PATH)
+    image_root: str = field(default=RL_IMAGE_ROOT)

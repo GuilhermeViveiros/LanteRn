@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 import numpy as np
 
 MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-DATA_PATH = "/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
+DATA_PATH = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
 # ──────────────────────────────────────────────
 # 1. Load model on CPU

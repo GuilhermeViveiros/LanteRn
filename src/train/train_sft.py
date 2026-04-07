@@ -129,9 +129,9 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     )
 
     # check if we should resume training from a checkpoint
-    resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
-    if resume_from_checkpoint is not None:
-        logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
+    #resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+    #if resume_from_checkpoint is not None:
+    #c    logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
     
     # set the latent tokens
     assert model_params.latent_size > 0 or model_params.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
@@ -168,6 +168,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             data_path=data_params.data_path,
             dummy=data_params.dummy,
             use_lvr=data_params.use_lvr,
+            max_train_samples=data_params.max_train_samples,
         )
         generate_collate = tetris_collate_fn_generate
     elif data_params.dataset_type == "viscot":
@@ -224,7 +225,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     )
 
     trainer.train(
-        resume_from_checkpoint=resume_from_checkpoint
+        #resume_from_checkpoint=None
     )
     # save processor 
     processor.save_pretrained(training_params.output_dir)

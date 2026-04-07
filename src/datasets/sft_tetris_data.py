@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from functools import partial
 from typing import List, Optional, Tuple
 
@@ -38,6 +39,7 @@ from torch.utils.data import Dataset, random_split
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 
+from src.utils import rank0_print
 logger = logging.getLogger("LantErn-TetrisDataset")
 
 
@@ -48,18 +50,38 @@ class SFTTetrisDataset(Dataset):
         processor: AutoProcessor,
         dummy: bool = False,
         use_lvr: bool = True,
+        max_samples: int = None,
     ):
         super().__init__()
         self.processor = processor
         self.use_lvr = use_lvr
+        data_dir = os.path.dirname(os.path.abspath(data_path))
         with open(data_path) as f:
             self.dataset = json.load(f)
 
-        logger.info(f"Loaded {len(self.dataset)} analogy samples from {data_path} "
-                    f"(use_lvr={use_lvr})")
+        # TODO: remove this normalization once all datasets are regenerated with
+        # relative paths (create_dataset.py now saves relative paths). This is a
+        # temporary shim for existing JSON files that have absolute paths baked in
+        # from the generation cluster (/e/project1/... or /mnt/scratch-nyx/...).
+        def _normalize(path: str) -> str:
+            marker = "analogy_data" + os.sep
+            idx = path.find(marker)
+            if idx != -1:
+                path = path[idx + len(marker):]
+            return os.path.join(data_dir, path)
+
+        for sample in self.dataset:
+            sample["img_path"] = _normalize(sample["img_path"])
+            traces = sample["reasoning_traces"]
+            traces["intermediate_img_path"] = _normalize(traces["intermediate_img_path"])
+
+        rank0_print(f"Loaded {len(self.dataset)} analogy samples from {data_path} "
+                    f"(use_lvr={use_lvr})", flush=True)
 
         if dummy:
             self.dataset = self.dataset[:1000]
+        elif max_samples is not None:
+            self.dataset = self.dataset[:max_samples]
 
     def __len__(self):
         return len(self.dataset)
@@ -233,6 +255,7 @@ def make_tetris_data_module(
     dummy: bool = False,
     generate: bool = False,
     use_lvr: bool = True,
+    max_train_samples: int = None,
 ):
     """
     Load pre-split train/eval sets produced by create_dataset.py.
@@ -244,8 +267,8 @@ def make_tetris_data_module(
     eval_path  = os.path.join(os.path.dirname(data_path), "eval.json")
 
     train_ds = SFTTetrisDataset(data_path=train_path, processor=processor,
-                                dummy=dummy, use_lvr=use_lvr)
-    logger.info(f"Train: {len(train_ds)} samples")
+                                dummy=dummy, use_lvr=use_lvr, max_samples=max_train_samples)
+    rank0_print(f"Train: {len(train_ds)} samples", flush=True)
 
     collate = collate_fn_sft if not generate else collate_fn_generate
     out = {
@@ -255,8 +278,8 @@ def make_tetris_data_module(
     if os.path.exists(eval_path):
         eval_ds = SFTTetrisDataset(data_path=eval_path, processor=processor,
                                    dummy=dummy, use_lvr=use_lvr)
-        logger.info(f"Eval:  {len(eval_ds)} samples")
+        rank0_print(f"Eval:  {len(eval_ds)} samples", flush=True)
         out["eval_dataset"] = eval_ds
     else:
-        logger.warning(f"No eval.json found at {eval_path} — skipping eval split.")
+        rank0_print(f"No eval.json found at {eval_path} — skipping eval split.", flush=True)
     return out

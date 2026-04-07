@@ -60,8 +60,8 @@ deepspeed $REPO/src/train/train_sft.py \
     --dummy False \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
-    --report_to wandb \
-    --resume_from_checkpoint True \
+    --report_to none \
+    --resume_from_checkpoint False \
     --corrupt_image $CORRUPT_IMAGE \
     --corruption_type $CORRUPTION_TYPE \
     --freeze_latent_only $FREEZE_LATENT_ONLY

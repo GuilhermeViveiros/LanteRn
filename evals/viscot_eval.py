@@ -166,7 +166,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_path",
         type=str,
-        default="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json",
+        default="/mnt/scratch-artemis/gviveiros/lantern/LantErn_VisCot_data.json",
         help="Path to the data"
     )
 

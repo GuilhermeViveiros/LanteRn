@@ -9,6 +9,7 @@ from PIL import Image
 from torch.utils.data import Dataset, random_split
 from typing import List
 from src.utils import center_and_crop_image
+from src.constants import VISCOT_DATA_PATH, TEXTVQA_BAD_SAMPLE
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 # import logger 
@@ -38,7 +39,7 @@ class SFTDataset(Dataset):
 
         # remove sample textvqa/34084d4c3c347b83.jpg
         self.dataset = [data for data in self.dataset  # MINOR BUGG: ignore this sample for now
-                        if data["img_path"] != "/e/project1/jureap126/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg"]
+                        if data["img_path"] != TEXTVQA_BAD_SAMPLE]
 
         def pre_validation(data, idx):
             # ignore samples with more than 1 bbox
@@ -324,7 +325,7 @@ def make_sft_data_module(
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    data_path="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
+    data_path=VISCOT_DATA_PATH
 
 
     # load the visual model

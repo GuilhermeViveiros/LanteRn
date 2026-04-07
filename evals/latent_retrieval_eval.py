@@ -114,12 +114,12 @@ def retrieval_metrics(sim_matrix: torch.Tensor, correct_indices: list) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # parser.add_argument("--model_ref",  type=str,
-    #                     default="/e/project1/jureap126/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062")
-    #                     default="/e/project1/jureap126/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500")
-    #                     default="/e/project1/jureap126/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_8_lambda_0.1/checkpoint-708"
+    #                     default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062")
+    #                     default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500")
+    #                     default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/qwen_7b_sft_mse_lt_8_lambda_0.1/checkpoint-708"
     
     parser.add_argument("--model_ref",  type=str,
-                        default="/e/project1/jureap126/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062")
+                        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062")
     # grpo_lt_8_lambda_0.1/checkpoint-1500
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--max_steps",  type=int, default=300,

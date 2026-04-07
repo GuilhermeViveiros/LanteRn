@@ -12,6 +12,10 @@ def is_rank0() -> bool:
         return True
     return torch.distributed.get_rank() == 0
 
+def rank0_print(*args, **kwargs):
+    if is_rank0():
+        print(*args, **kwargs)
+
 def get_rank():
     if dist.is_available() and dist.is_initialized():
         return dist.get_rank()

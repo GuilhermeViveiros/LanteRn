@@ -104,7 +104,7 @@ if __name__ == "__main__":
         model, processor = load_model_transformer(model_id=model_id)
         inference = partial(batch_inference_transformer, model=model, processor=processor, system_prompt=system_prompt)
     
-    output_json_path = "/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
+    output_json_path = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
     if os.path.exists(output_json_path):
         os.remove(output_json_path)
 

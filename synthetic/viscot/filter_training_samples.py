@@ -60,7 +60,7 @@ from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 from src.utils import center_and_crop_image
 
-DATA_PATH = "/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
+DATA_PATH = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 MODEL_ID  = "Qwen/Qwen2.5-VL-32B-Instruct"
 # MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct" # debug purpouses
 
@@ -91,11 +91,11 @@ class TrainingDataset(Dataset):
             if "34084d4c3c347b83.jpg" in item.get("img_path", ""):
                 skipped += 1
                 continue
-            # replace img_path str from /mnt/data-artemis/gviveiros/lantern/ to /e/project1/jureap126/gviveiros/lantern
+            # replace img_path str from /mnt/data-artemis/gviveiros/lantern/ to /mnt/scratch-artemis/gviveiros/lantern
             
             item = {**item, "img_path": item["img_path"].replace(
                     "/mnt/data-artemis/gviveiros/lantern/",
-                    "/e/project1/jureap126/gviveiros/lantern/"
+                    "/mnt/scratch-artemis/gviveiros/lantern/"
             )}
             self.samples.append({"orig_idx": orig_idx, **item})
 

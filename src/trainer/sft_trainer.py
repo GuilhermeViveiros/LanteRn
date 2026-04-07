@@ -31,7 +31,7 @@ class LatentUtilityCallback(TrainerCallback):
         collate_fn: Callable,
         processor: AutoProcessor,
         batch_size: int = 8,
-        max_eval_samples: int = 80,
+        max_eval_samples: int = 1000,
         seed: int = 42,
     ):
         import random as _random
@@ -53,16 +53,23 @@ class LatentUtilityCallback(TrainerCallback):
         m = re.search(r'\b([a-d])\b', text[::-1], re.IGNORECASE)
         return m.group(1).lower() if m else ""
 
+    @staticmethod
+    def _collapse_vision_tokens(text: str) -> str:
+        """Replace <|vision_start|>...<|vision_end|> blocks with <img>."""
+        return re.sub(r'<\|vision_start\|>.*?<\|vision_end\|>', '<img>', text, flags=re.DOTALL)
+
     @torch.no_grad()
     def _run_condition(self, model, dataloader, use_gt: bool, perturbation, desc: str = "", n_log: int = 8):
         from evals import run_batch_inference
         lvr_start_token = "<|lvr_start|>"
-        correct   = 0
-        lvr_used  = 0
-        total     = 0
-        log_preds = []   # decoded strings for wandb table (first n_log)
-        log_gts   = []   # ground truth labels for wandb table
+        correct    = 0
+        lvr_used   = 0
+        total      = 0
+        log_prompts = []
+        log_preds   = []
+        log_gts     = []
         for inputs, labels in tqdm(dataloader, desc=desc, leave=False):
+            prompt_len = inputs["input_ids"].shape[1]
             out = run_batch_inference(
                 model, inputs,
                 use_lvr=True,
@@ -70,18 +77,20 @@ class LatentUtilityCallback(TrainerCallback):
                 perturbation=perturbation,
             )
             seqs = out.sequences if hasattr(out, "sequences") else out
-            decoded = self.processor.tokenizer.batch_decode(seqs, skip_special_tokens=False)
-            for pred, gt in zip(decoded, labels):
-                pred_ans = self._extract_answer(pred)
+            prompts   = self.processor.tokenizer.batch_decode(seqs[:, :prompt_len],  skip_special_tokens=False)
+            generated = self.processor.tokenizer.batch_decode(seqs[:, prompt_len:],  skip_special_tokens=False)
+            for prompt, gen, gt in zip(prompts, generated, labels):
+                pred_ans = self._extract_answer(gen)
                 correct  += int(pred_ans == gt.strip().lower())
-                lvr_used += int(lvr_start_token in pred)
+                lvr_used += int(lvr_start_token in gen)
                 total    += 1
                 if len(log_preds) < n_log:
-                    log_preds.append(pred[:1000])  # truncate long traces
+                    log_prompts.append(self._collapse_vision_tokens(prompt))
+                    log_preds.append(gen)
                     log_gts.append(gt.strip())
         if total == 0:
-            return 0.0, 0.0, [], []
-        return correct / total, lvr_used / total, log_preds, log_gts
+            return 0.0, 0.0, [], [], []
+        return correct / total, lvr_used / total, log_prompts, log_preds, log_gts
 
     @torch.no_grad()
     def on_evaluate(self, args, state, control, model=None, **kwargs):
@@ -101,7 +110,7 @@ class LatentUtilityCallback(TrainerCallback):
 
         acc      = 0.0
         lvr_rate = 0.0
-        log_preds, log_gts = [], []
+        log_prompts, log_preds, log_gts = [], [], []
         if rank < len(conditions):
             name, cond_kwargs = conditions[rank]
             label = name.split("/")[-1]
@@ -116,7 +125,7 @@ class LatentUtilityCallback(TrainerCallback):
                 collate_fn=partial(self.collate_fn, processor=self.processor),
             )
             unwrapped.eval()
-            acc, lvr_rate, log_preds, log_gts = self._run_condition(
+            acc, lvr_rate, log_prompts, log_preds, log_gts = self._run_condition(
                 unwrapped, dataloader, **cond_kwargs, desc=f"rank {rank} [{label}]"
             )
             self.processor.tokenizer.padding_side = orig_padding_side
@@ -131,13 +140,13 @@ class LatentUtilityCallback(TrainerCallback):
                            for _ in range(world_size)] if rank == 0 else None
             torch.distributed.gather(metrics_t, gather_list, dst=0)
             # Gather decoded strings via gather_object (CPU, no size constraint)
-            gen_obj = {"preds": log_preds, "gts": log_gts}
+            gen_obj = {"prompts": log_prompts, "preds": log_preds, "gts": log_gts}
             gen_gather = [None] * world_size if rank == 0 else None
             torch.distributed.gather_object(gen_obj, gen_gather, dst=0)
             torch.distributed.barrier()
         else:
             gather_list = [torch.tensor([acc, lvr_rate])]
-            gen_gather  = [{"preds": log_preds, "gts": log_gts}]
+            gen_gather  = [{"prompts": log_prompts, "preds": log_preds, "gts": log_gts}]
 
          # Send to wandb
         if wandb.run:
@@ -149,23 +158,25 @@ class LatentUtilityCallback(TrainerCallback):
                     results[f"latent_utility/{label}_lvr_rate"] = gather_list[i][1].item()
                 print(f"{_C}[LatentUtility] step {state.global_step} → {results}{_R}", flush=True)
 
-                wandb.log(results, step=state.global_step)
+                results["train/global_step"] = state.global_step
+                wandb.log(results)
                 # Build generation table from the 4 conditions (ranks 0-3)
-                cond_preds = {conditions[i][0].split("/")[-1]: gen_gather[i]["preds"]
-                              for i in range(len(conditions))}
-                gts = gen_gather[0]["gts"]  # same across all conditions
-                n   = min(len(gts), min(len(v) for v in cond_preds.values()))
+                cond_preds   = {conditions[i][0].split("/")[-1]: gen_gather[i]["preds"]
+                                for i in range(len(conditions))}
+                prompts = gen_gather[0]["prompts"]  # same prompt across all conditions
+                gts     = gen_gather[0]["gts"]
+                n = min(len(gts), len(prompts), min(len(v) for v in cond_preds.values()))
                 if n > 0:
-                    table = wandb.Table(columns=["sample", "gt", "pred_gt", "pred_own", "pred_random", "pred_zeros"])
+                    table = wandb.Table(columns=["sample", "prompt", "gt", "pred_gt", "pred_own", "pred_random", "pred_zeros"])
                     for j in range(n):
                         table.add_data(
-                            j, gts[j],
+                            j, prompts[j], gts[j],
                             cond_preds["gt"][j],
                             cond_preds["own"][j],
                             cond_preds["random"][j],
                             cond_preds["zeros"][j],
                         )
-                    wandb.log({"latent_utility/generations": table}, step=state.global_step)
+                    wandb.log({"generations/generations": table})
 
 class GenerationAccuracyCallback(TrainerCallback):
     """
@@ -413,8 +424,6 @@ class LantErnSFTrainer(Trainer):
         # get idx where token is <|lvr_sep|> / <|lvr_start|>
         lvr_sep_mask   = (input_ids == self.model.config.lvr_sep_id)
         lvr_start_mask = (input_ids == self.model.config.lvr_start_id)
-        if lvr_sep_mask.sum() == 0:
-            return (ce_loss, outputs) if return_outputs else ce_loss
 
         # Shifted MSE — k pairs for k GT visual embeds (latent_size = k):
         #
@@ -430,8 +439,8 @@ class LantErnSFTrainer(Trainer):
         for b in range(input_ids.shape[0]):
             start_pos = lvr_start_mask[b].nonzero(as_tuple=False).squeeze(-1)  # (1,)
             sep_pos   = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)    # (k,)
-            assert start_pos.numel() > 0 and sep_pos.numel() > 0, \
-                f"Sample {b} has no latent tokens — every sample must have <lvr_start> and <lvr_sep>"
+            if start_pos.numel() == 0 or sep_pos.numel() == 0:
+                raise ValueError(f"Sample {b} has no latent tokens — every sample must have <lvr_start> and <lvr_sep>")
             pred_idxs = torch.cat([start_pos, sep_pos[:-1]])  # [lvr_start, sep_0..sep_{k-2}]
             pred_list.append(hidden_states[b, pred_idxs])     # k hidden states
             gt_list.append(input_embeddings[b, sep_pos])      # v0..v_{k-1}

@@ -17,6 +17,7 @@ from evals import run_batch_inference, get_gt_latent_values
 from evals.blink_eval import BlinkDataset
 from qwen_vl_utils import process_vision_info
 from src.utils import extract_mc_answer
+from src.constants import VISCOT_MC_TEST_PATH, VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
 
 class MCDataset(Dataset):
     # mcdataset is a multiple choice dataset that aggregates different datasets into a single one
@@ -30,7 +31,7 @@ class MCDataset(Dataset):
             if dataset == "viscot":
                 # load the viscot test dataset
                 #with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
-                with open("/e/project1/jureap126/gviveiros/lantern/viscot_mc_test.jsonl", "r") as f:
+                with open(VISCOT_MC_TEST_PATH, "r") as f:
                     invalid_options = 0
                     for line in f:
                         sample = json.loads(line)
@@ -67,8 +68,8 @@ class MCDataset(Dataset):
                         # To support distributed training and avoid too many open files,
                         # store image paths here; open images only in __getitem__.
                         img_path = sample["img_path"].replace(
-                            "/mnt/data-artemis/gviveiros/lantern/",
-                            "/e/project1/jureap126/gviveiros/lantern/",
+                            VISCOT_IMAGE_ROOT + "/",
+                            VISCOT_IMAGE_ROOT_FALLBACK + "/",
                         )
                         sample["image"] = [img_path]  # store path, open later
                         self.data.append(sample)

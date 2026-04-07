@@ -50,5 +50,6 @@ class GRPODataset(Dataset):
 
 
 if __name__ == "__main__":
-    ds = GRPODataset(data_path="/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json", image_root="/mnt/data-hades/gviveiros/", dummy=True)
+    from src.constants import RL_DATA_PATH, RL_IMAGE_ROOT
+    ds = GRPODataset(data_path=RL_DATA_PATH, image_root=RL_IMAGE_ROOT, dummy=True)
     print(ds[0])
