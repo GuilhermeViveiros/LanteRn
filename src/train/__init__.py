@@ -81,7 +81,7 @@ def configure_latent_only(model):
         return hook
 
     # embed_tokens
-    embed_weight = model.model.embed_tokens.weight
+    embed_weight = model.model.language_model.embed_tokens.weight
     embed_weight.requires_grad = True
     embed_weight.register_hook(_make_mask_hook(lvr_ids, embed_weight.shape[0]))
 

@@ -25,6 +25,7 @@ def generate(
     synced_gpus: bool = False,
     streamer: Optional["BaseStreamer"] = None,
     gt_latent_embeds: Optional[torch.BFloat16Tensor] = None,
+    perturbation: Optional[str] = None,
     **kwargs,
 ):
 
@@ -215,17 +216,14 @@ def generate(
                 next_latent_embed = outputs.hidden_states[batch_indices, -1, :].unsqueeze(1) # (batch_size, 1, embed_dim)
             
 
-            # use random white noise during generation
-            # For debugging: print statistics about the latent embeddings
-            # Use the maximum (last) value representable by bfloat16 instead of 0
-            #next_latent_embed = torch.randn_like(next_latent_embed)
-            #next_latent_embed = torch.zeros_like(next_latent_embed)
-            #import pdb; pdb.set_trace()
-            # next_latent_embed = model.get_input_embeddings()(torch.tensor([100]).to("cuda:0")).unsqueeze(0)
-
-            # print(f"next_latent_embed stats -- shape: {next_latent_embed.shape}, dtype: {next_latent_embed.dtype},"
-            #       f" min: {next_latent_embed.min().item()}, max: {next_latent_embed.max().item()},"
-            #       f" mean: {next_latent_embed.mean().item()}, std: {next_latent_embed.std().item()}")
+            ## ---------- Perturbation ablation ---------- ##
+            ## replace actual latent embeddings by any value here ##
+            if perturbation == "zeros":
+                #print("Using zeros")
+                next_latent_embed = torch.zeros_like(next_latent_embed)
+            elif perturbation == "random":
+                #print("Using random")
+                next_latent_embed = torch.randn_like(next_latent_embed)
 
             next_token_embed[batch_indices] = next_latent_embed.to(dtype=torch.bfloat16)
             # store the latent values (dynamic size per sample)
@@ -256,10 +254,6 @@ def generate(
     # if latent_mask is all False, don't return the latent values and mask (text-only prediction)
     if not latent_mask.any():
         latent_embeds = None
-    #else:
-        #latent_embeds = [embed for embed in latent_embeds if len(embed) > 0] # ignore empty lists
-        #latent_embeds = list(chain.from_iterable(latent_embeds)) # nested list to single list
-        #latent_embeds = torch.stack(latent_embeds, dim=0).to(dtype=torch.bfloat16)
     
     if return_dict_in_generate:
         return LantErnGenerateOutput(

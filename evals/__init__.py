@@ -41,8 +41,8 @@ def get_gt_latent_values(cropped_images, processor):
     return inputs["pixel_values"], inputs["image_grid_thw"]
 
 # Run batch Inference
+#@measure_time
 @torch.no_grad()
-@measure_time
 def run_batch_inference(
     model,
     inputs,
@@ -50,20 +50,24 @@ def run_batch_inference(
     output_attentions: bool = True,
     use_lvr: bool = True,
     use_gt: bool = False,
+    perturbation: str = None,
 ):
 
     # get gt latent values
+    gt_latent_embeds = None
     if "latent_values" in inputs and use_gt:
-        # get ground truth embeddings
+        # Move latent tensors to model device before vision encoder forward pass
+        latent_values = inputs.pop("latent_values").to(model.device)
+        latent_grid_thw = inputs.pop("latent_grid_thw").to(model.device)
         gt_latent_embeds = apply_latent_compression(
             model,
-            latent_values=inputs.pop("latent_values") if "latent_values" in inputs else None,
-            latent_grid_thw=inputs.pop("latent_grid_thw") if "latent_grid_thw" in inputs else None,
+            latent_values=latent_values,
+            latent_grid_thw=latent_grid_thw,
             latent_size=model.config.latent_size,
         )
-
-    if "latent_values" in inputs:
-        raise Exception("not allowed, inference, debug")
+    elif "latent_values" in inputs:
+        inputs.pop("latent_values")
+        inputs.pop("latent_grid_thw", None)
 
     inputs = inputs.to(model.device)
     
@@ -77,7 +81,8 @@ def run_batch_inference(
         do_sample=False,
         custom_generate=partial(
             lantern_generate,
-            gt_latent_embeds=gt_latent_embeds if use_gt else None
+            gt_latent_embeds=gt_latent_embeds if use_gt else None,
+            perturbation=perturbation,
         ) if use_lvr else None,
         use_cache=True,
         output_attentions=output_attentions,

@@ -1,28 +1,20 @@
 """
-Unified dataset creation CLI for both Tetris problem types.
+Dataset creation CLI for the visual analogy task.
+
+Enumerates ALL unique (shape_A, rot_A, rot_step, shape_C, rot_C) configurations,
+shuffles them with a fixed seed, splits 95/5 into train/eval (zero overlap),
+then generates one sample per config with random grid placement and rendering.
 
 Usage:
-    # Transformation task (reference shape → which option matches the transform?)
     python -m synthetic.Tetris.create_dataset \
-        --task tetris \
-        --output_dir /path/to/tetris_dataset \
-        --n_samples 50000 \
-        --seed 42
-
-    # Visual analogy task (A:B :: C:?)
-    python -m synthetic.Tetris.create_dataset \
-        --task analogy \
         --output_dir /path/to/analogy_dataset \
-        --n_samples 50000 \
         --seed 42
 
 Output:
     {output_dir}/images/{sample_id:06d}.png
-    {output_dir}/tetris_data.json    (task=tetris)
-    {output_dir}/analogy_data.json   (task=analogy)
-
-Reasoning traces are written as empty placeholders (stage 1).
-Stage 2 will fill them with interleaved text+image reasoning via a VLM pass.
+    {output_dir}/images/intermediate_{sample_id:06d}.png
+    {output_dir}/train.json
+    {output_dir}/eval.json
 """
 
 import argparse
@@ -32,20 +24,13 @@ import random
 from tqdm import tqdm
 
 from .pieces import SHAPES
-from .simulator import generate_sample
 from .analogy_simulator import generate_analogy_sample
+from .reasoning import fill_reasoning_traces
 
 
 # ---------------------------------------------------------------------------
-# Question templates
+# Question template
 # ---------------------------------------------------------------------------
-
-TETRIS_QUESTION = (
-    "The left panel shows a reference shape on a grid. "
-    "Which of the following options (a, b, c, d) shows a valid {transform_description} "
-    "of the reference shape?\n"
-    "Options:\n(a) Option a\n(b) Option b\n(c) Option c\n(d) Option d"
-)
 
 ANALOGY_QUESTION = (
     "Image (A) is to image (B) as image (C) is to which of the following options?\n"
@@ -55,100 +40,29 @@ ANALOGY_QUESTION = (
 
 
 # ---------------------------------------------------------------------------
-# Reasoning trace scaffold
+# Config enumeration
 # ---------------------------------------------------------------------------
 
-def _empty_traces(answer: str) -> dict:
+def enumerate_configs() -> list:
     """
-    Stage-1 placeholder traces.  Stage 2 will fill these in via a VLM pass.
-
-    Intended stage-2 structure (not yet written to JSON):
-        "steps": [
-            {"type": "text",    "content": "...pre-inspection reasoning..."},
-            {"type": "inspect", "option": "a", "content": "...reasoning about option a..."},
-            {"type": "inspect", "option": "b", "content": "..."},
-            {"type": "inspect", "option": "c", "content": "..."},
-            {"type": "inspect", "option": "d", "content": "..."},
-            {"type": "text",    "content": "...final conclusion..."},
-        ]
+    Return all unique (shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx) tuples.
+    shape_C must be from a different family than shape_A.
     """
-    return {
-        "pre_visual_text_think": "",           # text before any bbox inspection
-        "post_visual_text_think": ["", "", "", ""],  # one entry per bbox (a/b/c/d)
-        "text_think": None,                    # final consolidation text
-        "answer": answer,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Per-task sample generators
-# ---------------------------------------------------------------------------
-
-_TETRIS_TRANSFORM_TYPES  = ["rotation", "combined"]   # no translation: same orientation = looks identical to reference
-_ANALOGY_TRANSFORM_TYPES = ["rotation", "combined"]
-_ELIGIBLE_A = [s for s in SHAPES if len(s["rotations"]) > 1]
-
-
-def _generate_tetris(sample_id: int, args, rng: random.Random) -> dict:
-    shape = rng.choice(_ELIGIBLE_A)
-    ttype = rng.choice(_TETRIS_TRANSFORM_TYPES)
-    sample = generate_sample(
-        shape=shape,
-        transform_type=ttype,
-        grid_rows=args.grid_size,
-        grid_cols=args.grid_size,
-        ref_cell_size=args.cell_size,
-        opt_cell_size=max(16, args.cell_size // 2),
-        rng=rng,
-        force_correct_pos=sample_id % 4,
-    )
-    return {
-        "question": TETRIS_QUESTION.format(
-            transform_description=sample["transform_description"]
-        ),
-        "answer": sample["answer"].lower(),
-        "bboxs": sample["bboxes"],
-        "reasoning_traces": _empty_traces(sample["answer"].lower()),
-        "dataset": "tetris",
-        "transform_type": sample["transform_type"],
-        "transform_description": sample["transform_description"],
-        "shape_name": sample["shape_name"],
-        "shape_family": sample["shape_family"],
-    }, sample["composite_img"]
-
-
-def _generate_analogy(sample_id: int, args, rng: random.Random) -> dict:
-    shape_A = rng.choice(_ELIGIBLE_A)
-    shape_C = rng.choice([
-        s for s in SHAPES
-        if s["name"] != shape_A["name"] and s["family"] != shape_A["family"]
-    ])
-    ttype = rng.choice(_ANALOGY_TRANSFORM_TYPES)
-    sample = generate_analogy_sample(
-        shape_A=shape_A,
-        shape_C=shape_C,
-        transform_type=ttype,
-        grid_rows=args.grid_size,
-        grid_cols=args.grid_size,
-        cell_size=args.cell_size,
-        rng=rng,
-        force_correct_pos=sample_id % 4,
-    )
-    return {
-        "question": ANALOGY_QUESTION.format(
-            transform_description=sample["transform_description"]
-        ),
-        "answer": sample["answer"],
-        "bboxs": sample["bboxes"],
-        "reasoning_traces": _empty_traces(sample["answer"]),
-        "dataset": "tetris_analogy",
-        "transform_type": sample["transform_type"],
-        "transform_description": sample["transform_description"],
-        "shape_A_name": sample["shape_A_name"],
-        "shape_C_name": sample["shape_C_name"],
-        "shape_A_family": sample["shape_A_family"],
-        "shape_C_family": sample["shape_C_family"],
-    }, sample["composite_img"]
+    configs = []
+    for shape_A in SHAPES:
+        n_rots_A = len(shape_A["rotations"])
+        if n_rots_A < 2:
+            continue  # need at least one non-identity rotation
+        valid_C = [s for s in SHAPES
+                   if s["name"] != shape_A["name"]
+                   and s["family"] != shape_A["family"]]
+        for rot_A_idx in range(n_rots_A):
+            for rot_step in range(1, n_rots_A):
+                for shape_C in valid_C:
+                    n_rots_C = len(shape_C["rotations"])
+                    for rot_C_idx in range(n_rots_C):
+                        configs.append((shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx))
+    return configs
 
 
 # ---------------------------------------------------------------------------
@@ -156,90 +70,161 @@ def _generate_analogy(sample_id: int, args, rng: random.Random) -> dict:
 # ---------------------------------------------------------------------------
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Generate Tetris synthetic datasets.")
-    p.add_argument("--task",       type=str, required=True, choices=["tetris", "analogy"],
-                   help="Which problem type to generate.")
-    p.add_argument("--output_dir", type=str, required=True,
+    p = argparse.ArgumentParser(description="Generate visual analogy synthetic dataset.")
+    p.add_argument("--output_dir", type=str,
+                   default="/e/project1/jureap131/gviveiros/lantern/analogy_data",
                    help="Directory to save images and JSON.")
-    p.add_argument("--n_samples",  type=int, default=10_000)
     p.add_argument("--grid_size",  type=int, default=8,
-                   help="Square grid rows/cols.")
-    p.add_argument("--cell_size",  type=int, default=None,
-                   help="Pixel size per grid cell (default: 40 for tetris, 32 for analogy).")
+                   help="Square grid rows/cols for option panels.")
+    p.add_argument("--cell_size",  type=int, default=32,
+                   help="Pixel size per grid cell.")
     p.add_argument("--seed",       type=int, default=42)
-    p.add_argument("--save_every", type=int, default=500)
-    p.add_argument("--split",      type=str, default="train",
-                   choices=["train", "val", "test"])
+    p.add_argument("--eval_frac",  type=float, default=0.05,
+                   help="Fraction of configs reserved exclusively for eval.")
+    p.add_argument("--save_every", type=int, default=1000)
     return p.parse_args()
+
+
+def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx,
+                     correct_pos, args, rng, images_dir):
+    sample = generate_analogy_sample(
+        shape_A=shape_A,
+        shape_C=shape_C,
+        transform_type="rotation",
+        grid_rows=args.grid_size,
+        grid_cols=args.grid_size,
+        cell_size=args.cell_size,
+        rng=rng,
+        force_correct_pos=correct_pos,
+        ref_rot_A_idx=rot_A_idx,
+        ref_rot_C_idx=rot_C_idx,
+        rot_step_override=rot_step,
+    )
+
+    img_filename   = f"{sample_id:06d}.png"
+    inter_filename = f"intermediate_{sample_id:06d}.png"
+    img_path   = os.path.join(images_dir, img_filename)
+    inter_path = os.path.join(images_dir, inter_filename)
+    sample["composite_img"].save(img_path)
+    sample["intermediate_img"].save(inter_path)
+
+    trace = fill_reasoning_traces(sample, rng=rng)
+    trace["intermediate_img_path"] = os.path.abspath(inter_path)
+
+    return {
+        "sample_id":             sample_id,
+        "img_path":              os.path.abspath(img_path),
+        "question":              ANALOGY_QUESTION.format(
+            transform_description=sample["transform_description"]
+        ),
+        "answer":                sample["answer"],
+        "bboxs":                 sample["bboxes"],
+        "reasoning_traces":      trace,
+        "dataset":               "tetris_analogy",
+        "transform_type":        sample["transform_type"],
+        "transform_description": sample["transform_description"],
+        "shape_A_name":          sample["shape_A_name"],
+        "shape_C_name":          sample["shape_C_name"],
+        "shape_A_family":        sample["shape_A_family"],
+        "shape_C_family":        sample["shape_C_family"],
+    }
 
 
 def main():
     args = parse_args()
 
-    # Default cell size per task
-    if args.cell_size is None:
-        args.cell_size = 40 if args.task == "tetris" else 32
-
     images_dir = os.path.join(args.output_dir, "images")
     os.makedirs(images_dir, exist_ok=True)
 
-    json_name = "tetris_data.json" if args.task == "tetris" else "analogy_data.json"
-    output_json_path = os.path.join(args.output_dir, json_name)
+    train_path = os.path.join(args.output_dir, "train.json")
+    eval_path  = os.path.join(args.output_dir, "eval.json")
 
-    generator = _generate_tetris if args.task == "tetris" else _generate_analogy
-
-    # Checkpoint recovery
-    existing: list = []
-    existing_ids: set = set()
-    if os.path.exists(output_json_path):
-        try:
-            with open(output_json_path) as f:
-                existing = json.load(f)
-            existing_ids = {s["sample_id"] for s in existing if "sample_id" in s}
-            print(f"Resuming: {len(existing)} samples already done.")
-        except Exception:
-            existing = []
-
+    # ── Enumerate & split configs ─────────────────────────────────────────────
+    print("Enumerating configurations...")
+    configs = enumerate_configs()
     rng = random.Random(args.seed)
-    for _ in range(len(existing_ids) * 5):
-        rng.random()
+    rng.shuffle(configs)
 
-    out = list(existing)
-    pbar = tqdm(total=args.n_samples, initial=len(out),
-                desc=f"Generating {args.task} samples")
+    n_eval  = int(args.eval_frac * len(configs))
+    n_train = len(configs) - n_eval
+    eval_configs  = configs[:n_eval]
+    train_configs = configs[n_eval:]
 
-    for sample_id in range(args.n_samples):
-        if sample_id in existing_ids:
-            continue
+    print(f"Total unique configs: {len(configs)}")
+    print(f"  Train configs: {n_train}  |  Eval configs: {n_eval}")
+    print(f"  Zero overlap guaranteed between train and eval.")
 
+    # ── Generate eval samples ─────────────────────────────────────────────────
+    eval_records = []
+    sample_id = 0
+
+    # Check for existing eval checkpoint
+    if os.path.exists(eval_path):
+        with open(eval_path) as f:
+            eval_records = json.load(f)
+        sample_id = max(r["sample_id"] for r in eval_records) + 1
+        print(f"Resuming eval: {len(eval_records)}/{n_eval} already done.")
+
+    remaining_eval = eval_configs[len(eval_records):]
+    eval_start = len(eval_records)
+    for i, (shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx) in enumerate(
+            tqdm(remaining_eval, desc="Eval samples", initial=eval_start, total=n_eval)):
+        correct_pos = (eval_start + i) % 4
         try:
-            record_fields, img = generator(sample_id, args, rng)
+            record = _generate_record(sample_id, shape_A, rot_A_idx, rot_step,
+                                      shape_C, rot_C_idx, correct_pos, args, rng, images_dir)
         except Exception as e:
-            print(f"\n[WARNING] sample {sample_id} failed: {e}")
+            print(f"  [warn] skipped eval config {i}: {e}")
+            sample_id += 1
             continue
+        eval_records.append(record)
+        sample_id += 1
+        if len(eval_records) % args.save_every == 0:
+            with open(eval_path, "w") as f:
+                json.dump(eval_records, f, indent=2)
 
-        img_filename = f"{sample_id:06d}.png"
-        img_path = os.path.join(images_dir, img_filename)
-        img.save(img_path)
+    with open(eval_path, "w") as f:
+        json.dump(eval_records, f, indent=2)
+    print(f"Eval done: {len(eval_records)} records → {eval_path}")
 
-        record = {
-            "sample_id": sample_id,
-            "img_path": os.path.abspath(img_path),
-            "split": args.split,
-            **record_fields,
-        }
-        out.append(record)
-        pbar.update(1)
+    # ── Generate train samples ────────────────────────────────────────────────
+    train_records = []
 
-        if len(out) % args.save_every == 0:
-            with open(output_json_path, "w") as f:
-                json.dump(out, f, indent=2)
-            pbar.write(f"Checkpoint: {len(out)} samples saved.")
+    if os.path.exists(train_path):
+        with open(train_path) as f:
+            train_records = json.load(f)
+        sample_id = max(r["sample_id"] for r in train_records) + 1
+        print(f"Resuming train: {len(train_records)}/{n_train} already done.")
 
-    pbar.close()
-    with open(output_json_path, "w") as f:
-        json.dump(out, f, indent=2)
-    print(f"\nDone. {len(out)} samples → {output_json_path}")
+    remaining_train = train_configs[len(train_records):]
+    train_start = len(train_records)
+    for i, (shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx) in enumerate(
+            tqdm(remaining_train, desc="Train samples", initial=train_start, total=n_train)):
+        correct_pos = (train_start + i) % 4
+        try:
+            record = _generate_record(sample_id, shape_A, rot_A_idx, rot_step,
+                                      shape_C, rot_C_idx, correct_pos, args, rng, images_dir)
+        except Exception as e:
+            print(f"  [warn] skipped train config {i}: {e}")
+            sample_id += 1
+            continue
+        train_records.append(record)
+        sample_id += 1
+        if len(train_records) % args.save_every == 0:
+            with open(train_path, "w") as f:
+                json.dump(train_records, f, indent=2)
+
+    with open(train_path, "w") as f:
+        json.dump(train_records, f, indent=2)
+    print(f"Train done: {len(train_records)} records → {train_path}")
+
+    # ── Answer distribution check ─────────────────────────────────────────────
+    for split_name, records in [("train", train_records), ("eval", eval_records)]:
+        from collections import Counter
+        dist = Counter(r["answer"] for r in records)
+        total = len(records)
+        print(f"{split_name} answer distribution: " +
+              ", ".join(f"{k}={v/total:.1%}" for k, v in sorted(dist.items())))
 
 
 if __name__ == "__main__":

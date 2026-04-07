@@ -28,7 +28,7 @@ from .pieces import (
     fits_in_grid, valid_offsets,
     _normalize, _rotate_90cw,
 )
-from .renderer import draw_piece_on_grid, draw_piece_standalone, render_intermediate, _get_font, _PAD, _LABEL_HEIGHT, _SECTION_LABEL_HEIGHT
+from .renderer import draw_piece_on_grid, draw_piece_standalone, render_rotation_strip, _get_font, _PAD, _LABEL_HEIGHT, _SECTION_LABEL_HEIGHT
 from .simulator import (
     ROTATION_ANGLES, TRANSFORM_DESCRIPTIONS,
     _apply_offset,
@@ -245,17 +245,22 @@ def generate_analogy_sample(
     cell_size: int = 32,
     rng: Optional[random.Random] = None,
     force_correct_pos: Optional[int] = None,
+    ref_rot_A_idx: Optional[int] = None,
+    ref_rot_C_idx: Optional[int] = None,
+    rot_step_override: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Generate one analogy sample:  A : B :: C : ?
 
     Args:
-        shape_A:        Shape used for the A/B pair.
-        shape_C:        Shape used for the C/? pair (must differ from shape_A).
-        transform_type: "rotation" | "translation" | "combined".
-        cell_size:      Pixel size of each grid cell; same for all panels so
-                        the composite image comes out roughly square.
-        rng:            Seeded random.Random.
+        shape_A:          Shape used for the A/B pair.
+        shape_C:          Shape used for the C/? pair (must differ from shape_A).
+        transform_type:   "rotation" | "translation" | "combined".
+        cell_size:        Pixel size of each grid cell.
+        rng:              Seeded random.Random.
+        ref_rot_A_idx:    Pin A's starting rotation index (for enumeration-based generation).
+        ref_rot_C_idx:    Pin C's starting rotation index (for enumeration-based generation).
+        rot_step_override: Pin the rotation step (for enumeration-based generation).
 
     Returns a dict with composite_img, bboxes, answer, metadata.
     """
@@ -273,7 +278,7 @@ def generate_analogy_sample(
         effective_type = "translation"
 
     # --- 1. Pick reference rotation + placement for A ---
-    ref_rot_A = rng.randrange(n_rots_A)
+    ref_rot_A = ref_rot_A_idx if ref_rot_A_idx is not None else rng.randrange(n_rots_A)
     cells_A = rots_A[ref_rot_A]
     off_A = rng.choice(valid_offsets(cells_A, grid_rows, grid_cols))
 
@@ -284,7 +289,7 @@ def generate_analogy_sample(
     transform_desc = ""
 
     if effective_type == "rotation":
-        rot_step = rng.choice(list(range(1, n_rots_A)))
+        rot_step = rot_step_override if rot_step_override is not None else rng.choice(list(range(1, n_rots_A)))
         gt_rot_A = (ref_rot_A + rot_step) % n_rots_A
         angle = ROTATION_ANGLES.get(rot_step, rot_step * 90)
         transform_desc = TRANSFORM_DESCRIPTIONS["rotation"].format(angle=angle)
@@ -337,7 +342,7 @@ def generate_analogy_sample(
     # --- 3. Apply the SAME transformation to C ---
     # Rotation step is relative; we apply the same rot_step to shape_C's rotations.
     # For translation, we apply the same (dr, dc) delta.
-    ref_rot_C = rng.randrange(n_rots_C)
+    ref_rot_C = ref_rot_C_idx if ref_rot_C_idx is not None else rng.randrange(n_rots_C)
     cells_C = rots_C[ref_rot_C]
     off_C = rng.choice(valid_offsets(cells_C, grid_rows, grid_cols))
 
@@ -346,6 +351,23 @@ def generate_analogy_sample(
     # Normalise to C's rotation count
     gt_rot_C = (ref_rot_C + rot_step_for_C) % n_rots_C
     cells_gt_C = rots_C[gt_rot_C]
+
+    # Degenerate: shape_C looks identical before and after (symmetric + wrap).
+    # The correct answer would be visually indistinguishable from C itself.
+    # Retry with a rotation step that actually changes C's appearance.
+    if _normalize(cells_gt_C) == _normalize(cells_C) and effective_type in ("rotation", "combined"):
+        # Force a rotation step that produces a visually different result for C
+        valid_steps = [i for i in range(1, n_rots_C)
+                       if _normalize(rots_C[(ref_rot_C + i) % n_rots_C]) != _normalize(cells_C)]
+        if not valid_steps:
+            # shape_C has only one unique visual state — skip entirely
+            raise ValueError(f"shape_C '{shape_C['name']}' has no visually distinct rotation; skip sample")
+        new_step = rng.choice(valid_steps)
+        gt_rot_C  = (ref_rot_C + new_step) % n_rots_C
+        cells_gt_C = rots_C[gt_rot_C]
+        # Recompute angle / transform_desc for the adjusted step
+        angle = ROTATION_ANGLES.get(new_step, new_step * 90)
+        transform_desc = TRANSFORM_DESCRIPTIONS["rotation"].format(angle=angle)
 
     if delta != (0, 0):
         new_off_gt_C = (off_C[0] + delta[0], off_C[1] + delta[1])
@@ -486,15 +508,21 @@ def generate_analogy_sample(
 
     composite_img, bboxes = build_analogy_composite(img_A, img_B, img_C, opt_imgs)
 
-    # Intermediate image: query object C → rotation label → C rotated
-    import re as _re
-    _m = _re.search(r'(\d+)°', transform_desc)
-    _angle_text = f"{_m.group(1)}° clockwise rotation" if _m else transform_desc
-    intermediate_img = render_intermediate(
-        cells_C, cells_gt_C, shape_C["color"],
-        angle_text=_angle_text,
+    # Mental-rotation strip following the circular rotation path.
+    # 270° is shown as a single −90° (CCW) step instead of three CW steps.
+    _rot_step = (gt_rot_C - ref_rot_C) % n_rots_C
+    if _rot_step == 3:   # 270° CW  =  −90° CCW
+        rotation_steps = [rots_C[ref_rot_C], rots_C[gt_rot_C]]
+        _clockwise = False
+    else:
+        rotation_steps = [rots_C[(ref_rot_C + i) % n_rots_C]
+                          for i in range(_rot_step + 1)]
+        _clockwise = True
+    intermediate_img = render_rotation_strip(
+        rotation_steps, shape_C["color"],
+        clockwise=_clockwise,
+        angle=angle if _clockwise else 90,
         cell_size=cell_size,
-        grid_rows=grid_rows, grid_cols=grid_cols,
     )
 
     return {

@@ -78,7 +78,7 @@ class SFTDataset(Dataset):
             self.dataset = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
         for data in self.dataset: # MINOR BUGG: ignore this sample for now
-            if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
+            if data["img_path"] == "/e/project1/jureap126/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
                 self.dataset.remove(data)
 
         def pre_validation(data, idx):
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     processor.tokenizer.padding_side = "left"
     
     from tqdm import tqdm
-    data_path="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+    data_path="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
     sft_dataset = SFTDataset(data_path, latent_size=4)
     seed = 42
     split_percentages = (0.9, 0.097, 0.003)

@@ -101,7 +101,7 @@ def extract_mc_answer(response: str, options: Optional[List[str]] = None) -> str
     given_answer = given_answer.split('</answer')[0].strip()
     matched_given_answer = None
     if given_answer:
-        match = re.search(r"(?:Answer:\s*)?(?:\(|\b)([A-Z])(?:\)|\b)", given_answer)
+        match = re.search(r"(?:Answer:\s*)?(?:\(|\b)([A-Za-z])(?:\)|\b)", given_answer)
         if match:
             matched_given_answer = match.group(1)
 

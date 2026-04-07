@@ -12,7 +12,7 @@ class ModelParams:
     
 @dataclass
 class TrainingParams(HFTrainingArguments):
-    output_dir: str = field(default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints")
+    output_dir: str = field(default="/e/project1/jureap126/gviveiros/lantern/checkpoints")
     num_train_epochs: int = field(default=1)
     save_steps: float = field(default=0.2)
     save_total_limit: int = field(default=2)
@@ -119,12 +119,18 @@ class GRPOArguments(GRPOConfig):
 
 @dataclass
 class SFTDataParams:
-    data_path: str = field(default="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json")
+    data_path: str = field(default="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json")
     dummy: bool = field(default=False)
     #split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0.0))
     split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.097, 0.003))
     corrupt_image: bool = field(default=False)
     corruption_type: str = field(default="bbox_blackout")
+    filter_ids_path: Optional[str] = field(default=None)
+    dataset_type: str = field(default="viscot",
+                              metadata={"help": "viscot | tetris"})
+    use_lvr: bool = field(default=True,
+                          metadata={"help": "Use latent visual reasoning tokens (LantErn). "
+                                            "Set False for NTP baseline."})
 
 @dataclass
 class RLDataParams:

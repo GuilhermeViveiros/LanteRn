@@ -23,30 +23,39 @@ class SFTDataset(Dataset):
         dummy: bool = False,
         corrupt_image: bool = False,
         corruption_type: str = "bbox_blackout",
+        filter_ids_path: Optional[str] = None,
     ):
         super(SFTDataset, self).__init__()
         self.processor = processor
         self.corrupt_image = corrupt_image
         self.corruption_type = corruption_type
         with open(data_path, "r") as f:
-            self.dataset = json.load(f)
+            raw = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
-        for data in self.dataset: # MINOR BUGG: ignore this sample for now
-            if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
-                self.dataset.remove(data)
+        for data in raw: # MINOR BUGG: ignore this sample for now
+            data["img_path"] = data["img_path"].replace(
+                "/mnt/data-artemis/gviveiros/lantern/",
+                "/e/project1/jureap126/gviveiros/lantern/"
+            )
+            if data["img_path"] == "/e/project1/jureap126/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
+                raw.remove(data)
+        
+        filter_ids = None
+        if filter_ids_path is not None:
+            with open(filter_ids_path) as f:
+                filter_ids = set(json.load(f)["keep_ids"])
+            logger.info(f"Filtering dataset to {len(filter_ids)} indices from {filter_ids_path}")
 
-        def pre_validation(data, idx):
-            # ignore samples with more than 1 bbox
+        self.dataset = []
+        for orig_idx, data in enumerate(raw):
             if len(data["bboxs"]) > 1:
-                return False
-            return True
-    
-        
-        logger.info(f"Number of examples of VisCoT data: {len(self.dataset)}")
-        # remove cases where the image is too large and bboxs are more than 1
-        self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
-        logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
-        
+                continue
+            if filter_ids is not None and orig_idx not in filter_ids:
+                continue
+            self.dataset.append(data)
+
+        logger.info(f"Number of examples of VisCoT data after filtering: {len(self.dataset)}")
+
         # if dummy, we only use the first 1000 examples
         if dummy:
             self.dataset = self.dataset[:1000]
@@ -289,12 +298,14 @@ def make_sft_data_module(
     seed: int = 42,
     corrupt_image: bool = False,
     corruption_type: str = "bbox_blackout",
+    filter_ids_path: Optional[str] = None,
     **kwargs
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
         data_path=data_path, processor=processor, dummy=dummy,
         corrupt_image=corrupt_image, corruption_type=corruption_type,
+        filter_ids_path=filter_ids_path,
     )
 
     # split the dataset into train, eval and test
@@ -334,7 +345,7 @@ def make_sft_data_module(
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    data_path="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+    data_path="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
 
 
     # load the visual model

@@ -34,7 +34,7 @@ from qwen_vl_utils import process_vision_info
 from src.utils import extract_mc_answer, center_and_crop_image
 
 DATA_PATH = "/mnt/scratch-artemis/gviveiros/lantern/oe_to_mc/viscot_mc_test.jsonl"
-MODEL_ID  = "Qwen/Qwen2.5-VL-32B-Instruct"
+MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct"
 
 system_content = "Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
 

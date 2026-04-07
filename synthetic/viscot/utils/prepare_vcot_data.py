@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from PIL import Image
 from utils.utils import center_and_crop_image
 
-IMG_FOLDER_PATH = "/mnt/data-artemis/gviveiros/lantern/"
+
+IMG_FOLDER_PATH = "/e/project1/jureap126/gviveiros/lantern/"
 
 if not os.path.exists(IMG_FOLDER_PATH):
     raise FileNotFoundError(f"Image folder path {IMG_FOLDER_PATH} does not exist")

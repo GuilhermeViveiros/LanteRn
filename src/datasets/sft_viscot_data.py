@@ -38,7 +38,7 @@ class SFTDataset(Dataset):
 
         # remove sample textvqa/34084d4c3c347b83.jpg
         self.dataset = [data for data in self.dataset  # MINOR BUGG: ignore this sample for now
-                        if data["img_path"] != "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg"]
+                        if data["img_path"] != "/e/project1/jureap126/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg"]
 
         def pre_validation(data, idx):
             # ignore samples with more than 1 bbox
@@ -324,7 +324,7 @@ def make_sft_data_module(
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    data_path="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+    data_path="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
 
 
     # load the visual model

@@ -4,6 +4,8 @@ Builds individual piece images and composite (reference + options) images.
 """
 
 from __future__ import annotations
+import math
+import re
 from typing import List, Tuple, Optional
 
 from PIL import Image, ImageDraw, ImageFont
@@ -85,90 +87,94 @@ def draw_piece_on_grid(
 
 
 # ---------------------------------------------------------------------------
-# Intermediate transformation image
+# Mental-rotation strip  (circular layout)
 # ---------------------------------------------------------------------------
 
-def render_intermediate(
-    cells_C: List[Tuple[int, int]],
-    cells_gt: List[Tuple[int, int]],
+def render_rotation_strip(
+    rotation_steps: List[List[Tuple[int, int]]],
     color: Tuple[int, int, int],
-    angle_text: str,
+    clockwise: bool = True,
+    angle: int = 90,
     cell_size: int = 40,
-    grid_rows: int = 8,
-    grid_cols: int = 8,
     bg_color: Tuple[int, int, int] = (18, 18, 22),
 ) -> Image.Image:
     """
-    Render a three-panel image illustrating the transformation applied to C:
+    Mental-rotation image. Three layouts:
 
-        [ query object (C) ]  →  "<angle_text>"  →  [ C after rotation ]
-
-    Both panels use the same grid size and color. The arrow and label are
-    centred between them.
-
-    Args:
-        cells_C:    Query object cells (normalized).
-        cells_gt:   Query object after the ground-truth rotation (normalized).
-        color:      RGB fill color for both panels.
-        angle_text: Human-readable rotation label, e.g. "90° clockwise rotation".
-        cell_size:  Pixels per grid cell.
-        grid_rows, grid_cols: Grid dimensions (same for both panels).
-
-    Returns:
-        PIL Image.
+        90°  CW  (2 steps): [C] →"90° right"→ [C@90°]
+        180° CW  (3 steps): [C] →"90° right"→ [C@90°]
+                                                    ↓"90° right"↓
+                                               [C@180°]            (L-shape)
+        270° CCW (2 steps): [C@left] ←"90° left"← [C]
     """
-    panel_w = grid_cols * cell_size
-    panel_h = grid_rows * cell_size
+    imgs = [draw_piece_standalone(c, color, cell_size) for c in rotation_steps]
+    if len(imgs) < 2:
+        imgs = imgs * 2
 
-    font_arrow = _get_font(26)
-    font_label = _get_font(18)
+    PAD         = 20
+    GAP         = 70
+    BEND        = 36
+    arrow_color = (140, 170, 200)
+    text_color  = (190, 200, 215)
+    font        = _get_font(15)
+    pw, ph      = imgs[0].width, imgs[0].height
 
-    text_color  = (210, 210, 220)
-    arrow_color = (160, 160, 180)
+    def _bez(p0, p1, p2, n=70):
+        pts = []
+        for i in range(n + 1):
+            t = i / n; mt = 1 - t
+            pts.append((int(mt*mt*p0[0]+2*mt*t*p1[0]+t*t*p2[0]),
+                        int(mt*mt*p0[1]+2*mt*t*p1[1]+t*t*p2[1])))
+        return pts
 
-    PAD       = 14
-    ARROW_GAP = 50   # total width reserved for the arrow + label column
+    def _draw_arrow(draw_obj, pts, lbl, label_x, label_y):
+        for j in range(len(pts) - 2):
+            draw_obj.line([pts[j], pts[j+1]], fill=arrow_color, width=2)
+        if len(pts) >= 2:
+            dx, dy = pts[-1][0]-pts[-2][0], pts[-1][1]-pts[-2][1]
+            L = math.sqrt(dx*dx+dy*dy)
+            if L > 1e-6:
+                dx, dy = dx/L, dy/L; px, py = -dy, dx; s = 14
+                bx, by = pts[-1][0]-dx*s, pts[-1][1]-dy*s
+                q1 = (int(bx+px*s*.45), int(by+py*s*.45))
+                q2 = (int(bx-px*s*.45), int(by-py*s*.45))
+                draw_obj.polygon([pts[-1], q1, q2], fill=arrow_color)
+        lw = int(font.getlength(lbl)) if hasattr(font, "getlength") else 50
+        draw_obj.text((label_x - lw//2, label_y), lbl, fill=text_color, font=font)
 
-    total_w = panel_w + ARROW_GAP + panel_w + 2 * PAD
-    total_h = panel_h + 2 * PAD
+    # ── single horizontal row for all cases ────────────────────────────────
+    if True:  # always
+        n_panels = len(imgs)
+        total_w  = PAD + n_panels * pw + (n_panels - 1) * GAP + PAD
+        total_h  = ph + 2*PAD + BEND
 
-    canvas = Image.new("RGB", (total_w, total_h), bg_color)
-    draw   = ImageDraw.Draw(canvas)
+        canvas = Image.new("RGB", (total_w, total_h), bg_color)
+        draw   = ImageDraw.Draw(canvas)
 
-    # ── Left panel: query object C ─────────────────────────────────────────
-    # Centre the piece in the grid
-    from .pieces import valid_offsets as _valid_offsets
-    offs_C = _valid_offsets(cells_C, grid_rows, grid_cols)
-    off_C  = offs_C[len(offs_C) // 2] if offs_C else (0, 0)
-    img_C  = draw_piece_on_grid(cells_C, color, off_C, grid_rows, grid_cols, cell_size)
-    canvas.paste(img_C, (PAD, PAD))
+        y0 = PAD + BEND
+        cy = y0 + ph // 2
 
-    # ── Right panel: C rotated ────────────────────────────────────────────
-    offs_gt = _valid_offsets(cells_gt, grid_rows, grid_cols)
-    off_gt  = offs_gt[len(offs_gt) // 2] if offs_gt else (0, 0)
-    img_gt  = draw_piece_on_grid(cells_gt, color, off_gt, grid_rows, grid_cols, cell_size)
-    canvas.paste(img_gt, (PAD + panel_w + ARROW_GAP, PAD))
-
-    # ── Arrow + label in the middle column ───────────────────────────────
-    mid_x = PAD + panel_w + ARROW_GAP // 2
-    mid_y = PAD + panel_h // 2
-
-    # "→" arrow
-    arrow = "→"
-    aw = int(font_arrow.getlength(arrow)) if hasattr(font_arrow, "getlength") else 20
-    ah = int(font_arrow.size)             if hasattr(font_arrow, "size")       else 26
-    draw.text((mid_x - aw // 2, mid_y - ah - 4), arrow, fill=arrow_color, font=font_arrow)
-
-    # rotation label (split into two lines if long)
-    parts = angle_text.split(" rotation")[0].split(" clockwise")
-    line1 = parts[0].strip() + "°" if "°" not in parts[0] else parts[0].strip()
-    line2 = "clockwise" if len(parts) > 1 else ""
-
-    lw1 = int(font_label.getlength(line1)) if hasattr(font_label, "getlength") else 60
-    draw.text((mid_x - lw1 // 2, mid_y + 6), line1, fill=text_color, font=font_label)
-    if line2:
-        lw2 = int(font_label.getlength(line2)) if hasattr(font_label, "getlength") else 60
-        draw.text((mid_x - lw2 // 2, mid_y + 6 + 22), line2, fill=text_color, font=font_label)
+        if clockwise:
+            # panels left to right: imgs[0], imgs[1], imgs[2] (if 180°)
+            for i, im in enumerate(imgs):
+                canvas.paste(im, (PAD + i * (pw + GAP), y0))
+            for i in range(n_panels - 1):
+                x_left  = PAD + i * (pw + GAP) + pw
+                x_right = PAD + (i + 1) * (pw + GAP)
+                p0 = (x_left,  cy)
+                p2 = (x_right, cy)
+                p1 = ((p0[0]+p2[0])//2, y0 - BEND//2)
+                pts = _bez(p0, p1, p2)
+                _draw_arrow(draw, pts, "90\u00b0 right", p1[0], PAD + 2)
+        else:
+            # CCW: result on left, source on right
+            canvas.paste(imgs[1], (PAD,            y0))
+            canvas.paste(imgs[0], (PAD + pw + GAP, y0))
+            p0 = (PAD + pw + GAP, cy)
+            p2 = (PAD + pw,       cy)
+            p1 = ((p0[0]+p2[0])//2, y0 - BEND//2)
+            pts = _bez(p0, p1, p2)
+            _draw_arrow(draw, pts, "90\u00b0 left", p1[0], PAD + 2)
 
     return canvas
 

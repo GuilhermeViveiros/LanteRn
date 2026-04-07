@@ -46,17 +46,13 @@ def get_unique_rotations(base_cells: Cells) -> List[Cells]:
 
 # Each entry: (name, family, base_cells, color_rgb)
 _SHAPE_DEFS = [
-    # ---- Tetrominoes (4 cells) ----
-    ("I4",  "tetromino", [(0,0),(0,1),(0,2),(0,3)],          (0,   240, 240)),  # cyan
+    # ---- Tetrominoes (4 cells) — only fully asymmetric (4 unique rotations) ----
     ("T4",  "tetromino", [(0,0),(0,1),(0,2),(1,1)],          (160,   0, 240)),  # purple
-    ("S",   "tetromino", [(0,1),(0,2),(1,0),(1,1)],          (0,   240,   0)),  # green
-    ("Z",   "tetromino", [(0,0),(0,1),(1,1),(1,2)],          (240,   0,   0)),  # red
     ("J",   "tetromino", [(0,0),(1,0),(1,1),(1,2)],          (0,     0, 240)),  # blue
     ("L4",  "tetromino", [(0,2),(1,0),(1,1),(1,2)],          (240, 160,   0)),  # orange
 
-    # ---- Pentominoes (5 cells) ----
+    # ---- Pentominoes (5 cells) — only fully asymmetric (4 unique rotations) ----
     ("F5",  "pentomino", [(0,1),(0,2),(1,0),(1,1),(2,1)],    (220,  80,  80)),  # rose
-    ("I5",  "pentomino", [(0,0),(0,1),(0,2),(0,3),(0,4)],    (200, 120,  40)),  # brown-orange
     ("L5",  "pentomino", [(0,0),(1,0),(2,0),(3,0),(3,1)],    (240, 180,  80)),  # gold
     ("N5",  "pentomino", [(0,1),(1,0),(1,1),(2,0),(3,0)],    (180, 240, 100)),  # yellow-green
     ("P5",  "pentomino", [(0,0),(0,1),(1,0),(1,1),(2,0)],    (240, 100, 180)),  # pink
@@ -64,71 +60,50 @@ _SHAPE_DEFS = [
     ("U5",  "pentomino", [(0,0),(0,2),(1,0),(1,1),(1,2)],    (80,  200, 200)),  # teal
     ("V5",  "pentomino", [(0,0),(1,0),(2,0),(2,1),(2,2)],    (240, 140, 140)),  # salmon
     ("W5",  "pentomino", [(0,0),(1,0),(1,1),(2,1),(2,2)],    (140, 240, 160)),  # mint
-    ("X5",  "pentomino", [(0,1),(1,0),(1,1),(1,2),(2,1)],    (240, 200, 100)),  # amber
     ("Y5",  "pentomino", [(0,1),(1,0),(1,1),(2,1),(3,1)],    (180, 120, 240)),  # lavender
-    ("Z5",  "pentomino", [(0,0),(0,1),(1,1),(2,1),(2,2)],    (100, 180, 240)),  # sky-blue
 
-    # ---- Hexominoes (6 cells) — 10 visually distinct selections ----
-    # H1: straight line of 6
-    ("H_line",  "hexomino", [(0,0),(0,1),(0,2),(0,3),(0,4),(0,5)],       (60,  120, 200)),  # steel-blue
-    # H3: L-shape with 4+2
+    # ---- Hexominoes (6 cells) — only fully asymmetric ----
     ("H_Lbig",  "hexomino", [(0,0),(1,0),(2,0),(3,0),(4,0),(4,1)],       (200,  60, 120)),  # crimson
-    # H4: T-shape wide
     ("H_Tbig",  "hexomino", [(0,0),(0,1),(0,2),(0,3),(1,1),(2,1)],       (60,  200, 160)),  # aquamarine
-    # H5: staircase 3-step
-    ("H_stair", "hexomino", [(0,0),(1,0),(1,1),(2,1),(2,2),(3,2)],       (200, 160,  60)),  # mustard
-    # H6: S-shape extended
-    ("H_Sbig",  "hexomino", [(0,1),(0,2),(1,0),(1,1),(2,0),(2,1)],       (120,  80, 200)),  # indigo -- wait that's a 2x3 rect rotation
-    # H7: + cross with tail
+    ("H_Sbig",  "hexomino", [(0,1),(0,2),(1,0),(1,1),(2,0),(2,1)],       (120,  80, 200)),  # indigo
     ("H_cross", "hexomino", [(0,1),(1,0),(1,1),(1,2),(2,1),(3,1)],       (200, 100,  60)),  # burnt-orange
-    # H8: U-shape extended
     ("H_Ubig",  "hexomino", [(0,0),(0,3),(1,0),(1,1),(1,2),(1,3)],       (80,  160, 240)),  # cornflower
-    # H9: C-shape / hook
     ("H_hook",  "hexomino", [(0,0),(0,1),(0,2),(1,0),(2,0),(2,1)],       (160, 200,  80)),  # lime
-    # H10: Z-shape extended
-    ("H_Zbig",  "hexomino", [(0,0),(0,1),(1,1),(1,2),(2,2),(2,3)],       (240, 120, 120)),  # light-red
+    # New hexominoes
+    ("H_F",     "hexomino", [(0,1),(0,2),(1,0),(1,1),(2,1),(3,1)],       (240,  80, 200)),  # magenta   — tall F
+    ("H_G",     "hexomino", [(0,0),(0,1),(0,2),(1,0),(2,0),(2,1)],       (100, 240, 120)),  # spring    — G/reverse-C
+    ("H_Y",     "hexomino", [(0,1),(1,0),(1,1),(2,1),(3,1),(4,1)],       (240, 200,  60)),  # gold-yel  — Y-like
+    ("H_R",     "hexomino", [(0,0),(0,1),(1,0),(1,1),(2,1),(3,1)],       (80,  120, 240)),  # cobalt    — R-like bump
 
-    # ---- Heptominoes (7 cells) — 12 visually distinct selections ----
-    # G1: line of 7
-    ("G_line",  "heptomino", [(0,0),(0,1),(0,2),(0,3),(0,4),(0,5),(0,6)],         (80,  100, 220)),  # periwinkle
-    # G2: L-shape 6+1
+    # ---- Heptominoes (7 cells) — only fully asymmetric ----
     ("G_Lbig",  "heptomino", [(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(5,1)],         (220,  80,  80)),  # brick-red
-    # G3: T-shape 5+2 tall
     ("G_Ttall", "heptomino", [(0,0),(0,1),(0,2),(0,3),(0,4),(1,2),(2,2)],         (80,  220, 140)),  # sea-green
-    # G4: S-staircase 4-step
     ("G_stair", "heptomino", [(0,0),(1,0),(1,1),(2,1),(2,2),(3,2),(3,3)],         (220, 180,  60)),  # saffron
-    # G5: plus-sign with extra arm
     ("G_plus",  "heptomino", [(0,2),(1,0),(1,1),(1,2),(1,3),(2,2),(3,2)],         (180,  60, 220)),  # violet
-    # G6: U-wide
     ("G_Uwide", "heptomino", [(0,0),(0,1),(0,2),(0,3),(1,0),(1,3),(2,0)],         (60,  200, 220)),  # cyan-teal
-    # G7: zigzag
     ("G_zig",   "heptomino", [(0,0),(0,1),(1,1),(1,2),(2,2),(2,3),(3,3)],         (220, 120,  60)),  # tangerine
-    # G8: C-shape extended
     ("G_C",     "heptomino", [(0,0),(0,1),(0,2),(0,3),(1,0),(2,0),(2,1)],         (100, 220, 100)),  # bright-green
-    # G9: F-like asymmetric
     ("G_F",     "heptomino", [(0,1),(0,2),(1,0),(1,1),(2,1),(2,2),(3,2)],         (220,  80, 160)),  # hot-pink
-    # G10: 3×3 minus 2 corners
     ("G_sq",    "heptomino", [(0,0),(0,1),(0,2),(1,0),(1,2),(2,0),(2,1)],         (100, 160, 220)),  # light-blue
-    # G11: long S
     ("G_Slong", "heptomino", [(0,2),(0,3),(1,1),(1,2),(2,0),(2,1),(3,0)],         (200, 200,  80)),  # chartreuse
-    # G12: T-wide + tail
     ("G_Twide", "heptomino", [(0,0),(0,1),(0,2),(0,3),(0,4),(1,2),(2,2)],         (220, 140, 100)),  # peach
+    # New heptominoes
+    ("G_R",     "heptomino", [(0,0),(0,1),(1,0),(1,1),(2,0),(2,1),(3,1)],         (180, 240, 180)),  # pale-green — R-shaped
+    ("G_hook2", "heptomino", [(0,0),(0,1),(0,2),(0,3),(1,3),(2,3),(2,2)],         (240, 160, 200)),  # blush     — hook with offset tail
+    ("G_E",     "heptomino", [(0,0),(0,1),(0,2),(1,0),(1,1),(2,0),(2,1)],         (160, 100, 200)),  # plum      — E-like 3-prong
+    ("G_spiral","heptomino", [(0,0),(0,1),(0,2),(1,2),(1,1),(2,1),(2,0)],         (100, 200, 160)),  # sage      — tight spiral
 
-    # ---- Octominoes (8 cells) — 8 visually distinct selections ----
-    # O1: line of 8
-    ("K_line",  "octomino",  [(0,0),(0,1),(0,2),(0,3),(0,4),(0,5),(0,6),(0,7)],   (60,  80, 180)),   # navy
-    # O3: L-shape 7+1
+    # ---- Octominoes (8 cells) — only fully asymmetric ----
     ("K_Lbig",  "octomino",  [(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(6,0),(6,1)],   (60,  180,  80)),  # forest-green
-    # O4: T-cross 5×3
     ("K_T",     "octomino",  [(0,0),(0,1),(0,2),(0,3),(0,4),(1,2),(2,2),(3,2)],   (180, 100, 180)),  # mauve
-    # O5: S-staircase 5-step
-    ("K_stair", "octomino",  [(0,0),(1,0),(1,1),(2,1),(2,2),(3,2),(3,3),(4,3)],   (180, 160,  40)),  # olive
-    # O6: ring/frame (3×3 minus center)
-    ("K_ring",  "octomino",  [(0,0),(0,1),(0,2),(1,0),(1,2),(2,0),(2,1),(2,2)],   (40,  160, 200)),  # cerulean
-    # O7: Z extended
-    ("K_Zbig",  "octomino",  [(0,0),(0,1),(0,2),(1,2),(1,3),(2,3),(2,4),(2,5)],   (200,  80, 100)),  # raspberry
-    # O8: plus with long arms
     ("K_plus",  "octomino",  [(0,2),(1,2),(2,0),(2,1),(2,2),(2,3),(2,4),(3,2)],   (80,  220, 180)),  # aqua
+    # New octominoes
+    ("K_F",     "octomino",  [(0,1),(0,2),(1,0),(1,1),(2,1),(3,1),(4,1),(4,2)],   (200,  80,  60)),  # vermillion — F-shaped
+    ("K_G",     "octomino",  [(0,0),(0,1),(0,2),(0,3),(1,0),(2,0),(2,1),(2,2)],   (80,  140, 240)),  # sky        — G-shaped
+    ("K_N",     "octomino",  [(0,1),(1,0),(1,1),(2,0),(3,0),(4,0),(5,0),(5,1)],   (240, 200, 120)),  # wheat      — N-shaped
+    ("K_C",     "octomino",  [(0,0),(0,1),(0,2),(0,3),(1,0),(2,0),(3,0),(3,1)],   (200, 120, 240)),  # orchid     — C-shaped asymmetric
+    ("K_E",     "octomino",  [(0,0),(0,1),(0,2),(1,0),(1,1),(2,0),(3,0),(3,1)],   (120, 240, 200)),  # seafoam    — E-shaped
+    ("K_spiral","octomino",  [(0,0),(0,1),(0,2),(1,2),(1,1),(2,1),(2,0),(3,0)],   (240, 140,  80)),  # amber-org  — spiral
 ]
 
 

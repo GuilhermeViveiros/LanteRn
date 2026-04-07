@@ -1,21 +1,22 @@
 """
 Template-based reasoning trace generation for the analogy dataset.
 
-Two phrasings (variant 0 and variant 1) are defined for each text field.
-Generating both variants per sample doubles training variety.
+15 phrasings are defined for each text field; one is chosen randomly per
+sample so the final JSON has exactly one record per sample with diverse
+language variety across the dataset.
 
 Reasoning flow:
   1. pre_visual_text_think  — observe source→target rotation, apply to query
                               [intermediate image shown after this text]
   2. post_visual_text_think — one positive statement for the correct option,
                               empty strings for the other three
-  3. text_think             — restatement of the conclusion (similar to pre,
-                              different phrasing)
+  3. text_think             — restatement of the conclusion
 """
 
 from __future__ import annotations
 import re
-from typing import Dict, Any
+import random
+from typing import Dict, Any, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -23,55 +24,113 @@ from typing import Dict, Any
 # ---------------------------------------------------------------------------
 
 def _extract_angle(transform_description: str) -> str:
-    """
-    Pull the rotation degrees out of a transform description string.
-    Works for 'rotation' and 'combined' types; returns '' if not found.
-    Examples:
-        '90° clockwise rotation'                           → '90°'
-        '180° clockwise rotation and translation of …'    → '180°'
-    """
     m = re.search(r'(\d+)°', transform_description)
     return f"{m.group(1)}°" if m else ""
 
 
 # ---------------------------------------------------------------------------
-# Text templates  (two variants per field)
+# Text templates  (15 variants per field)
 # ---------------------------------------------------------------------------
 
 _PRE_TEMPLATES = [
-    # variant 0
-    (
-        "Looking at the reference transformation, the source object appears to have been "
-        "rotated {angle} clockwise to produce the target object. "
-        "Applying this same {angle} clockwise rotation to the query object gives us "
-        "the expected result shown above."
-    ),
-    # variant 1
-    (
-        "Observing the example, the source object has undergone a {angle} clockwise rotation "
-        "to become the target object. "
-        "If we apply this same rotation to the query object, we obtain the shape illustrated above."
-    ),
+    "Looking at the reference transformation, the source object appears to have been "
+    "rotated {angle} clockwise to produce the target object. "
+    "If we imagine applying the same {angle} clockwise rotation to the query object,",
+
+    "Observing the example, the source object has undergone a {angle} clockwise rotation "
+    "to become the target object. "
+    "If we mentally apply this same {angle} clockwise rotation to the query object,",
+
+    "The reference pair shows a {angle} clockwise rotation from source to target. "
+    "Applying that same rotation to the query object in my mind,",
+
+    "From the example, the transformation is a {angle} clockwise turn. "
+    "Rotating the query object {angle} clockwise in imagination,",
+
+    "The source object was rotated {angle} clockwise to get the target. "
+    "Doing the same to the query object mentally,",
+
+    "I can see that the reference transformation is a {angle} clockwise rotation. "
+    "Visualising this applied to the query shape,",
+
+    "The example demonstrates a {angle} clockwise rotation. "
+    "If I rotate the query object by {angle} in the same direction,",
+
+    "By examining the A→B pair, I identify a {angle} clockwise rotation. "
+    "Applying this mentally to the query object,",
+
+    "The transformation from source to target is a {angle} clockwise rotation. "
+    "Performing this rotation on the query object in my head,",
+
+    "Looking at how A maps to B, I see a {angle} clockwise rotation. "
+    "Imagining the query object undergoing the same rotation,",
+
+    "The source-to-target change is a {angle} clockwise turn. "
+    "Mentally spinning the query object by {angle} clockwise,",
+
+    "A {angle} clockwise rotation takes the source to the target. "
+    "If I apply that same {angle} clockwise spin to the query,",
+
+    "The reference shows the shape being rotated {angle} to the right. "
+    "Turning the query object {angle} to the right in my mind,",
+
+    "Analysing the example, the transformation is a {angle} clockwise rotation. "
+    "Imagining the same rotation applied to the query shape,",
+
+    "The pattern shows a {angle} clockwise rotation from source to target. "
+    "Applying this transformation to the query object mentally,",
 ]
 
 _CORRECT_OPT_TEMPLATES = [
-    # variant 0 — placed in post_visual_text_think[correct_idx]
-    "This option resembles the query object after a {angle} clockwise rotation — consistent with the reference transformation.",
-    # variant 1
-    "The shape here matches the query object rotated {angle} clockwise, in line with the source-to-target transformation.",
+    "This option closely resembles what we imagined — the query object rotated {angle} clockwise, consistent with the reference transformation.",
+    "This matches the shape we mentally constructed — the query object after a {angle} clockwise rotation, in line with the source-to-target transformation.",
+    "This option corresponds to the query object rotated {angle} clockwise, matching the reference transformation.",
+    "This is what the query object looks like after a {angle} clockwise rotation — consistent with the A→B pattern.",
+    "This matches our mental rotation: the query object turned {angle} clockwise, just like the reference.",
+    "This option shows the query object after the same {angle} clockwise rotation seen in the example.",
+    "The query object rotated {angle} clockwise produces this shape, matching the reference transformation.",
+    "This aligns with our imagined result — a {angle} clockwise rotation of the query object.",
+    "This option is the query object after a {angle} clockwise turn, consistent with the source-to-target change.",
+    "This matches what we pictured: the query rotated {angle} clockwise following the reference pattern.",
+    "This corresponds to applying the {angle} clockwise rotation from the example to the query object.",
+    "The shape here is consistent with rotating the query object {angle} clockwise as shown in A→B.",
+    "This is the expected result of a {angle} clockwise rotation applied to the query object.",
+    "This option reflects the query object after the same {angle} clockwise transformation.",
+    "This matches the mentally rotated query object — {angle} clockwise, as in the reference pair.",
 ]
 
 _TEXT_THINK_TEMPLATES = [
-    # variant 0
-    (
-        "The reference transformation is a {angle} clockwise rotation. "
-        "The query object with the same rotation applied matches option ({answer})."
-    ),
-    # variant 1
-    (
-        "A {angle} clockwise rotation maps the source object to the target object. "
-        "Applying this rotation to the query object yields a result that corresponds to option ({answer})."
-    ),
+    "The reference transformation is a {angle} clockwise rotation. "
+    "The imagined rotation of the query object most closely matches option ({answer}).",
+
+    "A {angle} clockwise rotation maps the source object to the target object. "
+    "Imagining this same rotation applied to the query object, the result corresponds to option ({answer}).",
+
+    "The transformation is a {angle} clockwise rotation, and the query object rotated accordingly matches option ({answer}).",
+
+    "Given the {angle} clockwise rotation in the example, the correct answer for the query object is option ({answer}).",
+
+    "Rotating the query object {angle} clockwise — same as the reference — gives the shape in option ({answer}).",
+
+    "The {angle} clockwise rotation applied to the query object produces the shape shown in option ({answer}).",
+
+    "Since the transformation is a {angle} clockwise rotation, the query object should look like option ({answer}).",
+
+    "After a {angle} clockwise rotation, the query object matches option ({answer}), consistent with the example.",
+
+    "The reference rotation is {angle} clockwise; applying it to the query yields option ({answer}).",
+
+    "Applying the {angle} clockwise rotation to the query object results in option ({answer}).",
+
+    "The {angle} clockwise rotation seen in A→B, when applied to the query, gives option ({answer}).",
+
+    "Option ({answer}) is the result of rotating the query object {angle} clockwise, matching the pattern.",
+
+    "The query object rotated {angle} clockwise matches option ({answer}), as expected from the reference.",
+
+    "Following the {angle} clockwise rotation pattern, the query object transformed is option ({answer}).",
+
+    "The correct answer is option ({answer}): the query object after a {angle} clockwise rotation.",
 ]
 
 
@@ -81,47 +140,41 @@ _TEXT_THINK_TEMPLATES = [
 
 def fill_reasoning_traces(
     sample: Dict[str, Any],
-    variant: int = 0,
+    rng: Optional[random.Random] = None,
 ) -> Dict[str, Any]:
     """
-    Return a filled reasoning_traces dict for one analogy sample.
+    Return a filled reasoning_traces dict for one analogy sample,
+    picking templates randomly from the 15 available phrasings.
 
     Args:
-        sample:  Output dict from generate_analogy_sample (must contain
-                 'answer', 'transform_description', 'transform_type').
-        variant: 0 or 1 — which phrasing template to use.
+        sample: Output dict from generate_analogy_sample.
+        rng:    Optional seeded random.Random for reproducibility.
 
     Returns:
-        reasoning_traces dict ready to embed in the SFT JSON record.
-        'intermediate_img_path' is left as "" — caller must set it after
-        rendering and saving the intermediate image.
+        reasoning_traces dict. 'intermediate_img_path' is left as ""
+        — caller must set it after saving the intermediate image.
     """
-    v = variant % 2
-    answer = sample["answer"]                            # e.g. "b"
+    if rng is None:
+        rng = random.Random()
+
+    answer = sample["answer"]
     desc   = sample.get("transform_description", "")
-    angle  = _extract_angle(desc) or "some degrees"     # e.g. "90°"
+    angle  = _extract_angle(desc) or "some degrees"
 
     fmt = dict(angle=angle, answer=answer)
 
-    pre   = _PRE_TEMPLATES[v].format(**fmt)
-    c_opt = _CORRECT_OPT_TEMPLATES[v].format(**fmt)
-    think = _TEXT_THINK_TEMPLATES[v].format(**fmt)
+    pre   = rng.choice(_PRE_TEMPLATES).format(**fmt)
+    c_opt = rng.choice(_CORRECT_OPT_TEMPLATES).format(**fmt)
+    think = rng.choice(_TEXT_THINK_TEMPLATES).format(**fmt)
 
-    # post_visual_text_think: one entry per option (a/b/c/d).
-    # Only the correct option slot is filled; others are empty.
     correct_idx = "abcd".index(answer)
     post = ["", "", "", ""]
     post[correct_idx] = c_opt
 
     return {
-        "pre_visual_text_think":    pre,
-        "intermediate_img_path":    "",   # filled by create_dataset.py
-        "post_visual_text_think":   post,
-        "text_think":               think,
-        "answer":                   answer,
+        "pre_visual_text_think":  pre,
+        "intermediate_img_path":  "",
+        "post_visual_text_think": post,
+        "text_think":             think,
+        "answer":                 answer,
     }
-
-
-def fill_both_variants(sample: Dict[str, Any]):
-    """Convenience: return (trace_v0, trace_v1) for the same sample."""
-    return fill_reasoning_traces(sample, 0), fill_reasoning_traces(sample, 1)

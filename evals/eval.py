@@ -30,7 +30,7 @@ class MCDataset(Dataset):
             if dataset == "viscot":
                 # load the viscot test dataset
                 #with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
-                with open("/mnt/scratch-artemis/gviveiros/lantern/oe_to_mc/viscot_mc_test.jsonl", "r") as f:
+                with open("/e/project1/jureap126/gviveiros/lantern/viscot_mc_test.jsonl", "r") as f:
                     invalid_options = 0
                     for line in f:
                         sample = json.loads(line)
@@ -66,7 +66,11 @@ class MCDataset(Dataset):
                         sample["options"] = options
                         # To support distributed training and avoid too many open files,
                         # store image paths here; open images only in __getitem__.
-                        sample["image"] = [sample["img_path"]]  # store path, open later
+                        img_path = sample["img_path"].replace(
+                            "/mnt/data-artemis/gviveiros/lantern/",
+                            "/e/project1/jureap126/gviveiros/lantern/",
+                        )
+                        sample["image"] = [img_path]  # store path, open later
                         self.data.append(sample)
                     print(f"Invalid options: {invalid_options}")
                     
@@ -169,7 +173,7 @@ class MCDataset(Dataset):
 
 #TODO: Improve this... hardcoded just to evaluate monet model
 #system_content = "You can generate abstract visual tokens that represent a cropped image region or images with auxiliary information like lines, bounding boxes, etc. When you decide to generate abstract visual tokens, put them in <|lvr_start|>...<|lvr_end|>. Put your final answer inside <answer> tags"
-system_content = "Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
+#system_content = "Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
 
 def collate_fn_mc(samples, processor: AutoProcessor):
     messages, labels, options = [], [], []
@@ -184,10 +188,6 @@ def collate_fn_mc(samples, processor: AutoProcessor):
         bboxs.append(sample["bbox"])
         cropped_images.append(sample["cropped_images"])
         messages.append([
-            {
-                "role": "system",
-                "content": [{"type": "text", "text": system_content}]
-            },
             {
                 "role": "user",
                 "content": [
@@ -286,11 +286,25 @@ if __name__ == "__main__":
     # load the model
     from src.models import load_model
     from src.train import set_latent_tokens
-    model, processor = load_model(model_ref=args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
+    model, processor = load_model(args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
+    processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
+    padding_side='left'   
+    processor.tokenizer.padding_side = padding_side
+    # check if the latent size is set
+    if not hasattr(model.config, "latent_size"):
+        logger.info("Warning!!!! Latent size is not set, using 4")
+        model.config.latent_size = 4
     
+    print(f"model.config.latent_size: {model.config.latent_size}")
+    
+    model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
+    model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
+    model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
 
-
-    #processor.tokenizer.padding_side = "left"
+    processor.tokenizer.padding_side = "left"
+    
 
     # check if the latent size is set
     if args.lvr:
@@ -337,7 +351,7 @@ if __name__ == "__main__":
         # change observation with answer
         #decoded_output = [x.replace("<observation>", "<answer>").replace("</observation>","</answer>") for x in decoded_output]
 
-
+        
         print("-"*100)
         print("Options: ", options)
         print("Decoded Output: ", decoded_output)

@@ -1,14 +1,34 @@
 import os
+
+# Propagate SLURM distributed env vars before any torch/CUDA initialization.
+# Only activate when actually running multi-process (SLURM_NTASKS > 1 or
+# torchrun already set RANK/LOCAL_RANK). Without this, Accelerate sees every
+# process as RANK=0 and HF Trainer falls back to DataParallel with a CPU model.
+_slurm_ntasks = int(os.environ.get("SLURM_NTASKS", 1))
+_torchrun_active = "RANK" in os.environ or "LOCAL_RANK" in os.environ
+if _slurm_ntasks > 1 or _torchrun_active:
+    _local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("SLURM_LOCALID", 0)))
+    _rank       = int(os.environ.get("RANK",       os.environ.get("SLURM_PROCID",  0)))
+    _world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS",  1)))
+    os.environ["LOCAL_RANK"] = str(_local_rank)
+    os.environ["RANK"]       = str(_rank)
+    os.environ["WORLD_SIZE"] = str(_world_size)
+    # Restrict each process to its own GPU so HF Trainer never triggers DataParallel.
+    if "CUDA_VISIBLE_DEVICES" not in os.environ:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(_local_rank)
+
 import logging
 import torch
 from transformers import HfArgumentParser
 from termcolor import colored
 from src.params import (TrainingParams, ModelParams, SFTDataParams)
 from src.datasets.sft_data import make_sft_data_module, collate_fn_generate, SFTDataset
+from src.datasets.sft_tetris_data import make_tetris_data_module, collate_fn_generate as tetris_collate_fn_generate
 from src.models import load_model
-from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger
+from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger, LatentUtilityCallback, GenerationAccuracyCallback
 from src.models.utils import get_last_checkpoint
 from src.train import configure_vision_tower, configure_llm, configure_latent_only, set_latent_tokens
+from src.utils import is_rank0
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -90,11 +110,12 @@ def _save_data_diagnostics(dataset, output_dir: str, n_samples: int = 8):
 
 def train(training_params: TrainingParams, model_params: ModelParams, data_params: SFTDataParams):
     global local_rank
-    logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
-    logger.info(colored(f"🚀 Training LantErn SFT model", "green"))
-    logger.info(colored(f"Training parameters: {training_params}", "cyan"))
-    logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
-    logger.info(colored(f"Data parameters: {data_params}", "cyan"))
+    if is_rank0():
+        logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
+        logger.info(colored(f"🚀 Training LantErn SFT model on {data_params.dataset_type} dataset", "green"))
+        logger.info(colored(f"Training parameters: {training_params}", "cyan"))
+        logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
+        logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
 
     compute_dtype = (torch.float16 if training_params.fp16 else (torch.bfloat16 if training_params.bf16 else torch.float32))
@@ -106,7 +127,6 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         compute_dtype=compute_dtype,
         use_cache=model_params.use_cache
     )
-    print(f"model.config.vocab_size: {model.config.vocab_size}")
 
     # check if we should resume training from a checkpoint
     resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
@@ -121,6 +141,8 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     # freeze specific components according to the training parameters
     if training_params.freeze_latent_only:
         configure_latent_only(model)
+        trainable = [(n, p.shape) for n, p in model.named_parameters() if p.requires_grad]
+        logger.info(colored(f"Latent-only mode: {len(trainable)} trainable parameter tensors: {trainable}", "yellow"))
     else:
         configure_vision_tower(model, freeze_vision_tower=training_params.freeze_vision_tower, freeze_merger=training_params.freeze_merger)
         configure_llm(model, freeze_llm=training_params.freeze_llm)
@@ -140,24 +162,52 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         training_params.test_steps = 0
     
     # Load data
-    data_module = make_sft_data_module(
-        processor=processor,
-        data_path=data_params.data_path,
-        dummy=data_params.dummy,
-        split_percentages=data_params.split_percentages,
-        corrupt_image=data_params.corrupt_image,
-        corruption_type=data_params.corruption_type,
-    )
-
-    # Pre-training data diagnostics — save sample images to verify what the model sees
-    _save_data_diagnostics(data_module["train_dataset"], training_params.output_dir, n_samples=8)
+    if data_params.dataset_type == "tetris":
+        data_module = make_tetris_data_module(
+            processor=processor,
+            data_path=data_params.data_path,
+            dummy=data_params.dummy,
+            use_lvr=data_params.use_lvr,
+        )
+        generate_collate = tetris_collate_fn_generate
+    elif data_params.dataset_type == "viscot":
+        data_module = make_sft_data_module(
+            processor=processor,
+            data_path=data_params.data_path,
+            dummy=data_params.dummy,
+            split_percentages=data_params.split_percentages,
+            corrupt_image=data_params.corrupt_image,
+            corruption_type=data_params.corruption_type,
+            filter_ids_path=data_params.filter_ids_path,
+        )
+        generate_collate = collate_fn_generate
+        # Pre-training data diagnostics
+        _save_data_diagnostics(data_module["train_dataset"], training_params.output_dir, n_samples=8)
+    else: 
+        raise ValueError(f"Invalid dataset type: {data_params.dataset_type}")
 
     
     callbacks = [ProgressBarLossLogger()]
+    if data_params.dataset_type == "tetris" and "eval_dataset" in data_module:
+        if data_params.use_lvr:
+            callbacks.append(LatentUtilityCallback(
+                eval_dataset=data_module["eval_dataset"],
+                collate_fn=generate_collate,
+                processor=processor,
+                batch_size=training_params.per_device_eval_batch_size,
+            ))
+        else:
+            callbacks.append(GenerationAccuracyCallback(
+                eval_dataset=data_module["eval_dataset"],
+                collate_fn=generate_collate,
+                processor=processor,
+                batch_size=training_params.per_device_eval_batch_size,
+                max_eval_samples=300,
+            ))
     if training_params.test_steps > 0:
         callbacks.append(VisCoTestLogger(
-            dataset=data_module.pop("test_dataset"), 
-            collate_fn=collate_fn_generate,
+            dataset=data_module.pop("test_dataset"),
+            collate_fn=generate_collate,
             processor=processor, # necessary for the test script
             test_steps=training_params.test_steps,
             report_to="wandb"
@@ -168,6 +218,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         model=model,
         args=training_params,
         gamma=training_params.gamma,
+        latent_only=training_params.freeze_latent_only,
         callbacks=callbacks,
         **data_module
     )
