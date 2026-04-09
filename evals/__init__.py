@@ -69,7 +69,10 @@ def run_batch_inference(
         inputs.pop("latent_values")
         inputs.pop("latent_grid_thw", None)
 
-    inputs = inputs.to(model.device)
+    if hasattr(inputs, "to"):
+        inputs = inputs.to(model.device)
+    else:
+        inputs = {k: v.to(model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
     
     assert "latent_values" not in inputs, "remove latent values from inputs during inference"
 
