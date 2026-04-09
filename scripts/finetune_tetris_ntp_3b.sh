@@ -1,22 +1,31 @@
 #!/bin/bash
+#SBATCH --account=jureap131
+#SBATCH --partition=booster
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=64
+#SBATCH --gres=gpu:4
+#SBATCH --time=12:00:00
+#SBATCH --job-name=sft_lantern_ntp_3b
+#SBATCH --output=logs/sft_lantern_ntp_3b.out
+#SBATCH --error=logs/sft_lantern_ntp_3b.err
 
 # model configs
-MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
+MODEL_ID="$HOME/.cache/huggingface/hub/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/66285546d2b821cf421d4f5eb2576359d3770cd3"
+export WANDB_MODE=offline
 export WANDB_PROJECT="LantErn-SFT"
-REPO="/home/gviveiros/LantErn"
+export WANDB_DIR="/e/project1/jureap131/gviveiros/lantern/"
+REPO="/e/home/jusers/viveiros1/jupiter/LantErn"
 
 RANDOM_SEED=42
-DATA_PATH="/mnt/scratch-nyx/gviveiros/lantern/analogy_data/train.json"
+DATA_PATH="/e/project1/jureap131/gviveiros/lantern/analogy_data/train.json"
 
-GLOBAL_BATCH_SIZE=180
-BATCH_PER_DEVICE=5
-NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-echo "Number of GPUs: $NUM_DEVICES"
+GPUS_PER_NODE=4
+GLOBAL_BATCH_SIZE=192
+BATCH_PER_DEVICE=4
+NUM_DEVICES=$(( SLURM_NNODES * GPUS_PER_NODE ))
+echo "Nodes: $SLURM_NNODES, GPUs per node: $GPUS_PER_NODE, total devices: $NUM_DEVICES"
 
-if [ $((GLOBAL_BATCH_SIZE % (BATCH_PER_DEVICE * NUM_DEVICES))) -ne 0 ]; then
-    echo "GLOBAL_BATCH_SIZE must be a multiple of BATCH_PER_DEVICE"
-    exit 1
-fi
 GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
 
 echo "Global batch size: $GLOBAL_BATCH_SIZE"
@@ -27,18 +36,25 @@ LR=1e-5
 RUN_NAME="ntp_tetris_sft_3b"
 
 export OMP_NUM_THREADS=1
-export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+source /e/project1/jureap126/gviveiros/envs/swift/bin/activate
+export PYTHONPATH=/e/home/jusers/viveiros1/jupiter/LantErn:$PYTHONPATH
+
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=29500
+
+mkdir -p /e/project1/jureap131/gviveiros/lantern/logs
 
 deepspeed $REPO/src/train/train_sft.py \
     --deepspeed $REPO/scripts/zero2.json \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
-    --num_train_epochs 10 \
-    --max_train_samples 50000 \
+    --num_train_epochs 20 \
+    --max_train_samples 10000 \
     --latent_size 8 \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --output_dir /mnt/scratch-nyx/gviveiros/lantern/checkpoints/$RUN_NAME \
+    --output_dir /e/project1/jureap131/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
     --learning_rate $LR \
     --gamma 0.0 \
@@ -46,6 +62,6 @@ deepspeed $REPO/src/train/train_sft.py \
     --report_to wandb \
     --dataset_type tetris \
     --data_path $DATA_PATH \
-    --eval_strategy steps \
-    --eval_steps 28 \
-    --per_device_eval_batch_size 8
+    --eval_steps 50 \
+    --per_device_eval_batch_size 2 \
+    --eval_accumulation_steps 4

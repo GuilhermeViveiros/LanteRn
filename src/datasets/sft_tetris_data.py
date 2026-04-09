@@ -30,17 +30,81 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import defaultdict
 from functools import partial
 from typing import List, Optional, Tuple
 
 import torch
 from PIL import Image
-from torch.utils.data import Dataset, random_split
+from torch.utils.data import Dataset, Sampler, random_split
 from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
 
 from src.utils import rank0_print
 logger = logging.getLogger("LantErn-TetrisDataset")
+
+
+class FamilyGroupedBatchSampler(Sampler):
+    """
+    Yields per-rank batches where all samples share the same group key (e.g. shape_C_name).
+    Creates hard InfoNCE negatives: rotation strips in each batch show the same object
+    in different rotations, forcing the model to encode precise rotation state.
+
+    Distributed-aware: world_size and rank determine each rank's disjoint slice of
+    each global family-batch.
+    """
+
+    def __init__(
+        self,
+        group_keys: List[str],
+        batch_size: int,
+        world_size: int = 1,
+        rank: int = 0,
+        drop_last: bool = False,
+        seed: int = 0,
+    ):
+        self.group_to_indices = defaultdict(list)
+        for i, key in enumerate(group_keys):
+            self.group_to_indices[key].append(i)
+        self.batch_size = batch_size
+        self.world_size = world_size
+        self.rank = rank
+        self.drop_last = drop_last
+        self.seed = seed
+        self._epoch = 0
+
+    def set_epoch(self, epoch: int):
+        self._epoch = epoch
+
+    def __iter__(self):
+        g = torch.Generator()
+        g.manual_seed(self.seed + self._epoch)
+        global_bs = self.batch_size * self.world_size
+
+        all_batches = []
+        for indices in self.group_to_indices.values():
+            perm = torch.randperm(len(indices), generator=g).tolist()
+            shuffled = [indices[p] for p in perm]
+            n_full = len(shuffled) // global_bs
+            for i in range(n_full):
+                all_batches.append(shuffled[i * global_bs:(i + 1) * global_bs])
+            if not self.drop_last and len(shuffled) % global_bs:
+                all_batches.append(shuffled[n_full * global_bs:])
+
+        batch_perm = torch.randperm(len(all_batches), generator=g).tolist()
+        for idx in batch_perm:
+            global_batch = all_batches[idx]
+            local_batch = global_batch[self.rank::self.world_size]
+            if local_batch:
+                yield local_batch
+
+    def __len__(self):
+        global_bs = self.batch_size * self.world_size
+        total = 0
+        for indices in self.group_to_indices.values():
+            n = len(indices)
+            total += n // global_bs + (1 if not self.drop_last and n % global_bs else 0)
+        return total
 
 
 class SFTTetrisDataset(Dataset):
@@ -115,7 +179,7 @@ class SFTTetrisDataset(Dataset):
                 + post_text
                 + text_think
                 + "</think>"
-                + "<answer>" + answer + "</answer>"
+                + "<answer> " + answer + "</answer>"
             )
             intermediate_img = Image.open(inter_path)
             return [
@@ -131,7 +195,7 @@ class SFTTetrisDataset(Dataset):
                 + post_text
                 + text_think
                 + "</think>"
-                + "<answer>" + answer + "</answer>"
+                + "<answer> " + answer + "</answer>"
             )
             return [
                 {"role": "user",      "content": user_content},
@@ -147,7 +211,7 @@ def _mask_image_output_tokens(input_ids: torch.Tensor, image_token: int) -> torc
     return (input_ids == image_token).long()
 
 
-def collate_fn_sft(samples: List[list], processor: AutoProcessor):
+def collate_fn_latent_sft(samples: List[list], processor: AutoProcessor):
     latent_visuals = [s.pop(-1) for s in samples]
 
     text          = processor.apply_chat_template(samples, tokenize=False)
@@ -197,6 +261,12 @@ def collate_fn_sft(samples: List[list], processor: AutoProcessor):
                 return i
         return -1
 
+    # In text_think the answer appears as "option (X)" →  ' ('(320) + bare_letter(64-67).
+    # We find that position for answer_ce_loss monitoring.
+    _OPEN_PAREN = 320          # token for ' ('
+    _LETTER_IDS = {64, 65, 66, 67}  # bare a / b / c / d
+    answer_positions = torch.full((len(inputs["input_ids"]),), -1, dtype=torch.long)
+
     for i, ids in enumerate(inputs["input_ids"].tolist()):
         ts = _find(ids, assistant_start)
         te = ts + _find(ids[ts:], assistant_end)
@@ -206,15 +276,92 @@ def collate_fn_sft(samples: List[list], processor: AutoProcessor):
         e = te + len(assistant_end) - 1
         labels[i, s:e] = torch.tensor(ids[s:e], dtype=torch.long)
 
+        # Find "option (X)" pattern: ' (' followed by bare letter in supervised region
+        for t in range(s, e - 1):
+            if ids[t] == _OPEN_PAREN and ids[t + 1] in _LETTER_IDS:
+                answer_positions[i] = t + 1
+                break
+
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == processor.lvr_sep_id]             = -100
 
-    inputs["labels"]          = labels
+    inputs["labels"]           = labels
+    inputs["answer_positions"] = answer_positions
     inputs["latent_mask_out"] = _mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
     inputs["latent_values"]   = latent_inputs["pixel_values"]
     inputs["latent_grid_thw"] = latent_grid_thw
 
     return inputs
+
+
+def collate_fn_ntp(samples: List[list], processor: AutoProcessor):
+    """Collate for NTP (use_lvr=False): no latent visual, pure text reasoning."""
+    text = processor.apply_chat_template(samples, tokenize=False)
+    image_inputs, video_inputs = process_vision_info(samples)
+
+    inputs = processor(
+        text=text,
+        images=image_inputs,
+        videos=video_inputs,
+        return_tensors="pt",
+        padding="max_length",
+        max_length=4096,
+        truncation=True,
+    )
+
+    labels = torch.full_like(inputs["input_ids"], -100)
+    assistant_start = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
+    assistant_end   = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
+
+    def _find(seq, subseq):
+        n, m = len(seq), len(subseq)
+        for i in range(n - m + 1):
+            if seq[i:i+m] == subseq:
+                return i
+        return -1
+
+    _OPEN_PAREN = 320
+    _LETTER_IDS = {64, 65, 66, 67}
+    answer_positions = torch.full((len(inputs["input_ids"]),), -1, dtype=torch.long)
+
+    for i, ids in enumerate(inputs["input_ids"].tolist()):
+        ts = _find(ids, assistant_start)
+        te = ts + _find(ids[ts:], assistant_end)
+        if ts == -1 or te == -1:
+            continue
+        s = ts + len(assistant_start)
+        e = te + len(assistant_end) - 1
+        labels[i, s:e] = torch.tensor(ids[s:e], dtype=torch.long)
+
+        for t in range(s, e - 1):
+            if ids[t] == _OPEN_PAREN and ids[t + 1] in _LETTER_IDS:
+                answer_positions[i] = t + 1
+                break
+
+    labels[labels == processor.tokenizer.pad_token_id] = -100
+
+    inputs["labels"]           = labels
+    inputs["answer_positions"] = answer_positions
+
+    return inputs
+
+
+def collate_fn_generate_ntp(samples: List[list], processor: AutoProcessor):
+    """Generate collate for NTP mode: no latent visual, returns (inputs, labels)."""
+    user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
+    labels       = [s for bs in samples for s in bs if s["role"] == "assistant"]
+    labels       = [
+        l["content"][0]["text"].split("<answer>")[-1].replace("</answer>", "")
+        for l in labels
+    ]
+
+    image_inputs, video_inputs = process_vision_info(user_samples)
+    text = processor.apply_chat_template(user_samples, tokenize=False, add_generation_prompt=True)
+    inputs = processor(
+        text=text, images=image_inputs, videos=video_inputs,
+        return_tensors="pt", padding=True,
+    )
+    return inputs, labels
 
 
 def collate_fn_generate(samples: List[list], processor: AutoProcessor):
@@ -270,7 +417,12 @@ def make_tetris_data_module(
                                 dummy=dummy, use_lvr=use_lvr, max_samples=max_train_samples)
     rank0_print(f"Train: {len(train_ds)} samples", flush=True)
 
-    collate = collate_fn_sft if not generate else collate_fn_generate
+    if generate:
+        collate = collate_fn_generate
+    elif use_lvr:
+        collate = collate_fn_latent_sft
+    else:
+        collate = collate_fn_ntp
     out = {
         "train_dataset": train_ds,
         "data_collator": partial(collate, processor=processor),

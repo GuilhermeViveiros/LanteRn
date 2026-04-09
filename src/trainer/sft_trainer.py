@@ -9,6 +9,7 @@ from transformers import Trainer, AutoProcessor
 from transformers import TrainerCallback
 from torch.utils.data import DataLoader, Dataset
 from src.utils import is_rank0, get_rank
+from src.datasets.sft_tetris_data import FamilyGroupedBatchSampler
 import logging
 
 logger = logging.getLogger("LantErn-Trainer")
@@ -59,7 +60,7 @@ class LatentUtilityCallback(TrainerCallback):
         return re.sub(r'<\|vision_start\|>.*?<\|vision_end\|>', '<img>', text, flags=re.DOTALL)
 
     @torch.no_grad()
-    def _run_condition(self, model, dataloader, use_gt: bool, perturbation, desc: str = "", n_log: int = 8):
+    def _run_condition(self, model, dataloader, use_gt: bool, perturbation, desc: str = "", n_log: int = 32):
         from evals import run_batch_inference
         lvr_start_token = "<|lvr_start|>"
         correct    = 0
@@ -84,7 +85,7 @@ class LatentUtilityCallback(TrainerCallback):
                 correct  += int(pred_ans == gt.strip().lower())
                 lvr_used += int(lvr_start_token in gen)
                 total    += 1
-                if len(log_preds) < n_log:
+                if len(log_preds) < n_log:  # noqa: SIM102
                     log_prompts.append(self._collapse_vision_tokens(prompt))
                     log_preds.append(gen)
                     log_gts.append(gt.strip())
@@ -163,20 +164,28 @@ class LatentUtilityCallback(TrainerCallback):
                 # Build generation table from the 4 conditions (ranks 0-3)
                 cond_preds   = {conditions[i][0].split("/")[-1]: gen_gather[i]["preds"]
                                 for i in range(len(conditions))}
-                prompts = gen_gather[0]["prompts"]  # same prompt across all conditions
-                gts     = gen_gather[0]["gts"]
+                prompts = gen_gather[0]["prompts"]  # same across all conditions
+                gts     = gen_gather[0]["gts"]      # ground truth labels from GT condition (rank 0), NOT own (rank 1)
                 n = min(len(gts), len(prompts), min(len(v) for v in cond_preds.values()))
                 if n > 0:
-                    table = wandb.Table(columns=["sample", "prompt", "gt", "pred_gt", "pred_own", "pred_random", "pred_zeros"])
+                    columns = [
+                        "sample", "prompt", "true_label",
+                        "pred_gt",     "ans_gt",
+                        "pred_own",    "ans_own",
+                        "pred_random", "ans_random",
+                        "pred_zeros",  "ans_zeros",
+                    ]
+                    table = wandb.Table(columns=columns)
                     for j in range(n):
                         table.add_data(
                             j, prompts[j], gts[j],
-                            cond_preds["gt"][j],
-                            cond_preds["own"][j],
-                            cond_preds["random"][j],
-                            cond_preds["zeros"][j],
+                            cond_preds["gt"][j],     self._extract_answer(cond_preds["gt"][j]),
+                            cond_preds["own"][j],    self._extract_answer(cond_preds["gt"][j]),  # reference from pred_gt
+                            cond_preds["random"][j], self._extract_answer(cond_preds["random"][j]),
+                            cond_preds["zeros"][j],  self._extract_answer(cond_preds["zeros"][j]),
                         )
                     wandb.log({"generations/generations": table})
+
 
 class GenerationAccuracyCallback(TrainerCallback):
     """
@@ -353,34 +362,26 @@ class ProgressBarLossLogger(TrainerCallback):
 
         logs = state.log_history[-1] if len(state.log_history) > 0 else {}
         
-        if logs and self.pbar:
-            ce = logs.get("ce_loss")
-            cos = logs.get("cosine_loss")
+        if self.pbar:
+            ce  = logs.get("ce_loss")
             tot = logs.get("total_loss")
             mse = logs.get("mse_loss")
-            if ce is not None and cos is not None and tot is not None and mse is not None:
-                self.pbar.set_postfix({
-                    "ce": f"{ce:.4f}",
-                    "lvr": f"{cos:.4f}",
-                    "mse": f"{mse:.4f}",
-                    "loss": f"{tot:.4f}"
-                })
+            nce = logs.get("infonce_loss")
+            cos = logs.get("cosine_loss")
+            if ce is not None and tot is not None:
+                postfix = {"ce": f"{ce:.4f}", "mse": f"{mse:.4f}", "loss": f"{tot:.4f}"}
+                if nce is not None:
+                    postfix["nce"] = f"{nce:.4f}"
+                else:
+                    postfix["cos"] = f"{cos:.4f}"
+                self.pbar.set_postfix(postfix)
+            elif tot is not None:
+                self.pbar.set_postfix({"loss": f"{tot:.4f}"})
             self.pbar.update(1)
-        
+
         # keep only last 100 entries
         if len(state.log_history) > 100:
             state.log_history.pop(0)
-
-        # Send to wandb
-        if wandb.run:
-            wandb.log({
-                "ce_loss": ce,
-                "cosine_loss": cos,
-                "mse_loss": mse,
-                "total_loss": tot,
-                "lr": kwargs["lr_scheduler"].get_last_lr()[0],
-                "epoch": state.epoch,
-            }, step=state.global_step)
 
     def on_train_end(self, args, state, control, **kwargs):
         if not is_rank0():
@@ -389,14 +390,27 @@ class ProgressBarLossLogger(TrainerCallback):
             self.pbar.close()
 
 class LantErnSFTrainer(Trainer):
-    def __init__(self, *args, gamma: float = 0.1, latent_only: bool = False, **kwargs):
+    def __init__(self, *args, gamma: float = 0.1, latent_only: bool = False, use_lvr: bool = True, latent_loss_type: str = "mse", temperature: float = 0.07, **kwargs):
         super().__init__(*args, **kwargs)
         self.gamma = gamma
         self.latent_only = latent_only
+        self.use_lvr = use_lvr
+        self.latent_loss_type = latent_loss_type
+        self.temperature = temperature
         # only rank0
         if is_rank0():
-            logger.info(f"Using gamma: {gamma}, latent_only: {latent_only}")
+            logger.info(f"Using gamma: {gamma}, latent_only: {latent_only}, latent_loss_type: {latent_loss_type}, temperature: {temperature}")
         self.mse_loss = torch.nn.MSELoss()
+
+    @staticmethod
+    def infonce_loss(pred: torch.Tensor, gt: torch.Tensor, temperature: float = 0.07) -> torch.Tensor:
+        """Bidirectional NT-Xent InfoNCE loss. pred/gt: [N, D]."""
+        pred_n = torch.nn.functional.normalize(pred, dim=-1)
+        gt_n   = torch.nn.functional.normalize(gt,   dim=-1)
+        logits = torch.matmul(pred_n, gt_n.t()) / temperature  # [N, N]
+        labels = torch.arange(pred.size(0), device=pred.device)
+        return (torch.nn.functional.cross_entropy(logits, labels) +
+                torch.nn.functional.cross_entropy(logits.t(), labels)) / 2.0
 
     # override the custom_loss function
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
@@ -412,7 +426,14 @@ class LantErnSFTrainer(Trainer):
         
         ce_loss = outputs.loss
 
-        # In latent-only mode, only CE loss is needed — no MSE supervision. 
+        # NTP mode: no latent tokens, pure CE loss.
+        if not self.use_lvr:
+            if wandb.run and is_rank0():
+                lr = self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler is not None else 0.0
+                wandb.log({"ce_loss": ce_loss.item(), "total_loss": ce_loss.item(), "lr": lr, "epoch": self.state.epoch})
+            return (ce_loss, outputs) if return_outputs else ce_loss
+
+        # In latent-only mode, only CE loss is needed — no MSE supervision.
         # Ablation study -> training the latent weights only
         if self.latent_only:
             return (ce_loss, outputs) if return_outputs else ce_loss
@@ -451,24 +472,117 @@ class LantErnSFTrainer(Trainer):
         pred_embeddings = torch.cat(pred_list, dim=0)
         gt_embeddings   = torch.cat(gt_list,   dim=0)
 
-        # compute the distance between the predicted and ground truth latents
-        sim_loss = 1-torch.nn.functional.cosine_similarity(pred_embeddings, gt_embeddings).mean()
+        # Per-token (flat) — for MSE logging and token-level cosine monitoring
+        sim_loss = 1 - torch.nn.functional.cosine_similarity(pred_embeddings, gt_embeddings).mean()
         mse_loss = self.mse_loss(pred_embeddings, gt_embeddings)
-        
-        # compute the total loss
-        loss = ce_loss + self.gamma * mse_loss
 
+        # Block-level: flatten latent_size tokens per sample → [B, latent_size * D]
+        pred_block = torch.stack([p.flatten() for p in pred_list])
+        gt_block   = torch.stack([g.flatten() for g in gt_list])
+
+        if self.latent_loss_type == "mse":
+            latent_loss = mse_loss
+        elif self.latent_loss_type == "infonce":
+            latent_loss = self.infonce_loss(pred_block, gt_block, self.temperature)
+        elif self.latent_loss_type == "cosine":
+            latent_loss = 1 - torch.nn.functional.cosine_similarity(pred_block, gt_block).mean()
+        else:
+            raise ValueError(f"Unknown latent_loss_type: {self.latent_loss_type!r}")
+
+        # compute the total loss
+        loss = ce_loss + self.gamma * latent_loss
+
+
+        # ── Answer CE loss (monitoring only — not added to training loss) ──────
+        # answer_positions[b] = token index of the answer letter (a/b/c/d) in input_ids,
+        # pre-computed by collate_fn_sft to avoid tokenization ambiguity.
+        answer_ce = None
+        with torch.no_grad():
+            labels = inputs.get("labels")
+            answer_positions = inputs.get("answer_positions")
+            if labels is not None and answer_positions is not None:
+                answer_mask = torch.zeros_like(labels, dtype=torch.bool)
+                for b in range(input_ids.shape[0]):
+                    pos = answer_positions[b].item()
+                    if pos >= 0 and pos < labels.shape[1] and labels[b, pos] != -100:
+                        answer_mask[b, pos] = True
+                if answer_mask.any():
+                    masked_labels = labels.clone()
+                    masked_labels[~answer_mask] = -100
+                    answer_ce = torch.nn.functional.cross_entropy(
+                        outputs.logits.view(-1, outputs.logits.shape[-1]),
+                        masked_labels.view(-1),
+                        ignore_index=-100,
+                    )
 
         # HF Trainer logging (no prog_bar)
-        # ✅ Instead of self.log(...), store it silently:
         if hasattr(self, "state") and hasattr(self.state, "log_history"):
-            self.state.log_history.append({
+            entry = {
                 "ce_loss": ce_loss.item(),
                 "mse_loss": mse_loss.item(),
                 "cosine_loss": sim_loss.item(),
+                "latent_loss": latent_loss.item(),
                 "total_loss": loss.item(),
-            })
+            }
+            if self.latent_loss_type == "infonce":
+                entry["infonce_loss"] = latent_loss.item()
+            if answer_ce is not None:
+                entry["answer_ce_loss"] = answer_ce.item()
+            self.state.log_history.append(entry)
+
+        if wandb.run and is_rank0():
+            lr = self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler is not None else 0.0
+            log_dict = {
+                "ce_loss": ce_loss.item(),
+                "mse_loss": mse_loss.item(),
+                "cosine_loss": sim_loss.item(),
+                "latent_loss": latent_loss.item(),
+                "total_loss": loss.item(),
+                "lr": lr,
+                "epoch": self.state.epoch,
+            }
+            if self.latent_loss_type == "infonce":
+                log_dict["infonce_loss"] = latent_loss.item()
+            if answer_ce is not None:
+                log_dict["answer_ce_loss"] = answer_ce.item()
+            wandb.log(log_dict)
 
         return (loss, outputs) if return_outputs else loss
 
-    
+    def get_train_dataloader(self):
+        if not getattr(self.args, "use_family_batching", False):
+            return super().get_train_dataloader()
+
+        dataset = self.train_dataset
+        raw = getattr(dataset, "dataset", None)
+        key = getattr(self.args, "family_batch_key", "shape_C_name")
+
+        if not raw or key not in raw[0]:
+            logger.warning(
+                f"[FamilyBatching] key '{key}' not found in dataset — falling back to random sampling"
+            )
+            return super().get_train_dataloader()
+
+        group_keys = [s[key] for s in raw]
+        if is_rank0():
+            counts = {k: group_keys.count(k) for k in set(group_keys)}
+            logger.info(f"[FamilyBatching] grouping by '{key}': {counts}")
+
+        sampler = FamilyGroupedBatchSampler(
+            group_keys=group_keys,
+            batch_size=self.args.per_device_train_batch_size,
+            world_size=self.args.world_size,
+            rank=self.args.process_index,
+            drop_last=self.args.dataloader_drop_last,
+            seed=self.args.seed,
+        )
+
+        return DataLoader(
+            dataset,
+            batch_sampler=sampler,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+            pin_memory=self.args.dataloader_pin_memory,
+        )
+
+

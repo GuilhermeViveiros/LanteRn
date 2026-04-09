@@ -23,7 +23,7 @@ from transformers import HfArgumentParser
 from termcolor import colored
 from src.params import (TrainingParams, ModelParams, SFTDataParams)
 from src.datasets.sft_data import make_sft_data_module, collate_fn_generate, SFTDataset
-from src.datasets.sft_tetris_data import make_tetris_data_module, collate_fn_generate as tetris_collate_fn_generate
+from src.datasets.sft_tetris_data import make_tetris_data_module, collate_fn_generate as tetris_collate_fn_generate, collate_fn_generate_ntp as tetris_collate_fn_generate_ntp
 from src.models import load_model
 from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger, LatentUtilityCallback, GenerationAccuracyCallback
 from src.models.utils import get_last_checkpoint
@@ -170,7 +170,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             use_lvr=data_params.use_lvr,
             max_train_samples=data_params.max_train_samples,
         )
-        generate_collate = tetris_collate_fn_generate
+        generate_collate = tetris_collate_fn_generate if data_params.use_lvr else tetris_collate_fn_generate_ntp
     elif data_params.dataset_type == "viscot":
         data_module = make_sft_data_module(
             processor=processor,
@@ -205,7 +205,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
                 batch_size=training_params.per_device_eval_batch_size,
                 max_eval_samples=300,
             ))
-    if training_params.test_steps > 0:
+    if training_params.test_steps > 0 and "test_dataset" in data_module:
         callbacks.append(VisCoTestLogger(
             dataset=data_module.pop("test_dataset"),
             collate_fn=generate_collate,
@@ -220,6 +220,9 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         args=training_params,
         gamma=training_params.gamma,
         latent_only=training_params.freeze_latent_only,
+        use_lvr=data_params.use_lvr,
+        latent_loss_type=training_params.latent_loss_type,
+        temperature=training_params.temperature,
         callbacks=callbacks,
         **data_module
     )

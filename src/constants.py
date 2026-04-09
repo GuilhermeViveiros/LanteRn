@@ -9,7 +9,7 @@ import os
 # ---------------------------------------------------------------------------
 SCRATCH_ARTEMIS  = "/mnt/scratch-artemis/gviveiros/lantern"
 DATA_ARTEMIS     = "/mnt/data-artemis/gviveiros/lantern"
-SCRATCH_NYX      = "/mnt/scratch-nyx/gviveiros/lantern"
+SCRATCH_NYX      = "/e/project1/jureap131/gviveiros/lantern/"
 SCRATCH_HADES    = "/mnt/scratch-hades/nunogoncalves/LantErn"
 DATA_HADES       = "/mnt/data-hades/gviveiros"
 

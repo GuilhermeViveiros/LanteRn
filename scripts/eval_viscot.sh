@@ -33,7 +33,7 @@ if [ -z "$MODEL_PATH" ]; then
     exit 1
 fi
  
-DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+DATA_PATH="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
 
 
 echo "Model path: $MODEL_PATH"

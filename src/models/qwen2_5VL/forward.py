@@ -113,7 +113,6 @@ def qwen2_5_mixed_modality_forward_lantern(
 
     if latent_embeds is not None:
         # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
-        import pdb; pdb.set_trace()
         inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
 
     if latent_values is not None:

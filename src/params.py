@@ -23,7 +23,11 @@ class TrainingParams(HFTrainingArguments):
     learning_rate: float = field(default=1e-5)
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
-    gamma: float = field(default=0.1) # weight for the latpent similarity loss
+    gamma: float = field(default=0.1) # weight for the latent similarity loss
+    latent_loss_type: str = field(default="mse", metadata={"help": "Latent supervision loss type. One of: mse | infonce | cosine"})
+    temperature: float = field(default=0.07, metadata={"help": "Softmax temperature for InfoNCE loss (ignored for mse/cosine)"})
+    use_family_batching: bool = field(default=False, metadata={"help": "Group batches by shape name for hard InfoNCE negatives (Tetris dataset only)"})
+    family_batch_key: str = field(default="shape_C_name", metadata={"help": "JSON field to group by. Options: shape_C_name | shape_C_family | transform_type"})
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)
     max_steps: int = field(default=-1) # -1 for no max steps

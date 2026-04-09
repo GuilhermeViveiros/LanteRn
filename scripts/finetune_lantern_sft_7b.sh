@@ -12,7 +12,7 @@ REPO="/home/gviveiros/LantErn"
 #export WANDB_DISABLED=True
 
 RANDOM_SEED=42
-DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+DATA_PATH="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
 
 GLOBAL_BATCH_SIZE=42
 BATCH_PER_DEVICE=3
@@ -64,7 +64,7 @@ deepspeed --master_port 29501 $REPO/src/train/train.py \
     --latent_size $LATENT_SIZE \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
+    --data_path /e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json \
     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
     --learning_rate $LR \
