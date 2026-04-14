@@ -23,7 +23,7 @@ import os
 import random
 from tqdm import tqdm
 
-from .pieces import SHAPES
+from .pieces import SHAPES, HELD_OUT_SHAPES, HARDER_C_SHAPES
 from .analogy_simulator import generate_analogy_sample
 from .reasoning import fill_reasoning_traces
 
@@ -82,6 +82,15 @@ def parse_args():
     p.add_argument("--eval_frac",  type=float, default=0.05,
                    help="Fraction of configs reserved exclusively for eval.")
     p.add_argument("--save_every", type=int, default=1000)
+    p.add_argument("--held_out",        action="store_true",
+                   help="Generate held-out OOD test set using HELD_OUT_SHAPES as shape_C. "
+                        "Saves to {output_dir}/held_out.json instead of train/eval.")
+    p.add_argument("--harder",          action="store_true",
+                   help="Generate harder held-out OOD test set: shape_A from HELD_OUT_SHAPES "
+                        "(novel hexominoes), shape_C from HARDER_C_SHAPES (novel heptominoes). "
+                        "Saves to {output_dir}/held_out_harder/held_out_harder.json.")
+    p.add_argument("--held_out_max_samples", type=int, default=500,
+                   help="Cap on held-out samples (default: 500).")
     return p.parse_args()
 
 
@@ -127,7 +136,53 @@ def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx
         "shape_C_name":          sample["shape_C_name"],
         "shape_A_family":        sample["shape_A_family"],
         "shape_C_family":        sample["shape_C_family"],
+        "option_transforms":     sample["option_transforms"],
     }
+
+
+def enumerate_harder_held_out_configs() -> list:
+    """
+    Harder OOD configs:
+      shape_A — from HELD_OUT_SHAPES (novel hexominoes, never seen in training)
+      shape_C — from HARDER_C_SHAPES (novel heptominoes, never seen in training)
+
+    Harder than the standard held-out set because:
+      • shape_C has 7 cells (vs 6) with more complex geometry.
+      • The model must apply a transformation observed on an unfamiliar hexomino
+        to a visually more complex, also-unfamiliar heptomino.
+    """
+    configs = []
+    for shape_A in HELD_OUT_SHAPES:
+        n_rots_A = len(shape_A["rotations"])
+        if n_rots_A < 2:
+            continue
+        for rot_A_idx in range(n_rots_A):
+            for rot_step in range(1, n_rots_A):
+                for shape_C in HARDER_C_SHAPES:
+                    for rot_C_idx in range(len(shape_C["rotations"])):
+                        configs.append((shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx))
+    return configs
+
+
+def enumerate_held_out_configs() -> list:
+    """
+    Fully OOD configs: both shape_A and shape_C are held-out shapes (never seen during training).
+    shape_A != shape_C and from different families where possible.
+    The model must generalise a rotation seen on one unseen shape and apply it to another.
+    """
+    configs = []
+    for shape_A in HELD_OUT_SHAPES:
+        n_rots_A = len(shape_A["rotations"])
+        if n_rots_A < 2:
+            continue
+        valid_C = [s for s in HELD_OUT_SHAPES
+                   if s["name"] != shape_A["name"]]
+        for rot_A_idx in range(n_rots_A):
+            for rot_step in range(1, n_rots_A):
+                for shape_C in valid_C:
+                    for rot_C_idx in range(len(shape_C["rotations"])):
+                        configs.append((shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx))
+    return configs
 
 
 def main():
@@ -135,6 +190,94 @@ def main():
 
     images_dir = os.path.join(args.output_dir, "images")
     os.makedirs(images_dir, exist_ok=True)
+
+    # ── Held-out OOD test set ─────────────────────────────────────────────────
+    if args.held_out:
+        # Separate subdirectory so held-out images never collide with training images
+        held_out_dir        = os.path.join(args.output_dir, "held_out")
+        held_out_images_dir = os.path.join(held_out_dir, "images")
+        os.makedirs(held_out_images_dir, exist_ok=True)
+        held_out_path = os.path.join(held_out_dir, "held_out.json")
+
+        print("Enumerating held-out configurations (OOD shapes as shape_C)...")
+        configs = enumerate_held_out_configs()
+        rng = random.Random(args.seed)
+        rng.shuffle(configs)
+        print(f"Total held-out configs: {len(configs)}")
+
+        records = []
+        if os.path.exists(held_out_path):
+            with open(held_out_path) as f:
+                records = json.load(f)
+            print(f"Resuming: {len(records)} already done.")
+        sample_id = max((r["sample_id"] for r in records), default=-1) + 1
+
+        configs = configs[:args.held_out_max_samples + len(records)]
+        held_out_start = len(records)
+        for i, (shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx) in enumerate(
+                tqdm(configs[len(records):], desc="Held-out", initial=len(records), total=min(len(configs), args.held_out_max_samples))):
+            correct_pos = (held_out_start + i) % 4
+            try:
+                record = _generate_record(sample_id, shape_A, rot_A_idx, rot_step,
+                                          shape_C, rot_C_idx, correct_pos, args, rng, held_out_images_dir)
+            except Exception as e:
+                print(f"  [warn] skipped config {i}: {e}")
+                sample_id += 1
+                continue
+            records.append(record)
+            sample_id += 1
+            if len(records) % args.save_every == 0:
+                with open(held_out_path, "w") as f:
+                    json.dump(records, f, indent=2)
+
+        with open(held_out_path, "w") as f:
+            json.dump(records, f, indent=2)
+        print(f"Held-out done: {len(records)} records → {held_out_path}")
+        return
+
+    # ── Harder held-out OOD test set ──────────────────────────────────────────
+    if args.harder:
+        harder_dir        = os.path.join(args.output_dir, "held_out_harder")
+        harder_images_dir = os.path.join(harder_dir, "images")
+        os.makedirs(harder_images_dir, exist_ok=True)
+        harder_path = os.path.join(harder_dir, "held_out_harder.json")
+
+        print("Enumerating harder held-out configurations (held-out hexomino A, heptomino C)...")
+        configs = enumerate_harder_held_out_configs()
+        rng = random.Random(args.seed)
+        rng.shuffle(configs)
+        print(f"Total harder held-out configs: {len(configs)}")
+
+        records = []
+        if os.path.exists(harder_path):
+            with open(harder_path) as f:
+                records = json.load(f)
+            print(f"Resuming: {len(records)} already done.")
+        sample_id = max((r["sample_id"] for r in records), default=-1) + 1
+
+        configs = configs[:args.held_out_max_samples + len(records)]
+        harder_start = len(records)
+        for i, (shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx) in enumerate(
+                tqdm(configs[len(records):], desc="Harder held-out",
+                     initial=len(records), total=min(len(configs), args.held_out_max_samples))):
+            correct_pos = (harder_start + i) % 4
+            try:
+                record = _generate_record(sample_id, shape_A, rot_A_idx, rot_step,
+                                          shape_C, rot_C_idx, correct_pos, args, rng, harder_images_dir)
+            except Exception as e:
+                print(f"  [warn] skipped config {i}: {e}")
+                sample_id += 1
+                continue
+            records.append(record)
+            sample_id += 1
+            if len(records) % args.save_every == 0:
+                with open(harder_path, "w") as f:
+                    json.dump(records, f, indent=2)
+
+        with open(harder_path, "w") as f:
+            json.dump(records, f, indent=2)
+        print(f"Harder held-out done: {len(records)} records → {harder_path}")
+        return
 
     train_path = os.path.join(args.output_dir, "train.json")
     eval_path  = os.path.join(args.output_dir, "eval.json")

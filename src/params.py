@@ -18,16 +18,20 @@ class ModelParams:
 class TrainingParams(HFTrainingArguments):
     output_dir: str = field(default=CHECKPOINTS_DIR)
     num_train_epochs: int = field(default=1)
-    save_steps: float = field(default=0.2)
+    save_steps: float = field(default=0.1)
     save_total_limit: int = field(default=2)
     learning_rate: float = field(default=1e-5)
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
-    gamma: float = field(default=0.1) # weight for the latent similarity loss
-    latent_loss_type: str = field(default="mse", metadata={"help": "Latent supervision loss type. One of: mse | infonce | cosine"})
+    gamma: float = field(default=0.1) # weight for the latent similarity loss (InfoNCE / cosine / MSE)
+    gamma_mse: float = field(default=0.0, metadata={"help": "Extra MSE weight used only when latent_loss_type='mse+infonce'. "
+                                                             "Total loss = ce + gamma*nce + gamma_mse*mse"})
+    latent_loss_type: str = field(default="mse", metadata={"help": "Latent supervision loss type. One of: mse | infonce | cosine | mse+infonce"})
     temperature: float = field(default=0.07, metadata={"help": "Softmax temperature for InfoNCE loss (ignored for mse/cosine)"})
-    use_family_batching: bool = field(default=False, metadata={"help": "Group batches by shape name for hard InfoNCE negatives (Tetris dataset only)"})
-    family_batch_key: str = field(default="shape_C_name", metadata={"help": "JSON field to group by. Options: shape_C_name | shape_C_family | transform_type"})
+    scheduled_sampling_prob: float = field(default=0.0, metadata={"help": "Max fraction of latent tokens replaced with model's own predictions. Ramps from 0 to this value between scheduled_sampling_warmup and end of training."})
+    scheduled_sampling_warmup: float = field(default=0.6, metadata={"help": "Fraction of training steps before scheduled sampling begins (0.6 = starts at 60%)."})
+    use_family_batching: bool = field(default=False, metadata={"help": "Group batches by family_batch_key for hard negatives in InfoNCE."})
+    family_batch_key: str = field(default="shape_C_name", metadata={"help": "JSON field to group batches by. shape_C_name = hardest (same query shape, different transformation)."})
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)
     max_steps: int = field(default=-1) # -1 for no max steps
@@ -141,6 +145,9 @@ class SFTDataParams:
     use_lvr: bool = field(default=True,
                           metadata={"help": "Use latent visual reasoning tokens (LantErn). "
                                             "Set False for NTP baseline."})
+    grayscale_intermediate: bool = field(default=False,
+                          metadata={"help": "Convert intermediate (latent) image to grayscale. "
+                                            "Default False (coloured). Set True for ablation1."})
 
 @dataclass
 class RLDataParams:

@@ -30,7 +30,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-from collections import defaultdict
 from functools import partial
 from typing import List, Optional, Tuple
 
@@ -44,68 +43,6 @@ from src.utils import rank0_print
 logger = logging.getLogger("LantErn-TetrisDataset")
 
 
-class FamilyGroupedBatchSampler(Sampler):
-    """
-    Yields per-rank batches where all samples share the same group key (e.g. shape_C_name).
-    Creates hard InfoNCE negatives: rotation strips in each batch show the same object
-    in different rotations, forcing the model to encode precise rotation state.
-
-    Distributed-aware: world_size and rank determine each rank's disjoint slice of
-    each global family-batch.
-    """
-
-    def __init__(
-        self,
-        group_keys: List[str],
-        batch_size: int,
-        world_size: int = 1,
-        rank: int = 0,
-        drop_last: bool = False,
-        seed: int = 0,
-    ):
-        self.group_to_indices = defaultdict(list)
-        for i, key in enumerate(group_keys):
-            self.group_to_indices[key].append(i)
-        self.batch_size = batch_size
-        self.world_size = world_size
-        self.rank = rank
-        self.drop_last = drop_last
-        self.seed = seed
-        self._epoch = 0
-
-    def set_epoch(self, epoch: int):
-        self._epoch = epoch
-
-    def __iter__(self):
-        g = torch.Generator()
-        g.manual_seed(self.seed + self._epoch)
-        global_bs = self.batch_size * self.world_size
-
-        all_batches = []
-        for indices in self.group_to_indices.values():
-            perm = torch.randperm(len(indices), generator=g).tolist()
-            shuffled = [indices[p] for p in perm]
-            n_full = len(shuffled) // global_bs
-            for i in range(n_full):
-                all_batches.append(shuffled[i * global_bs:(i + 1) * global_bs])
-            if not self.drop_last and len(shuffled) % global_bs:
-                all_batches.append(shuffled[n_full * global_bs:])
-
-        batch_perm = torch.randperm(len(all_batches), generator=g).tolist()
-        for idx in batch_perm:
-            global_batch = all_batches[idx]
-            local_batch = global_batch[self.rank::self.world_size]
-            if local_batch:
-                yield local_batch
-
-    def __len__(self):
-        global_bs = self.batch_size * self.world_size
-        total = 0
-        for indices in self.group_to_indices.values():
-            n = len(indices)
-            total += n // global_bs + (1 if not self.drop_last and n % global_bs else 0)
-        return total
-
 
 class SFTTetrisDataset(Dataset):
     def __init__(
@@ -115,10 +52,12 @@ class SFTTetrisDataset(Dataset):
         dummy: bool = False,
         use_lvr: bool = True,
         max_samples: int = None,
+        grayscale_intermediate: bool = False,
     ):
         super().__init__()
         self.processor = processor
         self.use_lvr = use_lvr
+        self.grayscale_intermediate = grayscale_intermediate
         data_dir = os.path.dirname(os.path.abspath(data_path))
         with open(data_path) as f:
             self.dataset = json.load(f)
@@ -149,6 +88,10 @@ class SFTTetrisDataset(Dataset):
 
     def __len__(self):
         return len(self.dataset)
+
+    def get_group_key(self, idx: int, key: str) -> str:
+        """Return a raw metadata field without loading any images (for family batching)."""
+        return self.dataset[idx].get(key, "unknown")
 
     def __getitem__(self, idx):
         data = self.dataset[idx]
@@ -181,11 +124,19 @@ class SFTTetrisDataset(Dataset):
                 + "</think>"
                 + "<answer> " + answer + "</answer>"
             )
-            intermediate_img = Image.open(inter_path)
+            if self.grayscale_intermediate:
+                from PIL import ImageEnhance
+                intermediate_img = ImageEnhance.Contrast(
+                    Image.open(inter_path).convert("L").convert("RGB")
+                ).enhance(3.0)
+            else:
+                intermediate_img = Image.open(inter_path).convert("RGB")
+            latent_msg = {"role": "assistant", "content": [{"type": "image", "image": intermediate_img}],
+                          "shape_C_name": data.get("shape_C_name")}
             return [
                 {"role": "user",      "content": user_content},
                 {"role": "assistant", "content": [{"type": "text", "text": assistant_content}]},
-                {"role": "assistant", "content": [{"type": "image", "image": intermediate_img}]},
+                latent_msg,
             ]
         else:
             # NTP: pure text reasoning, no latent visual tokens
@@ -212,6 +163,8 @@ def _mask_image_output_tokens(input_ids: torch.Tensor, image_token: int) -> torc
 
 
 def collate_fn_latent_sft(samples: List[list], processor: AutoProcessor):
+    # Extract shape_C_name before popping the latent message
+    shape_names = [s[-1].pop("shape_C_name", None) for s in samples]
     latent_visuals = [s.pop(-1) for s in samples]
 
     text          = processor.apply_chat_template(samples, tokenize=False)
@@ -248,7 +201,6 @@ def collate_fn_latent_sft(samples: List[list], processor: AutoProcessor):
         max_length=4096,
         truncation=True,
     )
-
     # Build labels: only supervise the assistant turn
     labels = torch.full_like(inputs["input_ids"], -100)
     assistant_start = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
@@ -285,11 +237,18 @@ def collate_fn_latent_sft(samples: List[list], processor: AutoProcessor):
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == processor.lvr_sep_id]             = -100
 
+    import zlib
     inputs["labels"]           = labels
     inputs["answer_positions"] = answer_positions
-    inputs["latent_mask_out"] = _mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
-    inputs["latent_values"]   = latent_inputs["pixel_values"]
-    inputs["latent_grid_thw"] = latent_grid_thw
+    inputs["latent_mask_out"]  = _mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
+    inputs["latent_values"]    = latent_inputs["pixel_values"]
+    inputs["latent_grid_thw"]  = latent_grid_thw
+    # Encode shape names as deterministic int64 so Accelerate can concatenate across
+    # gradient-accumulation steps (strings can't be tensor-concatenated).
+    inputs["shape_name_ids"] = torch.tensor([
+        zlib.adler32(n.encode()) if n is not None else -1
+        for n in shape_names
+    ], dtype=torch.long)
 
     return inputs
 
@@ -403,6 +362,7 @@ def make_tetris_data_module(
     generate: bool = False,
     use_lvr: bool = True,
     max_train_samples: int = None,
+    grayscale_intermediate: bool = False,
 ):
     """
     Load pre-split train/eval sets produced by create_dataset.py.
@@ -414,8 +374,9 @@ def make_tetris_data_module(
     eval_path  = os.path.join(os.path.dirname(data_path), "eval.json")
 
     train_ds = SFTTetrisDataset(data_path=train_path, processor=processor,
-                                dummy=dummy, use_lvr=use_lvr, max_samples=max_train_samples)
-    rank0_print(f"Train: {len(train_ds)} samples", flush=True)
+                                dummy=dummy, use_lvr=use_lvr, max_samples=max_train_samples,
+                                grayscale_intermediate=grayscale_intermediate)
+    rank0_print(f"Train: {len(train_ds)} samples (grayscale_intermediate={grayscale_intermediate})", flush=True)
 
     if generate:
         collate = collate_fn_generate
@@ -429,7 +390,8 @@ def make_tetris_data_module(
     }
     if os.path.exists(eval_path):
         eval_ds = SFTTetrisDataset(data_path=eval_path, processor=processor,
-                                   dummy=dummy, use_lvr=use_lvr)
+                                   dummy=dummy, use_lvr=use_lvr,
+                                   grayscale_intermediate=grayscale_intermediate)
         rank0_print(f"Eval:  {len(eval_ds)} samples", flush=True)
         out["eval_dataset"] = eval_ds
     else:

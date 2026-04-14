@@ -6,14 +6,14 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --job-name=sft_lantern_ntp_3b
-#SBATCH --output=logs/sft_lantern_ntp_3b.out
-#SBATCH --error=logs/sft_lantern_ntp_3b.err
+#SBATCH --job-name=sft_lantern_ntp_3b_v2
+#SBATCH --output=logs/sft_lantern_ntp_3b_v2.out
+#SBATCH --error=logs/sft_lantern_ntp_3b_v2.err
 
 # model configs
 MODEL_ID="$HOME/.cache/huggingface/hub/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/66285546d2b821cf421d4f5eb2576359d3770cd3"
 export WANDB_MODE=offline
-export WANDB_PROJECT="LantErn-SFT"
+export WANDB_PROJECT="LantErn-Tetris"
 export WANDB_DIR="/e/project1/jureap131/gviveiros/lantern/"
 REPO="/e/home/jusers/viveiros1/jupiter/LantErn"
 
@@ -22,7 +22,7 @@ DATA_PATH="/e/project1/jureap131/gviveiros/lantern/analogy_data/train.json"
 
 GPUS_PER_NODE=4
 GLOBAL_BATCH_SIZE=192
-BATCH_PER_DEVICE=4
+BATCH_PER_DEVICE=6
 NUM_DEVICES=$(( SLURM_NNODES * GPUS_PER_NODE ))
 echo "Nodes: $SLURM_NNODES, GPUs per node: $GPUS_PER_NODE, total devices: $NUM_DEVICES"
 
@@ -33,7 +33,7 @@ echo "Batch per device: $BATCH_PER_DEVICE"
 echo "Gradient accumulation steps: $GRAD_ACCUM_STEPS"
 
 LR=1e-5
-RUN_NAME="ntp_tetris_sft_3b"
+RUN_NAME="ntp_tetris_sft_3b_v2"
 
 export OMP_NUM_THREADS=1
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -50,7 +50,7 @@ deepspeed $REPO/src/train/train_sft.py \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
     --num_train_epochs 20 \
-    --max_train_samples 10000 \
+    --max_train_samples 50000 \
     --latent_size 8 \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
@@ -62,6 +62,7 @@ deepspeed $REPO/src/train/train_sft.py \
     --report_to wandb \
     --dataset_type tetris \
     --data_path $DATA_PATH \
-    --eval_steps 50 \
+    --eval_strategy steps \
+    --eval_steps 80 \
     --per_device_eval_batch_size 2 \
     --eval_accumulation_steps 4

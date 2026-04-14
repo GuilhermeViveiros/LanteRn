@@ -6,18 +6,17 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --job-name=sft_lantern_3b
-#SBATCH --output=logs/sft_lantern_nce_3b.out
-#SBATCH --error=logs/sft_lantern_nce_3b.err
+#SBATCH --job-name=sft_tetris_ablation1_gray
+#SBATCH --output=logs/sft_tetris_ablation1_gray.out
+#SBATCH --error=logs/sft_tetris_ablation1_gray.err
 
 # model configs
 MODEL_ID="$HOME/.cache/huggingface/hub/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/66285546d2b821cf421d4f5eb2576359d3770cd3"
 export WANDB_MODE=offline
-export WANDB_PROJECT="LantErn-SFT"
+export WANDB_PROJECT="LantErn-Tetris"
 export WANDB_DIR="/e/project1/jureap131/gviveiros/lantern/"
 REPO="/e/home/jusers/viveiros1/jupiter/LantErn"
 
-RANDOM_SEED=42
 DATA_PATH="/e/project1/jureap131/gviveiros/lantern/analogy_data/train.json"
 
 GPUS_PER_NODE=4
@@ -38,8 +37,8 @@ LR=1e-5
 # LantErn-related params
 LAMBDA_LANTERN=0.1
 LATENT_SIZE=8
-LATENT_LOSS_TYPE="infonce"   # mse | infonce | cosine
-RUN_NAME="lantern_tetris_sft_${LATENT_LOSS_TYPE}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
+LATENT_LOSS_TYPE="mse"   # mse | infonce | cosine
+RUN_NAME="ablation1_gray_${LATENT_LOSS_TYPE}_lt${LATENT_SIZE}_lambda${LAMBDA_LANTERN}"
 
 export OMP_NUM_THREADS=1
 source /e/project1/jureap126/gviveiros/envs/swift/bin/activate
@@ -55,7 +54,6 @@ deepspeed $REPO/src/train/train_sft.py \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
     --num_train_epochs 20 \
-    --max_train_samples 50000 \
     --latent_size $LATENT_SIZE \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
@@ -67,13 +65,13 @@ deepspeed $REPO/src/train/train_sft.py \
     --dataset_type tetris \
     --data_path $DATA_PATH \
     --eval_strategy steps \
-    --eval_steps 80 \
+    --eval_steps 100 \
     --per_device_eval_batch_size 6 \
     --eval_accumulation_steps 2 \
     --latent_loss_type $LATENT_LOSS_TYPE \
-    --temperature 0.07 \
-    --use_family_batching True \
-    --family_batch_key shape_C_name
+    --grayscale_intermediate True \
+    --wandb_project LantErn-Tetris
+    #--temperature 0.07
 
 # torchrun --nproc_per_node=$GPUS_PER_NODE $TRAIN_ARGS
 
@@ -85,3 +83,8 @@ deepspeed $REPO/src/train/train_sft.py \
 #     --master_addr=$MASTER_ADDR \
 #     --master_port=$MASTER_PORT \
 #     $TRAIN_ARGS"
+
+
+# python -m evals.generalization --checkpoints_dir /e/project1/jureap131/gviveiros/lantern/checkpoints/lantern_tetris_sft_lt_8_lambda_0.1/checkpoint-672 --held_out_path /e/project1/jureap131/gviveiros/lantern/analogy_data/held_out/held_out.json --eval_path /e/project1/jureap131/gviveiros/lantern/analogy_data/eval.json  --n_samples 200 --batch_size 8 --latent_size 8 --use_lvr
+
+# python -m evals.generalization --checkpoints_dir /e/project1/jureap131/gviveiros/lantern/checkpoints/ntp_tetris_sft_3b/checkpoint-672/ --held_out_path /e/project1/jureap131/gviveiros/lantern/analogy_data/held_out/held_out.json --eval_path /e/project1/jureap131/gviveiros/lantern/analogy_data/eval.json  --n_samples 200 --batch_size 8 --no_lvr

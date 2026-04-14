@@ -24,6 +24,7 @@ from termcolor import colored
 from src.params import (TrainingParams, ModelParams, SFTDataParams)
 from src.datasets.sft_data import make_sft_data_module, collate_fn_generate, SFTDataset
 from src.datasets.sft_tetris_data import make_tetris_data_module, collate_fn_generate as tetris_collate_fn_generate, collate_fn_generate_ntp as tetris_collate_fn_generate_ntp
+from src.datasets.family_sampler import FamilyGroupedDataset
 from src.models import load_model
 from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger, LatentUtilityCallback, GenerationAccuracyCallback
 from src.models.utils import get_last_checkpoint
@@ -129,10 +130,12 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     )
 
     # check if we should resume training from a checkpoint
-    #resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
-    #if resume_from_checkpoint is not None:
-    #c    logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
-    
+    resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+    if resume_from_checkpoint is not None:
+        logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
+    else:
+        logger.info(colored(f"Starting training from scratch", "cyan"))
+        
     # set the latent tokens
     assert model_params.latent_size > 0 or model_params.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
     set_latent_tokens(processor, model, model_params.latent_size)
@@ -169,7 +172,19 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             dummy=data_params.dummy,
             use_lvr=data_params.use_lvr,
             max_train_samples=data_params.max_train_samples,
+            grayscale_intermediate=data_params.grayscale_intermediate,
         )
+        if getattr(training_params, "use_family_batching", False):
+            num_gpus = int(os.environ.get("WORLD_SIZE", 1))
+            chunk_size = training_params.per_device_train_batch_size * num_gpus
+            logger.info(f"[FamilyBatching] wrapping train dataset with FamilyGroupedIterableDataset "
+                        f"(chunk_size={chunk_size}, key={training_params.family_batch_key})")
+            data_module["train_dataset"] = FamilyGroupedDataset(
+                dataset=data_module["train_dataset"],
+                chunk_size=chunk_size,
+                group_key=training_params.family_batch_key,
+                seed=training_params.seed,
+            )
         generate_collate = tetris_collate_fn_generate if data_params.use_lvr else tetris_collate_fn_generate_ntp
     elif data_params.dataset_type == "viscot":
         data_module = make_sft_data_module(
@@ -223,12 +238,14 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         use_lvr=data_params.use_lvr,
         latent_loss_type=training_params.latent_loss_type,
         temperature=training_params.temperature,
+        scheduled_sampling_prob=training_params.scheduled_sampling_prob,
+        scheduled_sampling_warmup=training_params.scheduled_sampling_warmup,
         callbacks=callbacks,
         **data_module
     )
 
     trainer.train(
-        #resume_from_checkpoint=None
+        resume_from_checkpoint=resume_from_checkpoint
     )
     # save processor 
     processor.save_pretrained(training_params.output_dir)

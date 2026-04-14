@@ -53,17 +53,29 @@ def load_model(
 
     try:
         processor = AutoProcessor.from_pretrained(
-            model_ref, #"Qwen/Qwen2.5-VL-3B-Instruct", 
+            model_ref, #"Qwen/Qwen2.5-VL-3B-Instruct",
             min_pixels=min_pixels,
             max_pixels=max_pixels,
             **kwargs
         )
     except Exception as e:
+        # Resolve to a local snapshot path to avoid network calls for the
+        # mistral-regex check (which fires when pretrained_model_name_or_path
+        # is a Hub ID rather than a local directory path).
+        try:
+            from huggingface_hub import snapshot_download
+            local_qwen_path = snapshot_download(
+                "Qwen/Qwen2.5-VL-3B-Instruct", local_files_only=True
+            )
+        except Exception:
+            local_qwen_path = "Qwen/Qwen2.5-VL-3B-Instruct"
+        proc_kwargs = {k: v for k, v in kwargs.items() if k != "local_files_only"}
         processor = AutoProcessor.from_pretrained(
-            "Qwen/Qwen2.5-VL-3B-Instruct", 
+            local_qwen_path,
             min_pixels=min_pixels,
             max_pixels=max_pixels,
-            **kwargs
+            local_files_only=True,
+            **proc_kwargs
         )
     #else:
     #    raise ValueError(f"Only Qwen2.5-VL-3B-Instruct is currently supported (got {model_ref})")

@@ -392,8 +392,9 @@ def generate_analogy_sample(
 
     seen = {_vkey(cells_gt_C, off_gt_C, shape_C)}
     distractors = []
+    distractor_transforms = []  # parallel to distractors: transform description for each
 
-    def _add(cells, offset, shape_obj) -> bool:
+    def _add(cells, offset, shape_obj, desc: str = "unknown") -> bool:
         if not fits_in_grid(cells, offset, grid_rows, grid_cols):
             return False
         if _also_correct(cells, offset, shape_obj):
@@ -405,6 +406,7 @@ def generate_analogy_sample(
             return False
         seen.add(vk)
         distractors.append((cells, offset, shape_obj["color"]))
+        distractor_transforms.append(desc)
         return True
 
     # Distractors must ALWAYS show shape_C at a different rotation (or a clearly
@@ -425,7 +427,13 @@ def generate_analogy_sample(
         alt_cells = rots_C[ri]
         alt_offs = valid_offsets(alt_cells, grid_rows, grid_cols)
         if alt_offs:
-            _add(alt_cells, rng.choice(alt_offs), shape_C)
+            d_step = (ri - ref_rot_C) % n_rots_C
+            if d_step == 0:
+                d_desc = "identity"
+            else:
+                d_angle = ROTATION_ANGLES.get(d_step, d_step * 90)
+                d_desc = TRANSFORM_DESCRIPTIONS["rotation"].format(angle=d_angle)
+            _add(alt_cells, rng.choice(alt_offs), shape_C, desc=d_desc)
 
     # --- Priority 1.5: structurally perturbed shape_C (add or remove one cell) ---
     # These near-miss distractors are shown in shape_C's color and look very similar
@@ -440,7 +448,7 @@ def generate_analogy_sample(
         perturbed_norm = list(_normalize(perturbed))
         offs = valid_offsets(perturbed_norm, grid_rows, grid_cols)
         if offs:
-            _add(perturbed_norm, rng.choice(offs), _perturb_obj)
+            _add(perturbed_norm, rng.choice(offs), _perturb_obj, desc="perturbed")
 
     # --- Priority 2: visually similar shapes (same family), different rotation ---
     # Fill remaining slots (happens when shape_C has ≤ 2 unique rotations).
@@ -453,7 +461,7 @@ def generate_analogy_sample(
         for ri in sim_rot_indices:
             sim_cells = sim["rotations"][ri]
             sim_offs = valid_offsets(sim_cells, grid_rows, grid_cols)
-            if sim_offs and _add(sim_cells, rng.choice(sim_offs), sim):
+            if sim_offs and _add(sim_cells, rng.choice(sim_offs), sim, desc="other_shape"):
                 added = True
                 break
         if not added:
@@ -468,12 +476,14 @@ def generate_analogy_sample(
         rc = rs["rotations"][ri]
         ro = valid_offsets(rc, grid_rows, grid_cols)
         if ro:
-            _add(rc, rng.choice(ro), rs)
+            _add(rc, rng.choice(ro), rs, desc="other_shape")
 
     distractors = distractors[:3]
+    distractor_transforms = distractor_transforms[:3]
 
     # --- 5. Shuffle options ---
     all_opts = [(cells_gt_C, off_gt_C, shape_C["color"])] + distractors
+    all_opt_transforms = [transform_desc] + distractor_transforms
     if force_correct_pos is not None:
         # Place correct answer at the requested slot; shuffle distractors among the rest.
         pos = force_correct_pos % 4
@@ -486,12 +496,17 @@ def generate_analogy_sample(
             ordered[slot] = all_opts[di]
         shuffled = ordered
         correct_pos = pos
+        slot_to_src = {pos: 0}
+        slot_to_src.update(zip(remaining_slots, dist_indices))
     else:
         indices = list(range(4))
         rng.shuffle(indices)
         correct_pos = indices.index(0)
         shuffled = [all_opts[i] for i in indices]
+        slot_to_src = {slot: src for slot, src in enumerate(indices)}
     answer = "abcd"[correct_pos]
+    option_transforms = {"abcd"[slot]: all_opt_transforms[src]
+                         for slot, src in slot_to_src.items()}
 
     # --- 6. Render ---
     # A, B, C all at the same cell_size so both rows are structurally identical.
@@ -536,6 +551,7 @@ def generate_analogy_sample(
         "shape_C_name":          shape_C["name"],
         "shape_A_family":        shape_A["family"],
         "shape_C_family":        shape_C["family"],
+        "option_transforms":     option_transforms,
     }
 
 
