@@ -125,14 +125,12 @@ class SFTTetrisDataset(Dataset):
                 + "<answer> " + answer + "</answer>"
             )
             if self.grayscale_intermediate:
-                from PIL import ImageEnhance
-                intermediate_img = ImageEnhance.Contrast(
-                    Image.open(inter_path).convert("L").convert("RGB")
-                ).enhance(3.0)
+                intermediate_img = Image.open(inter_path).convert("RGB")
             else:
                 intermediate_img = Image.open(inter_path).convert("RGB")
             latent_msg = {"role": "assistant", "content": [{"type": "image", "image": intermediate_img}],
-                          "shape_C_name": data.get("shape_C_name")}
+                          "shape_C_name": data.get("shape_C_name"),
+                          "intermediate_key": data.get("intermediate_key", "")}
             return [
                 {"role": "user",      "content": user_content},
                 {"role": "assistant", "content": [{"type": "text", "text": assistant_content}]},

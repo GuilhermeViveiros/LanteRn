@@ -28,6 +28,36 @@ from .pieces import (
     fits_in_grid, valid_offsets,
     _normalize, _rotate_90cw,
 )
+
+# Palette of visually distinct colors used to randomize option panel colors.
+# Each sample independently picks 4 of these without replacement so no two
+# options share a color, and the correct answer has no systematic color bias.
+_OPTION_COLOR_PALETTE = [
+    (220,  50,  50),   # red
+    ( 50, 110, 230),   # blue
+    ( 50, 200,  70),   # green
+    (230, 180,  35),   # amber
+    (175,  50, 225),   # violet
+    ( 35, 205, 205),   # cyan
+    (230,  95,  35),   # orange
+    (205,  50, 165),   # magenta
+    ( 50, 180, 130),   # teal
+    (240, 230,  60),   # yellow
+    (130,  80, 230),   # indigo
+    (230, 130,  80),   # salmon
+    ( 80, 230, 180),   # mint
+    (230,  80, 120),   # rose
+    (100, 200, 240),   # sky blue
+    (200, 230,  80),   # lime
+    (240, 160,  60),   # tangerine
+    (160,  60, 200),   # purple
+    ( 60, 160, 200),   # steel blue
+    (200,  90,  90),   # brick
+    ( 90, 200, 130),   # seafoam
+    (230, 200, 100),   # gold
+    (100, 130, 230),   # periwinkle
+    (230, 100, 180),   # hot pink
+]
 from .renderer import draw_piece_on_grid, draw_piece_standalone, render_rotation_strip, _get_font, _PAD, _LABEL_HEIGHT, _SECTION_LABEL_HEIGHT
 from .simulator import (
     ROTATION_ANGLES, TRANSFORM_DESCRIPTIONS,
@@ -248,6 +278,7 @@ def generate_analogy_sample(
     ref_rot_A_idx: Optional[int] = None,
     ref_rot_C_idx: Optional[int] = None,
     rot_step_override: Optional[int] = None,
+    bw_intermediate: bool = False,
 ) -> Dict[str, Any]:
     """
     Generate one analogy sample:  A : B :: C : ?
@@ -516,9 +547,13 @@ def generate_analogy_sample(
     img_A = draw_piece_standalone(cells_A, shape_A["color"], cell_size)
     img_B = draw_piece_standalone(cells_B, shape_A["color"], cell_size)
     img_C = draw_piece_on_grid(cells_C, shape_C["color"], off_C, grid_rows, grid_cols, cell_size)
+
+    # Assign a unique random color to each option so the model cannot use color
+    # as a shortcut and must rely purely on shape geometry.
+    option_colors = rng.sample(_OPTION_COLOR_PALETTE, 4)
     opt_imgs = [
-        draw_piece_on_grid(cells, shape_C["color"], off, grid_rows, grid_cols, opt_cell_size)
-        for cells, off, _col in shuffled
+        draw_piece_on_grid(cells, option_colors[i], off, grid_rows, grid_cols, opt_cell_size)
+        for i, (cells, off, _col) in enumerate(shuffled)
     ]
 
     composite_img, bboxes = build_analogy_composite(img_A, img_B, img_C, opt_imgs)
@@ -538,6 +573,7 @@ def generate_analogy_sample(
         clockwise=_clockwise,
         angle=angle if _clockwise else 90,
         cell_size=cell_size,
+        bw=bw_intermediate,
     )
 
     return {

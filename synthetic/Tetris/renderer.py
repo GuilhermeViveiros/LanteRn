@@ -97,6 +97,7 @@ def render_rotation_strip(
     angle: int = 90,
     cell_size: int = 40,
     bg_color: Tuple[int, int, int] = (18, 18, 22),
+    bw: bool = False,
 ) -> Image.Image:
     """
     Mental-rotation image. Three layouts:
@@ -107,15 +108,17 @@ def render_rotation_strip(
                                                [C@180°]            (L-shape)
         270° CCW (2 steps): [C@left] ←"90° left"← [C]
     """
-    imgs = [draw_piece_standalone(c, color, cell_size) for c in rotation_steps]
+    piece_color = (0, 0, 0)       if bw else color
+    strip_bg    = (255, 255, 255) if bw else bg_color
+    imgs = [draw_piece_standalone(c, piece_color, cell_size, bg_color=strip_bg) for c in rotation_steps]
     if len(imgs) < 2:
         imgs = imgs * 2
 
     PAD         = 20
     GAP         = 70
     BEND        = 36
-    arrow_color = (140, 170, 200)
-    text_color  = (190, 200, 215)
+    arrow_color = (80, 80, 80)    if bw else (140, 170, 200)
+    text_color  = (40, 40, 40)    if bw else (190, 200, 215)
     font        = _get_font(15)
     pw, ph      = imgs[0].width, imgs[0].height
 
@@ -148,7 +151,7 @@ def render_rotation_strip(
         total_w  = PAD + n_panels * pw + (n_panels - 1) * GAP + PAD
         total_h  = ph + 2*PAD + BEND
 
-        canvas = Image.new("RGB", (total_w, total_h), bg_color)
+        canvas = Image.new("RGB", (total_w, total_h), strip_bg)
         draw   = ImageDraw.Draw(canvas)
 
         y0 = PAD + BEND

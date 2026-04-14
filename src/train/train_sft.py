@@ -109,6 +109,70 @@ def _save_data_diagnostics(dataset, output_dir: str, n_samples: int = 8):
     logger.info(f"Data diagnostics saved to {diag_dir}/ ({len(indices)} samples)")
 
 
+def _debug_tetris_batch(data_module: dict, output_dir: str, batch_size: int = 6, n_batches: int = 10):
+    """Save one strip per batch for n_batches random batches.
+    Each row shows the intermediate (latent) image for every sample in the batch.
+    Green border = anchor (sample 0), red = negatives.
+    Label shows shape_name + intermediate_key so duplicate strips are obvious.
+    """
+    import random
+    from PIL import Image, ImageDraw
+
+    debug_dir = os.path.join(output_dir, "debug")
+    os.makedirs(debug_dir, exist_ok=True)
+
+    train_ds = data_module["train_dataset"]
+    n_total  = len(train_ds)
+
+    # Sample chunk-aligned start indices (must match training batch boundaries)
+    # Spread evenly across the dataset then shuffle for variety
+    n_chunks = n_total // batch_size
+    step = max(1, n_chunks // n_batches)
+    candidates = list(range(0, n_chunks, step))
+    random.shuffle(candidates)
+    starts = [c * batch_size for c in candidates[:n_batches]]
+
+    BORDER  = 4
+    pad     = 8
+    label_h = 32
+    GREEN   = (50,  220,  80)
+    RED     = (220,  50,  50)
+    BG      = (22,   22,  22)
+    H       = 224
+
+    def _framed(im: Image.Image, color, border: int) -> Image.Image:
+        frame = Image.new("RGB", (im.width + 2 * border, im.height + 2 * border), color)
+        frame.paste(im, (border, border))
+        return frame
+
+    for b_idx, start in enumerate(sorted(starts)):
+        rows = []
+        for i in range(start, min(start + batch_size, n_total)):
+            sample     = train_ds[i]
+            latent_msg = sample[2]
+            inter_img  = next(c["image"] for c in latent_msg["content"] if c["type"] == "image")
+            shape_name = latent_msg.get("shape_C_name", "?")
+            ikey       = latent_msg.get("intermediate_key", "")
+            short_key  = ikey.split("_")[-2] + "_" + ikey.split("_")[-1] if "_" in ikey else ikey
+            label      = f"{'[+]' if i == start else '[-]'} {shape_name} | {short_key}"
+            w = int(inter_img.width * H / inter_img.height)
+            rows.append((inter_img.convert("RGB").resize((w, H)), label, i == start))
+
+        n = len(rows)
+        framed  = [_framed(im, GREEN if anchor else RED, BORDER) for im, _, anchor in rows]
+        total_w = sum(f.width for f in framed) + pad * (n - 1)
+        strip   = Image.new("RGB", (total_w, framed[0].height + label_h), BG)
+        draw    = ImageDraw.Draw(strip)
+        x = 0
+        for f, (_, label, anchor) in zip(framed, rows):
+            strip.paste(f, (x, label_h))
+            draw.text((x + 2, 4), label, fill=GREEN if anchor else RED)
+            x += f.width + pad
+        strip.save(os.path.join(debug_dir, f"batch_{b_idx:02d}.png"))
+
+    logger.info(f"[debug] saved {len(starts)} batch strips → {debug_dir}/")
+
+
 def train(training_params: TrainingParams, model_params: ModelParams, data_params: SFTDataParams):
     global local_rank
     if is_rank0():
@@ -130,10 +194,12 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     )
 
     # check if we should resume training from a checkpoint
-    resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
-    if resume_from_checkpoint is not None:
-        logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
+    if training_params.resume_from_checkpoint:
+        resume_from_checkpoint = get_last_checkpoint(training_params.output_dir)
+        if resume_from_checkpoint is not None:
+            logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
     else:
+        resume_from_checkpoint = False
         logger.info(colored(f"Starting training from scratch", "cyan"))
         
     # set the latent tokens
@@ -186,6 +252,9 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
                 seed=training_params.seed,
             )
         generate_collate = tetris_collate_fn_generate if data_params.use_lvr else tetris_collate_fn_generate_ntp
+        if is_rank0() and data_params.use_lvr:
+            _debug_tetris_batch(data_module, "debug",
+                                batch_size=training_params.per_device_train_batch_size)
     elif data_params.dataset_type == "viscot":
         data_module = make_sft_data_module(
             processor=processor,
@@ -202,7 +271,12 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     else: 
         raise ValueError(f"Invalid dataset type: {data_params.dataset_type}")
 
-    
+
+    if is_rank0() and data_params.dataset_type == "tetris":
+        _debug_tetris_batch(data_module, training_params.output_dir,
+                            batch_size=training_params.per_device_train_batch_size)
+
+    import pdb; pdb.set_trace()
     callbacks = [ProgressBarLossLogger()]
     if data_params.dataset_type == "tetris" and "eval_dataset" in data_module:
         if data_params.use_lvr:

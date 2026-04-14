@@ -35,6 +35,7 @@ from .reasoning import fill_reasoning_traces
 ANALOGY_QUESTION = (
     "Image (A) is to image (B) as image (C) is to which of the following options?\n"
     "The transformation from (A) to (B) is: {transform_description}.\n"
+    "Note: the colours of the options are random and irrelevant — answer based on shape only.\n"
     "Options:\n(a) Option a\n(b) Option b\n(c) Option c\n(d) Option d"
 )
 
@@ -91,6 +92,12 @@ def parse_args():
                         "Saves to {output_dir}/held_out_harder/held_out_harder.json.")
     p.add_argument("--held_out_max_samples", type=int, default=500,
                    help="Cap on held-out samples (default: 500).")
+    p.add_argument("--max_train_samples", type=int, default=None,
+                   help="Cap on train samples (default: no cap).")
+    p.add_argument("--max_eval_samples",  type=int, default=None,
+                   help="Cap on eval samples (default: no cap).")
+    p.add_argument("--bw_intermediate", action="store_true",
+                   help="Render intermediate rotation strips in black & white (black pieces on white bg).")
     return p.parse_args()
 
 
@@ -108,6 +115,7 @@ def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx
         ref_rot_A_idx=rot_A_idx,
         ref_rot_C_idx=rot_C_idx,
         rot_step_override=rot_step,
+        bw_intermediate=getattr(args, "bw_intermediate", False),
     )
 
     img_filename   = f"{sample_id:06d}.png"
@@ -137,6 +145,9 @@ def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx
         "shape_A_family":        sample["shape_A_family"],
         "shape_C_family":        sample["shape_C_family"],
         "option_transforms":     sample["option_transforms"],
+        # Uniquely identifies the intermediate image: same shape_C + same starting
+        # rotation + same rotation step → identical rotation strip.
+        "intermediate_key":      f"{sample['shape_C_name']}_{rot_C_idx}_{rot_step}",
     }
 
 
@@ -292,6 +303,13 @@ def main():
     n_train = len(configs) - n_eval
     eval_configs  = configs[:n_eval]
     train_configs = configs[n_eval:]
+
+    if args.max_eval_samples is not None:
+        eval_configs  = eval_configs[:args.max_eval_samples]
+    if args.max_train_samples is not None:
+        train_configs = train_configs[:args.max_train_samples]
+    n_eval  = len(eval_configs)
+    n_train = len(train_configs)
 
     print(f"Total unique configs: {len(configs)}")
     print(f"  Train configs: {n_train}  |  Eval configs: {n_eval}")

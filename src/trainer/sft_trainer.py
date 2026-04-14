@@ -593,28 +593,6 @@ class LantErnSFTrainer(Trainer):
         loss = ce_loss + self.gamma * latent_loss
 
 
-        # ── Answer CE loss (monitoring only — not added to training loss) ──────
-        # answer_positions[b] = token index of the answer letter (a/b/c/d) in input_ids,
-        # pre-computed by collate_fn_sft to avoid tokenization ambiguity.
-        answer_ce = None
-        with torch.no_grad():
-            labels = inputs.get("labels")
-            answer_positions = inputs.get("answer_positions")
-            if labels is not None and answer_positions is not None:
-                answer_mask = torch.zeros_like(labels, dtype=torch.bool)
-                for b in range(input_ids.shape[0]):
-                    pos = answer_positions[b].item()
-                    if pos >= 0 and pos < labels.shape[1] and labels[b, pos] != -100:
-                        answer_mask[b, pos] = True
-                if answer_mask.any():
-                    masked_labels = labels.clone()
-                    masked_labels[~answer_mask] = -100
-                    answer_ce = torch.nn.functional.cross_entropy(
-                        outputs.logits.view(-1, outputs.logits.shape[-1]),
-                        masked_labels.view(-1),
-                        ignore_index=-100,
-                    )
-
         # HF Trainer logging (no prog_bar)
         if hasattr(self, "state") and hasattr(self.state, "log_history"):
             entry = {
@@ -626,8 +604,6 @@ class LantErnSFTrainer(Trainer):
             }
             if nce_loss is not None:
                 entry["infonce_loss"] = nce_loss.item()
-            if answer_ce is not None:
-                entry["answer_ce_loss"] = answer_ce.item()
             self.state.log_history.append(entry)
 
         if wandb.run and is_rank0():
@@ -648,8 +624,6 @@ class LantErnSFTrainer(Trainer):
             if hard_negative_mask is not None:
                 N = hard_negative_mask.shape[0]
                 log_dict["hard_neg_fraction"] = hard_negative_mask.sum().item() / max(N * (N - 1), 1)
-            if answer_ce is not None:
-                log_dict["answer_ce_loss"] = answer_ce.item()
             wandb.log(log_dict)
 
         return (loss, outputs) if return_outputs else loss

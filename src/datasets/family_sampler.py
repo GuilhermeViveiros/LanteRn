@@ -22,6 +22,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import random
 from collections import defaultdict
 
@@ -56,13 +57,45 @@ class FamilyGroupedDataset(Dataset):
             key = dataset.get_group_key(i, group_key)
             groups[key].append(i)
 
-        # Shuffle within each group, slice into complete chunks, shuffle chunk order
+        # 'groups' now maps each unique group_key value (object) to its sample indices
+        # keys = different objects, values = lists of sample indices for each object
+        total_samples = len(dataset)
+        for obj_name, sample_idxs in groups.items():
+            percent = (len(sample_idxs) / total_samples) * 100 if total_samples > 0 else 0.0
+            logging.info(f"[FamilyGroupedDataset] object '{obj_name}': {len(sample_idxs)} samples ({percent:.2f}%)")
+
+        # Build chunks where every sample has a unique intermediate_key
+        # (i.e. unique rotation strip — same shape_C but different rot_C_idx or rot_step).
+        # Strategy: group by intermediate_key, then round-robin across keys to fill chunks.
         chunks = []
         for idxs in groups.values():
-            idxs = list(idxs)
-            rng.shuffle(idxs)
-            for start in range(0, len(idxs) - chunk_size + 1, chunk_size):
-                chunks.append(idxs[start : start + chunk_size])
+            # Sub-group by intermediate_key
+            inter_groups: dict[str, list[int]] = defaultdict(list)
+            for idx in idxs:
+                ikey = dataset.get_group_key(idx, "intermediate_key")
+                inter_groups[ikey].append(idx)
+            # Shuffle within each sub-group
+            for sub in inter_groups.values():
+                rng.shuffle(sub)
+            # Round-robin across unique intermediate_keys to build chunks
+            # Each chunk picks one sample from each distinct key in turn.
+            keys = list(inter_groups.keys())
+            rng.shuffle(keys)
+            pointers = {k: 0 for k in keys}
+            while True:
+                chunk = []
+                used_keys = []
+                for k in keys:
+                    if pointers[k] < len(inter_groups[k]):
+                        chunk.append(inter_groups[k][pointers[k]])
+                        pointers[k] += 1
+                        used_keys.append(k)
+                    if len(chunk) == chunk_size:
+                        break
+                if len(chunk) < chunk_size:
+                    break  # not enough unique keys left for a full chunk
+                chunks.append(chunk)
+                rng.shuffle(keys)  # vary key order across chunks
 
         rng.shuffle(chunks)
 

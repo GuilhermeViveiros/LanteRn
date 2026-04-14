@@ -51,6 +51,7 @@ class TrainingParams(HFTrainingArguments):
     dataloader_persistent_workers: bool = field(default=True)
     save_safetensors: bool = field(default=True)
     seed: int = field(default=42)
+    resume_from_checkpoint: bool = field(default=False)
     #use_liger_kernel: bool = field(default=True) # LantErn does not support liger kernel
     #use_liger_kernel: bool = field(default=True)
     # per_device_train_batch_size: int = field(default=8)
