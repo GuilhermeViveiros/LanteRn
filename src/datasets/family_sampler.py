@@ -79,20 +79,25 @@ class FamilyGroupedDataset(Dataset):
                 rng.shuffle(sub)
             # Round-robin across unique intermediate_keys to build chunks
             # Each chunk picks one sample from each distinct key in turn.
+            # Effective chunk size is capped at the number of unique keys so
+            # that groups with fewer unique intermediate_keys still contribute
+            # samples (otherwise chunk_size > n_keys → zero chunks for that group).
             keys = list(inter_groups.keys())
             rng.shuffle(keys)
+            effective_chunk = min(chunk_size, len(keys))
+            if effective_chunk < chunk_size:
+                logging.warning(f"[FamilyGroupedDataset] group has only {len(keys)} unique intermediate_keys "
+                                f"< chunk_size={chunk_size}; using effective_chunk={effective_chunk}")
             pointers = {k: 0 for k in keys}
             while True:
                 chunk = []
-                used_keys = []
                 for k in keys:
                     if pointers[k] < len(inter_groups[k]):
                         chunk.append(inter_groups[k][pointers[k]])
                         pointers[k] += 1
-                        used_keys.append(k)
-                    if len(chunk) == chunk_size:
+                    if len(chunk) == effective_chunk:
                         break
-                if len(chunk) < chunk_size:
+                if len(chunk) < effective_chunk:
                     break  # not enough unique keys left for a full chunk
                 chunks.append(chunk)
                 rng.shuffle(keys)  # vary key order across chunks
