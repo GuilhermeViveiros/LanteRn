@@ -39,6 +39,12 @@ ANALOGY_QUESTION = (
     "Options:\n(a) Option a\n(b) Option b\n(c) Option c\n(d) Option d"
 )
 
+ANALOGY_QUESTION_DEFAULT_COLORS = (
+    "Image (A) is to image (B) as image (C) is to which of the following options?\n"
+    "The transformation from (A) to (B) is: {transform_description}.\n"
+    "Options:\n(a) Option a\n(b) Option b\n(c) Option c\n(d) Option d"
+)
+
 
 # ---------------------------------------------------------------------------
 # Config enumeration
@@ -96,8 +102,12 @@ def parse_args():
                    help="Cap on train samples (default: no cap).")
     p.add_argument("--max_eval_samples",  type=int, default=None,
                    help="Cap on eval samples (default: no cap).")
-    p.add_argument("--bw_intermediate", action="store_true",
-                   help="Render intermediate rotation strips in black & white (black pieces on white bg).")
+    p.add_argument("--bw_intermediate", action="store_true", default=True,
+                   help="Render intermediate rotation strips in black & white (default: True).")
+    p.add_argument("--color_intermediate", action="store_false", dest="bw_intermediate",
+                   help="Render intermediate rotation strips in the shape's own color.")
+    p.add_argument("--default_option_colors", action="store_true",
+                   help="Use each shape's own color for option panels instead of random palette colors.")
     return p.parse_args()
 
 
@@ -116,6 +126,7 @@ def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx
         ref_rot_C_idx=rot_C_idx,
         rot_step_override=rot_step,
         bw_intermediate=getattr(args, "bw_intermediate", False),
+        randomize_option_colors=not getattr(args, "default_option_colors", False),
     )
 
     img_filename   = f"{sample_id:06d}.png"
@@ -131,9 +142,10 @@ def _generate_record(sample_id, shape_A, rot_A_idx, rot_step, shape_C, rot_C_idx
     return {
         "sample_id":             sample_id,
         "img_path":              os.path.join("images", img_filename),
-        "question":              ANALOGY_QUESTION.format(
-            transform_description=sample["transform_description"]
-        ),
+        "question":              (
+            ANALOGY_QUESTION_DEFAULT_COLORS if getattr(args, "default_option_colors", False)
+            else ANALOGY_QUESTION
+        ).format(transform_description=sample["transform_description"]),
         "answer":                sample["answer"],
         "bboxs":                 sample["bboxes"],
         "reasoning_traces":      trace,

@@ -279,6 +279,7 @@ def generate_analogy_sample(
     ref_rot_C_idx: Optional[int] = None,
     rot_step_override: Optional[int] = None,
     bw_intermediate: bool = False,
+    randomize_option_colors: bool = True,
 ) -> Dict[str, Any]:
     """
     Generate one analogy sample:  A : B :: C : ?
@@ -548,13 +549,18 @@ def generate_analogy_sample(
     img_B = draw_piece_standalone(cells_B, shape_A["color"], cell_size)
     img_C = draw_piece_on_grid(cells_C, shape_C["color"], off_C, grid_rows, grid_cols, cell_size)
 
-    # Assign a unique random color to each option so the model cannot use color
-    # as a shortcut and must rely purely on shape geometry.
-    option_colors = rng.sample(_OPTION_COLOR_PALETTE, 4)
-    opt_imgs = [
-        draw_piece_on_grid(cells, option_colors[i], off, grid_rows, grid_cols, opt_cell_size)
-        for i, (cells, off, _col) in enumerate(shuffled)
-    ]
+    # Assign colors to options: random palette (default) or each shape's own color.
+    if randomize_option_colors:
+        option_colors = rng.sample(_OPTION_COLOR_PALETTE, 4)
+        opt_imgs = [
+            draw_piece_on_grid(cells, option_colors[i], off, grid_rows, grid_cols, opt_cell_size)
+            for i, (cells, off, _col) in enumerate(shuffled)
+        ]
+    else:
+        opt_imgs = [
+            draw_piece_on_grid(cells, _col, off, grid_rows, grid_cols, opt_cell_size)
+            for cells, off, _col in shuffled
+        ]
 
     composite_img, bboxes = build_analogy_composite(img_A, img_B, img_C, opt_imgs)
 

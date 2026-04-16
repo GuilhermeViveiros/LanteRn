@@ -93,6 +93,8 @@ class FamilyGroupedDataset(Dataset):
                     if len(chunk) == chunk_size:
                         break
                 if len(chunk) < chunk_size:
+                    if chunk:
+                        chunks.append(chunk)
                     break  # not enough unique keys left for a full chunk
                 chunks.append(chunk)
                 rng.shuffle(keys)  # vary key order across chunks
