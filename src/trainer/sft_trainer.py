@@ -97,12 +97,10 @@ class LatentUtilityCallback(TrainerCallback):
         _dist = torch.distributed.is_available() and torch.distributed.is_initialized()
         rank  = torch.distributed.get_rank() if _dist else 0
 
-        # Each condition is assigned to one rank (0-3); ranks >= 4 sit idle.
+        # Each condition is assigned to one rank; ranks >= len(conditions) sit idle.
         conditions = [
-            ("latent_utility/gt",     dict(use_gt=True,  perturbation=None)),
-            ("latent_utility/own",    dict(use_gt=False, perturbation=None)),
-            ("latent_utility/random", dict(use_gt=False, perturbation="random")),
-            ("latent_utility/zeros",  dict(use_gt=False, perturbation="zeros")),
+            ("latent_utility/gt",  dict(use_gt=True,  perturbation=None)),
+            ("latent_utility/own", dict(use_gt=False, perturbation=None)),
         ]
 
         _C = "\033[96m"   # cyan
@@ -160,30 +158,26 @@ class LatentUtilityCallback(TrainerCallback):
 
                 results["train/global_step"] = state.global_step
                 wandb.log(results)
-                # Build generation table from the 4 conditions (ranks 0-3)
-                cond_preds   = {conditions[i][0].split("/")[-1]: gen_gather[i]["preds"]
-                                for i in range(len(conditions))}
-                prompts = gen_gather[0]["prompts"]  # same across all conditions
-                gts     = gen_gather[0]["gts"]      # ground truth labels from GT condition (rank 0), NOT own (rank 1)
-                n = min(len(gts), len(prompts), min(len(v) for v in cond_preds.values()))
-                if n > 0:
-                    columns = [
-                        "sample", "prompt", "true_label",
-                        "pred_gt",     "ans_gt",
-                        "pred_own",    "ans_own",
-                        "pred_random", "ans_random",
-                        "pred_zeros",  "ans_zeros",
-                    ]
-                    table = wandb.Table(columns=columns)
-                    for j in range(n):
-                        table.add_data(
-                            j, prompts[j], gts[j],
-                            cond_preds["gt"][j],     self._extract_answer(cond_preds["gt"][j]),
-                            cond_preds["own"][j],    self._extract_answer(cond_preds["gt"][j]),  # reference from pred_gt
-                            cond_preds["random"][j], self._extract_answer(cond_preds["random"][j]),
-                            cond_preds["zeros"][j],  self._extract_answer(cond_preds["zeros"][j]),
-                        )
-                    wandb.log({"generations/generations": table})
+                # # Build generation table
+                # cond_preds   = {conditions[i][0].split("/")[-1]: gen_gather[i]["preds"]
+                #                 for i in range(len(conditions))}
+                # prompts = gen_gather[0]["prompts"]
+                # gts     = gen_gather[0]["gts"]
+                # n = min(len(gts), len(prompts), min(len(v) for v in cond_preds.values()))
+                # if n > 0:
+                #     columns = [
+                #         "sample", "prompt", "true_label",
+                #         "pred_gt",  "ans_gt",
+                #         "pred_own", "ans_own",
+                #     ]
+                #     table = wandb.Table(columns=columns)
+                #     for j in range(n):
+                #         table.add_data(
+                #             j, prompts[j], gts[j],
+                #             cond_preds["gt"][j],  self._extract_answer(cond_preds["gt"][j]),
+                #             cond_preds["own"][j], self._extract_answer(cond_preds["own"][j]),
+                #         )
+                #     wandb.log({"generations/generations": table})
 
 class GenerationAccuracyCallback(TrainerCallback):
     """

@@ -82,21 +82,21 @@ _PRE_TEMPLATES = [
 ]
 
 _CORRECT_OPT_TEMPLATES = [
-    "This option closely resembles what we imagined — the query object rotated {angle} clockwise, consistent with the reference transformation.",
-    "This matches the shape we mentally constructed — the query object after a {angle} clockwise rotation, in line with the source-to-target transformation.",
-    "This option corresponds to the query object rotated {angle} clockwise, matching the reference transformation.",
-    "This is what the query object looks like after a {angle} clockwise rotation — consistent with the A→B pattern.",
-    "This matches our mental rotation: the query object turned {angle} clockwise, just like the reference.",
-    "This option shows the query object after the same {angle} clockwise rotation seen in the example.",
-    "The query object rotated {angle} clockwise produces this shape, matching the reference transformation.",
-    "This aligns with our imagined result — a {angle} clockwise rotation of the query object.",
-    "This option is the query object after a {angle} clockwise turn, consistent with the source-to-target change.",
-    "This matches what we pictured: the query rotated {angle} clockwise following the reference pattern.",
-    "This corresponds to applying the {angle} clockwise rotation from the example to the query object.",
-    "The shape here is consistent with rotating the query object {angle} clockwise as shown in A→B.",
-    "This is the expected result of a {angle} clockwise rotation applied to the query object.",
-    "This option reflects the query object after the same {angle} clockwise transformation.",
-    "This matches the mentally rotated query object — {angle} clockwise, as in the reference pair.",
+    "The mentally rotated shape resembles option ({answer}).",
+    "The result of this mental rotation corresponds to option ({answer}).",
+    "After rotating the query object, the resulting shape lines up with option ({answer}).",
+    "The rotated query shape matches option ({answer}).",
+    "Option ({answer}) matches the mentally rotated query object.",
+    "The query object after rotation looks like option ({answer}).",
+    "This mental image corresponds to option ({answer}).",
+    "The shape produced by this rotation matches option ({answer}).",
+    "After the rotation, the query object resembles option ({answer}).",
+    "The mentally rotated query object lines up with option ({answer}).",
+    "Option ({answer}) is consistent with the rotated query shape.",
+    "The result of rotating the query matches option ({answer}).",
+    "Option ({answer}) corresponds to the query object after the mental rotation.",
+    "The rotated query shape and option ({answer}) are the same.",
+    "Option ({answer}) is what the query object looks like after the rotation.",
 ]
 
 _TEXT_THINK_TEMPLATES = [
