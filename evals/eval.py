@@ -180,10 +180,6 @@ class MCDataset(Dataset):
             return [new_x1, new_y1, new_x1 + bw, new_y1 + bh]
         raise ValueError(f"Unknown bbox_ablation mode: {mode!r}")
 
-#TODO: Improve this... hardcoded just to evaluate monet model
-#system_content = "You can generate abstract visual tokens that represent a cropped image region or images with auxiliary information like lines, bounding boxes, etc. When you decide to generate abstract visual tokens, put them in <|lvr_start|>...<|lvr_end|>. Put your final answer inside <answer> tags"
-#system_content = "Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
-
 def collate_fn_mc(samples, processor: AutoProcessor):
     messages, labels, options = [], [], []
     cropped_images = []
@@ -228,11 +224,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_ref",
         type=str,
-        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-3000/"
-        #default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1_Monet/checkpoint-890"
-        #default="/mnt/scratch-artemis/gviveiros/Monet-SFT-7B/stage3/"
-        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/",
-    ) 
+        default=None,
+    )
     parser.add_argument(
         "--lvr",
         action=argparse.BooleanOptionalAction,
@@ -353,12 +346,7 @@ if __name__ == "__main__":
             generated_ids_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False
         )
 
-        # TODO: remove this after evaluation        
-        # monet model has som bug... workaround stop after the first point
-        # maybe its related to the prompt being used..
-        #decoded_output = [x.split(".")[0] for x in decoded_output]
-        # change observation with answer
-        #decoded_output = [x.replace("<observation>", "<answer>").replace("</observation>","</answer>") for x in decoded_output]
+
 
         
         print("-"*100)
