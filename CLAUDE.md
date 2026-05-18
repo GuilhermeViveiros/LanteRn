@@ -123,9 +123,7 @@ These are registered by `set_latent_tokens()` in `src/train/__init__.py` and sto
 
 `len(bboxs)` must equal `len(post_visual_latent_reasoning)`.
 
-## Known Issues / Notes
+## Notes
 
-- `evals/eval.py` contains `pdb.set_trace()` calls left in from debugging — remove before running non-interactively.
-- `src/train/train_grpo.py` has a hardcoded `resume_from_checkpoint` path (line 84); set to `None` or use `get_last_checkpoint()` for fresh runs.
 - `attn_implementation` is forced to `"eager"` in `load_model()` (flash_attention_2 is commented out).
 - `latent_size=-1` means dynamic size (same number of tokens as visual features); any positive int fixes the compression target.
