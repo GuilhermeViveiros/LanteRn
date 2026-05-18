@@ -22,14 +22,28 @@ def apply_latent_compression(
         self: Model object with callable `get_image_features` method and `config`.
         latent_values (torch.Tensor): Batch of latent visual values (typically images or features),
           batched as required by `get_image_features`.
-        latent_grid_thw (torch.LongTensor): Batch of grid dimensions for each latent input, used by `get_image_features` to extract visual features.
-        latent_size (int): Desired number of averaged latent embeddings per sample.
-    """
+        latent_grid_thw (torch.LongTensor): Batch of grid dimensions for each latent input, used
+          by `get_image_features` to extract visual features.
+        latent_size (int): Desired number of averaged latent embeddings per sample. If -1, dynamic
+          (returns same number of latent tokens as visual features).
 
+    Returns:
+        torch.Tensor: Patch-averaged latent embeddings of shape (batch_size, latent_size, hidden_dim),
+          suitable for masked scattering onto <|lvr_sep|> token positions in the LLM embedding sequence.
+
+    Notes:
+        - If the number of extracted visual features does not exactly match the desired latent_size,
+          features are grouped and averaged such that the final output per sample matches `latent_size`.
+        - Excess features are dropped (from the end) to ensure divisibility, to minimize feature skew.
+    """
+    
     # ---------------------------------------------------------
     # 1) Compute latent image features once (batched)
     # ---------------------------------------------------------
     latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)
+    if latent_size == -1:
+        return list(latent_image_embeds)
+
 
     # ---------------------------------------------------------
     # 2) Process latent image features into exactly `latent_size` tokens

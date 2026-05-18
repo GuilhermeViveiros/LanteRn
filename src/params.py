@@ -50,7 +50,7 @@ class TrainingParams(HFTrainingArguments):
     freeze_llm: bool = field(default=False)
     freeze_latent_only: bool = field(default=False)  # if True, freeze everything except latent token embeddings
     eval_strategy: str = field(default="steps")
-    eval_steps: int = field(default=100)
+    eval_steps: int = field(default=310)
     test_steps: int = field(default=100)
     dataloader_num_workers: int = field(default=4)
     dataloader_persistent_workers: bool = field(default=True)

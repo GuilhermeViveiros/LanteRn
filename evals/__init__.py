@@ -78,7 +78,7 @@ def run_batch_inference(
 
     assert "latent_values" not in inputs, "remove latent values from inputs during inference"
 
-    # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
+    # pass ground truth latent embeddings for debugging purposes
     # this will be removed in the future (just for stress testing purposes)
     return model.generate(
         **inputs,
