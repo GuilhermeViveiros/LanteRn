@@ -1,0 +1,37 @@
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (unused imports, undefined names)
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E741",  # ambiguous variable name (common in ML/math code)
+    "F841",  # local variable assigned but never used (common in research code)
+    "UP007", # use X | Y for union types (requires Python 3.10+)
+    "UP035", # deprecated typing imports (gradual migration)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "evals", "utils", "synthetic"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # allow unused imports in __init__ files
+"src/lantern_generate/generate.py" = ["F821"]  # BaseStreamer is a forward reference string annotation
+"synthetic/Tetris/analogy_simulator.py" = ["F821", "E402"]  # recursive call uses outer-scope params; imports after color constants
+"synthetic/Tetris/reasoning.py" = ["E402"]
+"src/train/train_sft.py" = ["E402"]  # env vars must be set before torch/CUDA imports (SLURM distributed setup)
+"src/train/train_grpo.py" = ["E402"]  # rewards module imported after logger setup intentionally
+"synthetic/viscot/**" = ["I001"]  # utils imports can't be resolved as first-party without install
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

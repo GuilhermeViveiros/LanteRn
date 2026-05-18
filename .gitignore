@@ -209,3 +209,12 @@ wandb/
 logs/
 scripts/img2repr.py
 *.json
+sample*
+demo/*
+ref_logs/*
+diagnose*
+test.py
+wb.sh
+results/
+experiments/
+hf_push.py

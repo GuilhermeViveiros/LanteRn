@@ -1,11 +1,12 @@
 import re
-from typing import Any, Dict, List, Union, Callable
+from typing import Any, Callable, Union
 
-from src.rl.utils import extract_last_answer_from_text
+from fuzzywuzzy import fuzz
 
+from src.rl.utils import ANSWER_RE, ANSWER_TERM_RE, THINK_RE, extract_last_answer_from_text
 
 # builder: (model, **kwargs) -> reward_fn
-REWARD_REGISTRY: Dict[str, Callable[..., Callable]] = {}
+REWARD_REGISTRY: dict[str, Callable[..., Callable]] = {}
 
 
 def register_reward(name: str):
@@ -18,23 +19,11 @@ def register_reward(name: str):
     return deco
 
 
-@register_reward("accuracy")
-def build_accuracy_reward(model, **_kwargs):
-    # model is always provided; unused here
-    return accuracy_reward
-
-
-@register_reward("lvr_presence")
-def build_lvr_presence_reward(model, **_kwargs):
-    return make_lvr_presence_reward_from_ids(model)
-
-
 # ----------------------------
 # Reward functions
 # ----------------------------
-
-
-def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
+@register_reward("accuracy")
+def accuracy_reward(completions, ground_truth, **kwargs) -> list[float]:
     """
     Reason:
       - Reward is based ONLY on what is inside the last <answer>...</answer>.
@@ -43,46 +32,67 @@ def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
       - if no <answer> => reward 0
     """
     out = []
-    for comp, gt in zip(completions, ground_truth):
-        # print(comp)
-        text = completion_to_text(comp)
+    for text, gt in zip(completions, ground_truth):
         pred = extract_last_answer_from_text(text)
         if pred == "":
+            # print("Pred: ", pred, "GT: ", gt)
+            # print("-"*30)
             out.append(0.0)
         else:
-            out.append(1.0 if normalize_answer(pred) == normalize_answer(gt) else 0.0)
+            ratio = fuzz.ratio(normalize_answer(pred), normalize_answer(gt))
+            # print("Pred: ", pred, "GT: ", gt, "Ratio: ", ratio)
+            ratio = 0 if ratio < 70 else ratio / 100.0
+            # print("-"*30)
+            out.append(ratio)
     return out
 
 
-def make_lvr_presence_reward_from_ids(model):
+@register_reward("structure")
+def structure_reward(completions: list[str], latent_size: int, **kwargs) -> list[float]:
+    """
+    Reason:
+      - Reward is based on the structure of the completion.
+      - The structure should be: <think>...<lvr_start>...<lvr_end>...</think><answer>...<answer>...</answer>
+    Assumptions:
+      - if no <think> or no <answer> => reward 0
+      - if <think> and <answer> are present but <lvr_start>...</lvr_end> is not => reward 0.5
+
+    """
     # Exact contiguous block in IDs
-    lvr_block = (
-        [model.config.lvr_start_id]
-        + [model.config.lvr_sep_id] * model.config.latent_size
-        + [model.config.lvr_end_id]
-    )
+    lvr_block = "<|lvr_start|>" + "<|lvr_sep|>" * latent_size + "<|lvr_end|>"
 
-    def _find_subseq(seq, pat):
-        L = len(pat)
-        if L == 0 or len(seq) < L:
-            return False
-        for i in range(len(seq) - L + 1):
-            if seq[i : i + L] == pat:
-                return True
-        return False
+    def _find_subseq(seq: str, pat: str) -> int:
+        """
+        Check how many times a contiguous block of LVR tokens appears in a sequence.
+        """
+        pattern = re.escape(lvr_block)
+        return len(re.findall(pattern, seq))
 
-    def lvr_reward(*, completions_ids=None, **kwargs):
-        # TRL GRPO uses `completions_ids`; keep fallback just in case
-        if completions_ids is None:
-            completions_ids = kwargs.get("completion_ids")
-        if completions_ids is None:
-            raise ValueError(
-                "Reward func didn't receive completions_ids/completion_ids."
-            )
+    # each sequence should have exactly one answer tag and >= 1 lvr tags
+    rewards = []
+    for seq in completions:
+        answer_tags = ANSWER_RE.findall(seq or "")
+        answer_term_tags = ANSWER_TERM_RE.findall(seq or "")
 
-        return [1.0 if _find_subseq(ids, lvr_block) else 0.0 for ids in completions_ids]
+        think_tags = THINK_RE.findall(seq or "")
+        lvr_tags = _find_subseq(seq, lvr_block)
 
-    return lvr_reward
+        # if multiple answer tags return 0
+        if len(answer_tags) > 1 or len(answer_term_tags) > 1:
+            rewards.append(0.0)
+        # if no answer tag return 0
+        elif len(answer_tags) == 0 or len(think_tags) == 0 or len(think_tags) > 1:
+            rewards.append(0.0)
+        # if answer, think and lvr are present add 1
+        elif len(answer_tags) == 1 and len(think_tags) == 1 and lvr_tags >= 1:
+            rewards.append(1.0)
+        # if answer and think are present but lvr is not return 0.5
+        elif len(answer_tags) == 1 and len(think_tags) == 1 and lvr_tags == 0:
+            rewards.append(0.5)
+
+        else:
+            rewards.append(0.0)
+    return rewards
 
 
 # ----------------------------
@@ -116,7 +126,7 @@ def _blocks_to_text(content_blocks: Any) -> str:
 
 
 def completion_to_text(
-    completion: Union[str, Dict[str, Any], List[Dict[str, Any]]],
+    completion: Union[str, dict[str, Any], list[dict[str, Any]]],
 ) -> str:
     """
     Reason:
@@ -145,3 +155,15 @@ def completion_to_text(
         return content if isinstance(content, str) else _blocks_to_text(content)
 
     return ""
+
+
+if __name__ == "__main__":
+    completions = [
+        "<think>I think the answer is 42.</think><answer>42</answer>",
+        "<think>I think the answer is 42.</think><answer>42</answer><answer>42</answer>",
+        "<think>I think the answer is 42.</think><answer>42</answer>42</answer>",
+    ]
+
+    rewards = structure_reward(completions, 8)
+
+    print(rewards)

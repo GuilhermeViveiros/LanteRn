@@ -1,24 +1,31 @@
 #!/bin/bash
-
-#conda activate lantern
+#SBATCH --account=jureap126
+#SBATCH --partition=booster
+#SBATCH --nodes=4
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=64
+#SBATCH --gres=gpu:4
+#SBATCH --time=12:00:00
+#SBATCH --job-name=lantern-sft-3b
+#SBATCH --output=/e/project1/jureap126/gviveiros/lantern/logs/sft_3b.out
+#SBATCH --error=/e/project1/jureap126/gviveiros/lantern/logs/sft_3b.err
 
 # model configs
-MODEL_ID="Qwen/Qwen2.5-VL-3B-Instruct"
+MODEL_ID="$HOME/.cache/huggingface/hub/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/66285546d2b821cf421d4f5eb2576359d3770cd3"
+export WANDB_MODE=offline
 export WANDB_PROJECT="LantErn-SFT"
-REPO="/home/gviveiros/LantErn"
-#export WANDB_DIR="/mnt/scratch-artemis/gviveiros/lantern/"
-
-# dont use wandb for now
-#export WANDB_DISABLED=True
+REPO="/e/home/jusers/viveiros1/jupiter/LantErn"
 
 RANDOM_SEED=42
-DATA_PATH="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
+DATA_PATH="/e/project1/jureap126/gviveiros/lantern/LantErn_VisCot_data.json"
+FILTER_IDS_PATH="$REPO/results/filter_training/keep_and_hard_ids.json"  # 59616 samples (keep + hard, excludes easy)
 
+GPUS_PER_NODE=4
 GLOBAL_BATCH_SIZE=128
-BATCH_PER_DEVICE=8
-NUM_DEVICES=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-echo "Number of GPUs: $NUM_DEVICES"
-# must be a multiple of BATCH_PER_DEVICE
+BATCH_PER_DEVICE=4
+NUM_DEVICES=$(( SLURM_NNODES * GPUS_PER_NODE ))
+echo "Nodes: $SLURM_NNODES, GPUs per node: $GPUS_PER_NODE, total devices: $NUM_DEVICES"
+
 if [ $((GLOBAL_BATCH_SIZE % BATCH_PER_DEVICE)) -ne 0 ]; then
     echo "GLOBAL_BATCH_SIZE must be a multiple of BATCH_PER_DEVICE"
     exit 1
@@ -31,196 +38,49 @@ echo "Gradient accumulation steps: $GRAD_ACCUM_STEPS"
 
 # LLM-related params
 LR=1e-5
-LVR_HEAD=False
 
 # LantErn-related params
-LANTERN_LOSS_FCT=mse
-
-
-
-RUN_NAME="sft_${LANTERN_LOSS_FCT}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
-# ONLINE=True to enable online checkpointing with OCI
-OUTPUT_DIR="stage1_checkpoints/"
-LR=1e-5
-
-# if continue training, set checkpoint_name = checkpoint to continue;
-# --checkpoint_name checkpoint-1400
-
-
-#DEEPSPEED=scripts/zero3.json
+LAMBDA_LANTERN=0.1
+LATENT_SIZE=8
+CORRUPT_IMAGE=False
+CORRUPTION_TYPE="bbox_blackout"
+FREEZE_LATENT_ONLY=False
+LATENT_LOSS_TYPE="infonce"   # mse | infonce | cosine
+TEMPERATURE=0.07
+RUN_NAME="jupi_sft_${LATENT_LOSS_TYPE}_lt_${LATENT_SIZE}_lambda_${LAMBDA_LANTERN}"
 
 export OMP_NUM_THREADS=1
-export PYTHONPATH=/home/gviveiros/LantErn:$PYTHONPATH
+export PYTHONPATH=/e/home/jusers/viveiros1/jupiter/LantErn:$PYTHONPATH
 
-# LATENT_SIZE=4
-# LAMBDA_LANTERN=0.0
-# RUN_NAME="sft_mse_lt_4_lambda_0.0"
-# deepspeed $REPO/src/train/train.py \
-#     --deepspeed scripts/zero3.json \
-#     --run_name $RUN_NAME \
-#     --model_id $MODEL_ID \
-#     --num_train_epochs 1 \
-#     --latent_size $LATENT_SIZE \
-#     --per_device_train_batch_size $BATCH_PER_DEVICE \
-#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
-#     --dummy False \
-#     --learning_rate $LR \
-#     --gamma $LAMBDA_LANTERN \
-#     --report_to wandb \
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=29500
 
-# LATENT_SIZE=4
-# LAMBDA_LANTERN=0.1
-# RUN_NAME="sft_mse_lt_4_lambda_0.1"
-# deepspeed $REPO/src/train/train.py \
-#     --deepspeed scripts/zero3.json \
-#     --run_name $RUN_NAME \
-#     --model_id $MODEL_ID \
-#     --num_train_epochs 1 \
-#     --latent_size $LATENT_SIZE \
-#     --per_device_train_batch_size $BATCH_PER_DEVICE \
-#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
-#     --dummy False \
-#     --learning_rate $LR \
-#     --gamma $LAMBDA_LANTERN \
-#     --report_to wandb \
+mkdir -p /e/project1/jureap126/gviveiros/lantern/logs
 
-# LATENT_SIZE=4
-# LAMBDA_LANTERN=0.2
-# RUN_NAME="sft_mse_lt_4_lambda_0.2"
-# deepspeed $REPO/src/train/train.py \
-#     --deepspeed scripts/zero3.json \
-#     --run_name $RUN_NAME \
-#     --model_id $MODEL_ID \
-#     --num_train_epochs 1 \
-#     --latent_size $LATENT_SIZE \
-#     --per_device_train_batch_size $BATCH_PER_DEVICE \
-#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
-#     --dummy False \
-#     --learning_rate $LR \
-#     --gamma $LAMBDA_LANTERN \
-#     --report_to wandb \
-
-LATENT_SIZE=8
-LAMBDA_LANTERN=0.1
-RUN_NAME="sft_mse_lt_8_lambda_0.1"
-deepspeed $REPO/src/train/train.py \
-    --deepspeed scripts/zero3.json \
+# One srun task per node; torchrun spawns GPUS_PER_NODE processes per node.
+# $SLURM_NODEID must be escaped so it is evaluated per-task, not in the batch script.
+srun --ntasks-per-node=1 bash -c "torchrun \
+    --nnodes=$SLURM_NNODES \
+    --nproc_per_node=$GPUS_PER_NODE \
+    --node_rank=\$SLURM_NODEID \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT \
+    $REPO/src/train/train_sft.py \
+    --deepspeed $REPO/scripts/zero2.json \
     --run_name $RUN_NAME \
     --model_id $MODEL_ID \
     --num_train_epochs 1 \
     --latent_size $LATENT_SIZE \
     --per_device_train_batch_size $BATCH_PER_DEVICE \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
+    --output_dir /e/project1/jureap126/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
-    --report_to wandb \
-
-
-
-
-LATENT_SIZE=16
-LAMBDA_LANTERN=0.1
-RUN_NAME="sft_mse_lt_16_lambda_0.1"
-deepspeed $REPO/src/train/train.py \
-    --deepspeed scripts/zero3.json \
-    --run_name $RUN_NAME \
-    --model_id $MODEL_ID \
-    --num_train_epochs 1 \
-    --latent_size $LATENT_SIZE \
-    --per_device_train_batch_size $BATCH_PER_DEVICE \
-    --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-    --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-    --output_dir /mnt/scratch-artemis/gviveiros/lantern/checkpoints/$RUN_NAME \
-    --dummy False \
-    --learning_rate $LR \
-    --gamma $LAMBDA_LANTERN \
-    --report_to wandb \
-
-
-
-# python -m src.train.train \
-#     --run_name "$RUN_NAME" \
-#     --model_id $MODEL_ID \
-#     --num_train_epochs 1 \
-#     --latent_size 4 \
-#     --per_device_train_batch_size $BATCH_PER_DEVICE \
-#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-#     --dummy False \
-#     --learning_rate $LR \
-#     --report_to wandb \
-
-
-# python -m src.train.train \
-#     --run_name "$RUN_NAME" \
-#     --model_id $MODEL_ID \
-#     --latent_size 4 \
-#     --gamma $LAMBDA_LANTERN \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-#     --dummy False
-
-
-
-# deepspeed src/train/train_lvr.py \
-#     --run_name "$RUN_NAME" \
-#     --coconut True \
-#     --loss_lvr_fct $LVR_LOSS_FCT\
-#     --deepspeed scripts/zero3_offload.json \
-#     --model_id $MODEL_NAME \
-#     --data_path "$DATA_PATH" \
-#     --remove_unused_columns False \
-#     --lvr_head $LVR_HEAD \
-#     --freeze_vision_tower True \
-#     --freeze_merger True \
-#     --freeze_llm False \
-#     --max_steps $MAX_STEPS \
-#     --learning_rate $LR \
-#     --loss_lvr_lambda $LAMBDA_LVR \
-#     --bf16 True \
-#     --fp16 False \
-#     --disable_flash_attn2 False \
-#     --online_checkpoint $ONLINE \
-#     --output_dir "$OUTPUT_DIR" \
-#     --num_train_epochs 1 \
-#     --per_device_train_batch_size $BATCH_PER_DEVICE \
-#     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
-#     --weight_decay 0.1 \
-#     --warmup_ratio 0.03 \
-#     --lr_scheduler_type "cosine" \
-#     --logging_steps 1 \
-#     --tf32 False \
-#     --gradient_checkpointing True \
-#     --report_to wandb \
-#     --lazy_preprocess True \
-#     --save_strategy "steps" \
-#     --save_steps 500 \
-#     --save_total_limit 10 \
-#     --dataloader_num_workers 8 \
-#     --enable_data_packing $DATA_PACKING \
-#     --max_packed_tokens $MAX_PACKED_TOKENS \
-#     --random_seed $RANDOM_SEED \
-#     --long_seq_threshold $LST \
-#     --max_instance_per_batch $MAX_INSTANCE_PER_BATCH \
-#     # save_total_limit is for local storage only, no limit for online checkpointing
-
-
-
-# python -m src.train.train \
-#     --model_id Qwen/Qwen2.5-VL-3B-Instruct \
-#     --num_train_epochs 1 \
-#     --latent_size 4 \
-#     --per_device_train_batch_size 1 \
-#     --data_path /mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json \
-#     --output_dir /mnt/data-artemis/gviveiros/lantern/checkpoints/model_stage1 \
-#     --dummy True \
+    --report_to none \
+    --resume_from_checkpoint False \
+    --corrupt_image $CORRUPT_IMAGE \
+    --corruption_type $CORRUPTION_TYPE \
+    --freeze_latent_only $FREEZE_LATENT_ONLY \
+    --latent_loss_type $LATENT_LOSS_TYPE \
+    --temperature $TEMPERATURE"

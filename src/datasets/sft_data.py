@@ -1,48 +1,65 @@
 """
 Dataset for supervised fine-tuning (SFT)
 """
-from typing import Optional, Tuple
-from functools import partial
-import torch
+
 import json
-from PIL import Image
-from torch.utils.data import Dataset, random_split
-from typing import List
-from src.utils import center_and_crop_image
-from transformers import AutoProcessor
-from qwen_vl_utils import process_vision_info
-# import logger 
+
+# import logger
 import logging
+from functools import partial
+from typing import Optional
+
+import torch
+from PIL import Image, ImageDraw
+from qwen_vl_utils import process_vision_info
+from torch.utils.data import Dataset, random_split
+from transformers import AutoProcessor
+
+from src.constants import TEXTVQA_BAD_SAMPLE, VISCOT_DATA_PATH, VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
+from src.utils import center_and_crop_image
+
 logger = logging.getLogger("LantErn-Dataset")
+
 
 class SFTDataset(Dataset):
     def __init__(
         self,
         data_path: str,
         processor: AutoProcessor,
-        dummy: bool = False
+        dummy: bool = False,
+        corrupt_image: bool = False,
+        corruption_type: str = "bbox_blackout",
+        filter_ids_path: Optional[str] = None,
+        use_lvr: bool = True,
     ):
-        super(SFTDataset, self).__init__()
+        super().__init__()
         self.processor = processor
-        with open(data_path, "r") as f:
-            self.dataset = json.load(f)
+        self.corrupt_image = corrupt_image
+        self.corruption_type = corruption_type
+        self.use_lvr = use_lvr
+        with open(data_path) as f:
+            raw = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
-        for data in self.dataset: # MINOR BUGG: ignore this sample for now
-            if data["img_path"] == "/mnt/data-artemis/gviveiros/lantern/textvqa/34084d4c3c347b83.jpg":
-                self.dataset.remove(data)
+        for data in raw:  # MINOR BUGG: ignore this sample for now
+            if data["img_path"] == TEXTVQA_BAD_SAMPLE:
+                raw.remove(data)
 
-        def pre_validation(data, idx):
-            # ignore samples with more than 1 bbox
+        filter_ids = None
+        if filter_ids_path is not None:
+            with open(filter_ids_path) as f:
+                filter_ids = set(json.load(f)["keep_ids"])
+            logger.info(f"Filtering dataset to {len(filter_ids)} indices from {filter_ids_path}")
+
+        self.dataset = []
+        for orig_idx, data in enumerate(raw):
             if len(data["bboxs"]) > 1:
-                return False
-            return True
-    
-        
-        logger.info(f"Number of examples of VisCoT data: {len(self.dataset)}")
-        # remove cases where the image is too large and bboxs are more than 1
-        self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
-        logger.info(f"Number of examples of VisCoT data after removing examples with more than 1 bbox: {len(self.dataset)}")
-        
+                continue
+            if filter_ids is not None and orig_idx not in filter_ids:
+                continue
+            self.dataset.append(data)
+
+        logger.info(f"Number of examples of VisCoT data after filtering: {len(self.dataset)}")
+
         # if dummy, we only use the first 1000 examples
         if dummy:
             self.dataset = self.dataset[:1000]
@@ -60,19 +77,34 @@ class SFTDataset(Dataset):
         pre_visual_latent_reasoning = reasoning_traces.get("pre_visual_text_think", None)
         post_visual_latent_reasoning = reasoning_traces.get("post_visual_text_think", None)
         text_only_reasoning = reasoning_traces.get("text_think", None)
-        
+
         # Validate reasoning traces
         if text_only_reasoning is None:
-            assert post_visual_latent_reasoning is not None or pre_visual_latent_reasoning is not None, \
-                "If text_reasoning is not None, post_visual_latent_reasoning or pre_visual_latent_reasoning must be not None"
-            
+            assert (
+                post_visual_latent_reasoning is not None or pre_visual_latent_reasoning is not None
+            ), "If text_reasoning is not None, post_visual_latent_reasoning or pre_visual_latent_reasoning must be not None"
+
         # Extract the image and process bboxes
-        img = Image.open(data["img_path"])
-    
+        img_path = data["img_path"].replace(VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK)
+        img = Image.open(img_path)
+
+        # Corrupt the main image if requested; latent crops always use the original
+        if self.corrupt_image and data.get("bboxs"):
+            img_main = img.copy().convert("RGB")
+            if self.corruption_type == "bbox_blackout":
+                draw = ImageDraw.Draw(img_main)
+                for bbox in data["bboxs"]:
+                    x1, y1, x2, y2 = bbox
+                    draw.rectangle([x1, y1, x2, y2], fill=(0, 0, 0))
+            else:
+                raise ValueError(f"Unknown corruption_type: {self.corruption_type}")
+        else:
+            img_main = img
+
         # Build user content
         user_content = [
             {"type": "text", "text": question},
-            {"type": "image", "image": img},
+            {"type": "image", "image": img_main},
         ]
 
         # Build assistant content
@@ -85,31 +117,33 @@ class SFTDataset(Dataset):
             assistant_content = "<think>"
             img_bboxs = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]
             # Validate bbox count matches post_reasoning_trace count
-            assert len(img_bboxs) == len(post_visual_latent_reasoning), \
-                f"The number of bboxs ({len(img_bboxs)}) and post_visual_latent_reasoning ({len(post_visual_latent_reasoning)}) must be the same for example {idx}"
-
+            assert (
+                len(img_bboxs) == len(post_visual_latent_reasoning)
+            ), f"The number of bboxs ({len(img_bboxs)}) and post_visual_latent_reasoning ({len(post_visual_latent_reasoning)}) must be the same for example {idx}"
 
             # Build assistant content by adding pre_visual_latent_reasoning, and interleaving bbox images with post_visual_latent_reasoning
             if pre_visual_latent_reasoning is not None:
                 assistant_content += pre_visual_latent_reasoning
             for img_bbox, post_visual_latent_reasoning in zip(img_bboxs, post_visual_latent_reasoning, strict=True):
-                latent_visuals.append(img_bbox)
-                assistant_content += "<|lvr_start|><|lvr_sep|><|lvr_end|>" # lvr_sep will be replaced by the latent tokens in the forward pass (similar to visual_pad tokens)
+                if self.use_lvr:
+                    latent_visuals.append(img_bbox)
+                assistant_content += "<|lvr_start|><|lvr_sep|><|lvr_end|>"
                 assistant_content += post_visual_latent_reasoning
-        
+
         # Add the final answer
         assistant_content += "</think>" + "<answer>" + answer + "</answer>"
-        
+
         return [
-            {"role": "user","content": user_content},
-            {"role": "assistant","content": [{"type": "text", "text": assistant_content}]},
-            {"role": "assistant","content": [{"type": "image", "image": img} for img in latent_visuals]}, # latent images to be removed afer
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": [{"type": "text", "text": assistant_content}]},
+            {
+                "role": "assistant",
+                "content": [{"type": "image", "image": img} for img in latent_visuals],
+            },  # latent images to be removed afer
         ]
 
-def mask_image_output_tokens(
-    input_ids: torch.Tensor,
-    image_token: int
-) -> torch.Tensor:
+
+def mask_image_output_tokens(input_ids: torch.Tensor, image_token: int) -> torch.Tensor:
     """
     Creates a mask of the same shape as `input_ids`, with 1's wherever we want to
     'mask out' <image_token> and 0's everywhere else.
@@ -123,30 +157,21 @@ def mask_image_output_tokens(
         - 1 = this position should be masked
         - 0 = this position is kept
     """
-    mask = (input_ids == image_token)
+    mask = input_ids == image_token
     return mask * 1
 
-def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
+
+def collate_fn_generate(samples: list[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
     labels = [s for bs in samples for s in bs if s["role"] == "assistant"]
-    labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>","") for l in labels]
-   
+    labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>", "") for l in labels]
+
     image_inputs, video_inputs = process_vision_info(user_samples)
-    text = processor.apply_chat_template(
-        user_samples,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    
-    inputs = processor(
-        text=text,
-        images=image_inputs,
-        videos=video_inputs,
-        return_tensors="pt",
-        padding=True
-    )
+    text = processor.apply_chat_template(user_samples, tokenize=False, add_generation_prompt=True)
+
+    inputs = processor(text=text, images=image_inputs, videos=video_inputs, return_tensors="pt", padding=True)
 
     # ground truth latent images
     nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
@@ -167,12 +192,13 @@ def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
 
     return (inputs, labels)
 
-def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
+
+def collate_fn_sft(samples: list[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     text = processor.apply_chat_template(samples, tokenize=False)
     image_inputs, video_inputs = process_vision_info(samples)
-    
+
     nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
     # replace the <|lvr_sep|> token with the number of latent tokens
     if nb_latent_visuals > 0:
@@ -187,7 +213,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
         )
         latent_visuals = latent_inputs["pixel_values"]
         latent_grid_thw = latent_inputs["image_grid_thw"]
-        merge_length = processor.image_processor.merge_size ** 2
+        merge_length = processor.image_processor.merge_size**2
 
         # Precompute num_latent_tokens efficiently using numpy where possible
         if processor.latent_size == -1:
@@ -195,7 +221,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
             num_latent_tokens = [g // merge_length for g in grid_prods]
         else:
             num_latent_tokens = [processor.latent_size] * len(latent_grid_thw)
-        
+
         # Replace <|lvr_sep|> efficiently
         lvr_sep = "<|lvr_sep|>"
         for idx, latent_tokens in enumerate(num_latent_tokens):
@@ -213,7 +239,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
         return_tensors="pt",
         padding="max_length",
         max_length=5000,
-        truncation=True
+        truncation=True,
     )
 
     labels = torch.ones_like(inputs["input_ids"]) * -100
@@ -221,8 +247,6 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     # think and answer mut not be a special token
     assistant_start_tokens = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
     assistant_end_tokens = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
-    
-
 
     def find_subsequence(seq: torch.Tensor, subseq: list) -> int:
         """
@@ -234,76 +258,139 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
             return -1
 
         for i in range(n - m + 1):
-            if seq[i:i+m] == subseq:
+            if seq[i : i + m] == subseq:
                 return i
         return -1
 
     # Process batch
     for i, ids in enumerate(inputs["input_ids"].tolist()):
-        
         ts = find_subsequence(ids, assistant_start_tokens)
-        te = ts + find_subsequence(ids[ts:], assistant_end_tokens)    
+        te = ts + find_subsequence(ids[ts:], assistant_end_tokens)
         assert ts != -1 and te != -1, "Markers missing in tokenization"
 
         start_pos = ts + len(assistant_start_tokens)
-        end_pos = te + len(assistant_end_tokens) - 1 # remove the <|im_end|> token (1 token since its a special token)
+        end_pos = te + len(assistant_end_tokens) - 1  # remove the <|im_end|> token (1 token since its a special token)
         labels[i, start_pos:end_pos] = torch.tensor(ids[start_pos:end_pos], dtype=torch.long)
-        #print(f"labels[i, start_pos:end_pos]: {processor.tokenizer.decode(labels[i, start_pos:end_pos], skip_special_tokens=False)}")
 
     labels[labels == processor.tokenizer.pad_token_id] = -100
     labels[labels == processor.lvr_sep_id] = -100
-    #print(f"labels != -100: {processor.tokenizer.decode(labels[labels != -100], skip_special_tokens=False)}")
     inputs["labels"] = labels
     inputs["latent_mask_out"] = mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
-    # decode labels != -100
-    decoded_labels = processor.tokenizer.decode(labels[labels != -100], skip_special_tokens=True)
-    # we are only interested in the latent images, so we return the latent inputs
-    inputs["latent_values"] = latent_inputs["pixel_values"]
-    inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
+    if nb_latent_visuals > 0:
+        inputs["latent_values"] = latent_inputs["pixel_values"]
+        inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
 
     return inputs
-    
+
+
+def collate_fn_sft_ntp(samples: list[dict], processor: AutoProcessor):
+    """Collate for text-only (NTP) mode: keeps <|lvr_start|>/<|lvr_sep|>/<|lvr_end|>
+    scaffold but expands <|lvr_sep|> to latent_size copies decoded as regular text
+    tokens (CE targets). No visual embedding injection, no MSE loss."""
+    latent_visuals = [s.pop(-1) for s in samples]  # discard — no visual injection
+    text = processor.apply_chat_template(samples, tokenize=False)
+    image_inputs, video_inputs = process_vision_info(samples)
+
+    # Expand <|lvr_sep|> to latent_size copies — same sequence length as LVR mode
+    latent_size = processor.latent_size
+    if latent_size > 1:
+        lvr_sep = "<|lvr_sep|>"
+        for idx in range(len(text)):
+            text[idx] = text[idx].replace(lvr_sep, lvr_sep * latent_size, 1)
+
+    inputs = processor(
+        text=text,
+        images=image_inputs,
+        videos=video_inputs,
+        return_tensors="pt",
+        padding="max_length",
+        max_length=5000,
+        truncation=True,
+    )
+
+    labels = torch.ones_like(inputs["input_ids"]) * -100
+    assistant_start_tokens = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
+    assistant_end_tokens = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
+
+    def find_subsequence(seq, subseq):
+        n, m = len(seq), len(subseq)
+        if m == 0 or n < m:
+            return -1
+        for i in range(n - m + 1):
+            if seq[i : i + m] == subseq:
+                return i
+        return -1
+
+    for i, ids in enumerate(inputs["input_ids"].tolist()):
+        ts = find_subsequence(ids, assistant_start_tokens)
+        te = ts + find_subsequence(ids[ts:], assistant_end_tokens)
+        assert ts != -1 and te != -1, "Markers missing in tokenization"
+        start_pos = ts + len(assistant_start_tokens)
+        end_pos = te + len(assistant_end_tokens) - 1
+        labels[i, start_pos:end_pos] = torch.tensor(ids[start_pos:end_pos], dtype=torch.long)
+
+    labels[labels == processor.tokenizer.pad_token_id] = -100
+    # lvr_sep positions are CE targets in NTP mode — do NOT mask them out
+    inputs["labels"] = labels
+
+    return inputs
+
+
 def make_sft_data_module(
     processor,
     data_path: str,
     dummy: bool = False,
     generate: bool = False,
-    split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
+    split_percentages: tuple[float, float, float] = (0.8, 0.2, 0.0),
     seed: int = 42,
-    **kwargs
+    corrupt_image: bool = False,
+    corruption_type: str = "bbox_blackout",
+    filter_ids_path: Optional[str] = None,
+    use_lvr: bool = True,
+    **kwargs,
 ):
     """Make dataset and collator for supervised fine-tuning."""
     sft_dataset = SFTDataset(
-        data_path=data_path, processor=processor, dummy=dummy
+        data_path=data_path,
+        processor=processor,
+        dummy=dummy,
+        corrupt_image=corrupt_image,
+        corruption_type=corruption_type,
+        filter_ids_path=filter_ids_path,
+        use_lvr=use_lvr,
     )
 
     # split the dataset into train, eval and test
     # test and val may be empty if the split percentages are 0
     assert sum(split_percentages) == 1, "Split percentages must sum to 1"
     assert split_percentages[0] > 0, "Train percentage must be greater than 0"
-    
-    train_percentage, \
-        eval_percentage, \
-            test_percentage = split_percentages
+
+    train_percentage, eval_percentage, test_percentage = split_percentages
 
     train_size = int(train_percentage * len(sft_dataset))
     eval_size = int(eval_percentage * len(sft_dataset))
     test_size = int(test_percentage * len(sft_dataset))
-    
-    if test_size+eval_size+train_size < len(sft_dataset):
-        eval_size += len(sft_dataset) - (test_size+eval_size+train_size) # add the remaining samples to the test_size
+
+    if test_size + eval_size + train_size < len(sft_dataset):
+        eval_size += len(sft_dataset) - (
+            test_size + eval_size + train_size
+        )  # add the remaining samples to the test_size
 
     logger.info(f"Total size: {len(sft_dataset)}, train: {train_size}, eval: {eval_size}, test: {test_size}")
 
-    train_dataset, eval_dataset, test_dataset = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
+    train_dataset, eval_dataset, test_dataset = random_split(
+        sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed)
+    )
 
     # set the collate function
-    collate_fn = collate_fn_sft if not generate else collate_fn_generate
+    if generate:
+        collate_fn = collate_fn_generate
+    elif use_lvr:
+        collate_fn = collate_fn_sft
+    else:
+        collate_fn = collate_fn_sft_ntp
 
-    out = {
-        "train_dataset": train_dataset,
-        "data_collator": partial(collate_fn, processor=processor)
-    }   
+    out = {"train_dataset": train_dataset, "data_collator": partial(collate_fn, processor=processor)}
     if eval_size > 0:
         out["eval_dataset"] = eval_dataset
     if test_size > 0:
@@ -314,11 +401,12 @@ def make_sft_data_module(
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    data_path="/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
 
+    data_path = VISCOT_DATA_PATH
 
     # load the visual model
     from transformers import AutoProcessor
+
     model_id = "Qwen/Qwen2.5-VL-3B-Instruct"
     processor = AutoProcessor.from_pretrained(model_id)
     # add special tokens for LantErn
@@ -326,10 +414,7 @@ if __name__ == "__main__":
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=True)
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True)
 
-    data_module = make_sft_data_module(
-        processor=processor, 
-        data_path=data_path
-    )
+    data_module = make_sft_data_module(processor=processor, data_path=data_path)
 
     for sample in data_module["train_dataset"]:
         logger.info(sample)
@@ -337,13 +422,17 @@ if __name__ == "__main__":
 
     # test with the dataloader
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(data_module["train_dataset"], batch_size=1, collate_fn=data_module["data_collator"], shuffle=False)
+
+    dataloader = DataLoader(
+        data_module["train_dataset"], batch_size=1, collate_fn=data_module["data_collator"], shuffle=False
+    )
     sizes = []
     for batch in tqdm(dataloader):
         sizes.append(batch["input_ids"].shape[1])
-    
+
     # log some stats about the sizes, the quantiles, the mean, the std, the max, the min
     import numpy as np
+
     logger.info(f"Sizes: {sizes}")
     logger.info(f"Quantiles: {np.quantile(sizes, [0.25, 0.5, 0.75])}")
     logger.info(f"Mean: {np.mean(sizes)}")

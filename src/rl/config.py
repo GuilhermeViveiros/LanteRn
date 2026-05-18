@@ -1,6 +1,9 @@
-from trl import GRPOConfig
-from typing import Optional, List
 from dataclasses import dataclass, field
+from typing import Optional
+
+from trl import GRPOConfig
+
+from src.constants import RL_DATA_PATH, SCRATCH_HADES
 
 
 @dataclass
@@ -8,16 +11,16 @@ class GRPOParams(GRPOConfig):
     # ------------------------------------------------------------------
     # Model (NONE in GRPOConfig)
     # ------------------------------------------------------------------
-    model_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")  # fmt: skip
+    model_path: str = field(default=f"{SCRATCH_HADES}/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")  # fmt: skip
     freeze_vision: bool = field(default=True)  # NOT in GRPOConfig
     freeze_vision_proj: bool = field(default=False)  # NOT in GRPOConfig
 
     # ------------------------------------------------------------------
     # Output / run identity
     # ------------------------------------------------------------------
-    output_dir: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl")  # fmt: skip
+    output_dir: str = field(default=f"{SCRATCH_HADES}/checkpoints-rl")  # fmt: skip
     run_name: str = field(default="qwen25vl-grpo-lvr-night")
-    report_to: List[str] = field(default_factory=lambda: ["wandb"])
+    report_to: list[str] = field(default_factory=lambda: ["wandb"])
 
     # ------------------------------------------------------------------
     # Precision & compute
@@ -69,8 +72,8 @@ class GRPOParams(GRPOConfig):
     # - reward_names is NOT in GRPOConfig (trainer-side bookkeeping in your code)
     # - reward_weights: depending on TRL version, this may exist on GRPOConfig; if it doesn't, keeping it here is fine
     # ------------------------------------------------------------------
-    reward_names: List[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])  # fmt: skip
-    reward_weights: List[float] = field(default_factory=lambda: [1.0, 1.0])
+    reward_names: list[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])  # fmt: skip
+    reward_weights: list[float] = field(default_factory=lambda: [1.0, 1.0])
 
     def __post_init__(self):
         super().__post_init__() if hasattr(super(), "__post_init__") else None
@@ -85,14 +88,14 @@ class GRPOParams(GRPOConfig):
 #     # ------------------------------------------------------------------
 #     # Model (non grpo config related)
 #     # ------------------------------------------------------------------
-#     model_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")  # fmt: skip
+#     model_path: str = field(default=f"{SCRATCH_HADES}/checkpoints/sft_mse_lt__lambda_0.1/checkpoint-995")  # fmt: skip
 #     freeze_vision: bool = field(default=True)
 #     freeze_vision_proj: bool = field(default=False)
 
 #     # ------------------------------------------------------------------
 #     # Output / run identity (model_path is here for convenience, not part of grpo config)
 #     # ------------------------------------------------------------------
-#     output_dir: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/checkpoints-rl")  # fmt: skip
+#     output_dir: str = field(default=f"{SCRATCH_HADES}/checkpoints-rl")  # fmt: skip
 #     run_name: str = field(default="qwen25vl-grpo-lvr-night")
 #     report_to: Optional[List[str]] = field(default_factory=lambda: ["wandb"])
 
@@ -174,5 +177,5 @@ class GRPOParams(GRPOConfig):
 
 @dataclass
 class ImageDataset:
-    json_path: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/lvr_data/virl39k.json")  # fmt: skip
-    image_root: str = field(default="/mnt/scratch-hades/nunogoncalves/LantErn/rl_dataset/")  # fmt: skip
+    json_path: str = field(default=RL_DATA_PATH)  # fmt: skip
+    image_root: str = field(default=f"{SCRATCH_HADES}/rl_dataset/")  # fmt: skip

@@ -4,23 +4,21 @@ import os
 # Third-party libraries
 # ------------------------------------------------------------------
 import torch
-from datasets import load_dataset
-from datasets.features import Image as HFImage
-from datasets.features import Sequence
 from transformers import HfArgumentParser
 from trl import GRPOTrainer
 
-# ------------------------------------------------------------------
+from datasets import load_dataset
+from datasets.features import Image as HFImage
+from datasets.features import Sequence
+
+# ------------------------------------------------r------------------
 # Local application imports
 # ------------------------------------------------------------------
 from src.models import load_model
-
+from src.rl import rewards as rewards_module
 from src.rl.config import GRPOParams, ImageDataset
 from src.rl.prompt import build_system_prompt
 from src.rl.utils import configure_generation_cache, convert_example, freeze_vision
-
-
-from src.rl import rewards as rewards_module
 
 
 def build_reward_funcs(grpo_params: GRPOParams, model):  # noqa: F811
@@ -94,9 +92,7 @@ def main(grpo_params: GRPOParams, json_path: str, image_root: str):
     ds = ds.cast_column("images", Sequence(HFImage()))
 
     # Convert to GRPO dataset columns (and drop old columns)
-    ds = ds.map(
-        lambda ex: convert_example(ex, system_prompt), remove_columns=ds.column_names
-    )
+    ds = ds.map(lambda ex: convert_example(ex, system_prompt), remove_columns=ds.column_names)
 
     # ----------------------------
     # 3) Train with GRPO

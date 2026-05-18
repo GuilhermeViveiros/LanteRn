@@ -1,10 +1,11 @@
 import re
-from typing import Any, Dict
+from typing import Any, Optional
 
 from src.rl.prompt import make_prompt_messages
 
-
 ANSWER_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", flags=re.DOTALL | re.IGNORECASE)
+ANSWER_TERM_RE = re.compile(r"</answer>", flags=re.DOTALL | re.IGNORECASE)
+THINK_RE = re.compile(r"<think>\s*(.*?)\s*</think>", flags=re.DOTALL | re.IGNORECASE)
 ANSWER_SPAN_RE = re.compile(r"<answer>.*?</answer>", flags=re.DOTALL | re.IGNORECASE)
 
 
@@ -44,7 +45,7 @@ def extract_last_answer_from_text(text: str) -> str:
     return matches[-1].strip() if matches else ""
 
 
-def convert_example(example: Dict[str, Any], system_prompt: str) -> Dict[str, Any]:
+def convert_example(example: dict[str, Any], system_prompt: Optional[str] = None) -> dict[str, Any]:
     """
     Reason:
       - Convert your JSON example into GRPO-friendly columns:
@@ -62,7 +63,7 @@ def convert_example(example: Dict[str, Any], system_prompt: str) -> Dict[str, An
     gt = extract_last_answer_from_text(asst_msg)
 
     return {
-        "prompt": make_prompt_messages(system_prompt, user_msg),
+        "prompt": make_prompt_messages(user_msg, system_prompt),
         "images": example["images"],  # list of PIL after cast
         "ground_truth": gt,
         "id": str(example.get("id", "")),
@@ -156,16 +157,12 @@ def freeze_vision(model, freeze_projector: bool = False):
             if hasattr(model, proj_name):
                 _freeze_module(getattr(model, proj_name), f"model.{proj_name}")
             if hasattr(model, "model") and hasattr(model.model, proj_name):
-                _freeze_module(
-                    getattr(model.model, proj_name), f"model.model.{proj_name}"
-                )
+                _freeze_module(getattr(model.model, proj_name), f"model.model.{proj_name}")
 
     # Print trainable parameter count (sanity check)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
-    print(
-        f"[freeze] trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)"
-    )
+    print(f"[freeze] trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)")
     if not frozen_any:
         print(
             "[freeze] WARNING: did not find a recognized vision module to freeze. "

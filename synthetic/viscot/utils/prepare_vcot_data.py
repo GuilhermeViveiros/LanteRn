@@ -1,12 +1,12 @@
-from torch.utils.data import DataLoader, Dataset
-import torch
-from datasets import load_dataset, Features, Value, Sequence, concatenate_datasets
 import copy
 import os
-import numpy as np
-from typing import List
 from dataclasses import dataclass
+
+import numpy as np
 from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+
+from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
 from utils.utils import center_and_crop_image
 
 IMG_FOLDER_PATH = "/mnt/data-artemis/gviveiros/lantern/"
@@ -14,7 +14,8 @@ IMG_FOLDER_PATH = "/mnt/data-artemis/gviveiros/lantern/"
 if not os.path.exists(IMG_FOLDER_PATH):
     raise FileNotFoundError(f"Image folder path {IMG_FOLDER_PATH} does not exist")
 
-def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: int, context_scale: float = 1.2):
+
+def filter_bbox_assement(bboxs: list[list[float]], img_height: int, img_width: int, context_scale: float = 1.2):
     """
     Filter the bounding box based on the area and context scale.
     Args:
@@ -35,7 +36,7 @@ def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: i
         if max(x1, x2) > img_width or max(y1, y2) > img_height:
             return False
         img_area = img_height * img_width
-        
+
         if not (bbox_area * context_scale > 0.05 * img_area and bbox_area * context_scale < 0.4 * img_area):
             return False
     return True
@@ -44,12 +45,12 @@ def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: i
 @dataclass
 class Sample:
     image: Image.Image
-    img_bboxes: List[Image.Image]
+    img_bboxes: list[Image.Image]
     question: str
     answer: str
     dataset: str
     img_path: str
-    bboxs: List[List[float]]
+    bboxs: list[list[float]]
     split: str
 
     # @staticmethod
@@ -68,10 +69,10 @@ class Sample:
 class VCoTData(Dataset):
     def __init__(
         self,
-        folder_path:str,
-        split:str="train",
-        shuffle:bool=False,
-        verbose:bool=False,
+        folder_path: str,
+        split: str = "train",
+        shuffle: bool = False,
+        verbose: bool = False,
     ):
         """
         Initialize the VCoT dataset.
@@ -85,21 +86,23 @@ class VCoTData(Dataset):
         - Filter every bounding box where area < 2% and > 40% of the image.
         """
         self.dataset_size = 0
-        features = Features({
-            "question": Value("string"),
-            "answer": Value("string"),
-            "image": Value("string"),
-            "width": Value("int64"),
-            "height": Value("int64"),
-            "bboxs": Sequence(Sequence(Value("float64"))),  # list of lists of floats
-            "dataset": Value("string"),
-            "split": Value("string"),
-        })
+        features = Features(
+            {
+                "question": Value("string"),
+                "answer": Value("string"),
+                "image": Value("string"),
+                "width": Value("int64"),
+                "height": Value("int64"),
+                "bboxs": Sequence(Sequence(Value("float64"))),  # list of lists of floats
+                "dataset": Value("string"),
+                "split": Value("string"),
+            }
+        )
         dataset_list = []
-        
+
         # get parent folder of the folder_path
         self.img_folder_path = IMG_FOLDER_PATH
-        
+
         for file in os.listdir(folder_path):
             if file.endswith(".jsonl"):
                 # if textcap is in the file name, skip it
@@ -122,7 +125,7 @@ class VCoTData(Dataset):
                 dataset = dataset.cast(features)
                 dataset_list.append(dataset)
                 self.dataset_size += len(dataset)
-        
+
         assert len(dataset_list) > 0, f"No datasets found in the folder {folder_path}"
         # concatenate the datasets
         self.dataset = concatenate_datasets(dataset_list)
@@ -143,21 +146,21 @@ class VCoTData(Dataset):
             raise FileNotFoundError(f"Image path {img_path} does not exist")
         img = Image.open(img_path)
         # save img
-        #img.save("img.jpg")
-        img_bboxes = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]    
+        # img.save("img.jpg")
+        img_bboxes = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]
 
         return Sample(
-            image=img, 
-            img_bboxes=img_bboxes, 
+            image=img,
+            img_bboxes=img_bboxes,
             img_path=img_path,
             question=data["question"],
             answer=data["answer"],
             dataset=data["dataset"],
             split=data["split"],
-            bboxs=data["bboxs"]
+            bboxs=data["bboxs"],
         )
 
-    def get_dataset_mix(self, verbose:bool=True):
+    def get_dataset_mix(self, verbose: bool = True):
         dataset_mix = []
         for sample in self.dataset:
             dataset_mix.append(sample["dataset"])
@@ -166,17 +169,17 @@ class VCoTData(Dataset):
             for d, size in zip(ds, ds_size):
                 print(f"Dataset: {d} - Size: {size}")
             return list(ds)
-        
+
         sorted_mix = sorted(set(dataset_mix))
         print(f"Dataset mix: {sorted_mix}")
         return list(set(dataset_mix))
 
     def filter(self, filter_fn):
         """Filter the dataset and update internal state.
-        
+
         Args:
             filter_fn: Function that takes a sample and returns True to keep it.
-        
+
         Returns:
             self (for method chaining)
         """
@@ -187,7 +190,7 @@ class VCoTData(Dataset):
     def copy(self):
         return copy.deepcopy(self)
 
-    def shuffle(self, seed:int=42):
+    def shuffle(self, seed: int = 42):
         self.dataset = self.dataset.shuffle(seed=seed)
         return self
 
@@ -201,10 +204,18 @@ class VCoTData(Dataset):
 if __name__ == "__main__":
     dataset = VCoTData(
         folder_path="/home/gviveiros/.cache/huggingface/hub/datasets--deepcs233--Visual-CoT/snapshots/223d2d8c1146fda2bb918801b8276c587b78b61c/metadata",
-        split="train"
+        split="train",
     )
     # dataset.get_dataset_mix(verbose=False)
-    dataloader = DataLoader(dataset, batch_size=6, shuffle=True, num_workers=1, pin_memory=True, persistent_workers=True, collate_fn=lambda x: x)
+    dataloader = DataLoader(
+        dataset,
+        batch_size=6,
+        shuffle=True,
+        num_workers=1,
+        pin_memory=True,
+        persistent_workers=True,
+        collate_fn=lambda x: x,
+    )
 
     for batch in dataloader:
         # do a verbose print of the batch content
@@ -214,5 +225,5 @@ if __name__ == "__main__":
             print(f"Image {i}: {sample.image.size} at img_path: {sample.img_path}")
         print("--------------------------------")
         break
-        
+
 # LANTERN -> LAteNt visual sTructurE ReasoniNg

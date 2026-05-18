@@ -1,12 +1,14 @@
-from typing import Optional, Union, Any, Tuple, List, Dict
 from dataclasses import dataclass
+from typing import Any, Optional, Union
+
 import torch
-from torch.nn import CrossEntropyLoss
 from transformers.cache_utils import Cache
-from transformers.utils import is_torchdynamo_compiling
 from transformers.modeling_outputs import ModelOutput
 from transformers.processing_utils import Unpack
+from transformers.utils import is_torchdynamo_compiling
+
 from src.models.utils import apply_latent_compression
+
 
 @dataclass
 class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
@@ -41,19 +43,22 @@ class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
 
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
-    past_key_values: Optional[List[torch.FloatTensor]] = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-    attentions: Optional[Tuple[torch.FloatTensor]] = None
+    past_key_values: Optional[list[torch.FloatTensor]] = None
+    hidden_states: Optional[tuple[torch.FloatTensor]] = None
+    attentions: Optional[tuple[torch.FloatTensor]] = None
     rope_deltas: Optional[torch.LongTensor] = None
     inputs_embeds: Optional[torch.FloatTensor] = None
     latent_mask: Optional[torch.BoolTensor] = None
-    last_position_hidden_state: Optional[torch.FloatTensor] = None
+    latent_hidden_state: Optional[torch.FloatTensor] = None
 
-'''
+
+"""
     Coconut mode
     No additional Head
     Custom implementation of LantErn on Qwen2.5VL model
-'''
+"""
+
+
 def qwen2_5_mixed_modality_forward_lantern(
     self,
     input_ids: Optional[torch.LongTensor] = None,
@@ -73,9 +78,18 @@ def qwen2_5_mixed_modality_forward_lantern(
     rope_deltas: Optional[torch.LongTensor] = None,
     cache_position: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
-    latent_values: Optional[torch.Tensor] = None, # Custom LantErn feature for Training: latent values for the visual reasoning
-    latent_grid_thw: Optional[torch.LongTensor] = None, # Custom LantErn feature for Training: latent grid dim for the visual reasoning
-    last_position_hidden_state: Optional[torch.FloatTensor] = None, # Custom LantErn feature for Inference: last position hidden state for the visual reasoning
+    latent_values: Optional[
+        torch.Tensor
+    ] = None,  # Custom LantErn feature for Training: latent values for the visual reasoning
+    latent_grid_thw: Optional[
+        torch.LongTensor
+    ] = None,  # Custom LantErn feature for Training: latent grid dim for the visual reasoning
+    latent_embeds: Optional[
+        torch.FloatTensor
+    ] = None,  # Custom LantErn feature for Inference: latent hidden state for the visual reasoning (either pass this or latent_values)
+    latent_mask: Optional[
+        torch.BoolTensor
+    ] = None,  # Custom LantErn feature for Inference: latent mask for the visual reasoning
     **kwargs: Unpack[Any],
 ) -> Union[tuple, Qwen2_5_VLCausalLMOutputWithPast]:
     r"""
@@ -88,19 +102,16 @@ def qwen2_5_mixed_modality_forward_lantern(
     second_per_grid_ts (`torch.Tensor` of shape `(num_videos)`, *optional*):
         The time interval (in seconds) for each grid along the temporal dimension in the 3D position IDs.
     """
-   
+
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
     output_hidden_states = (
         output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
     )
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-    # not every sample will have latent representations
-    latent_mask = None
     if inputs_embeds is None:
         inputs_embeds = self.get_input_embeddings()(input_ids)
-    
-        
+
     if pixel_values is not None:
         image_embeds = self.get_image_features(pixel_values, image_grid_thw)
         image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
@@ -109,6 +120,15 @@ def qwen2_5_mixed_modality_forward_lantern(
         )
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
+    # either pass latent_values or latent_hidden_state
+    assert not (
+        latent_values is not None and latent_embeds is not None
+    ), "Only one of latent_values or latent_hidden_state can be passed, not both"
+
+    if latent_embeds is not None:
+        # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
+        inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
+
     if latent_values is not None:
         # compute the ground truth latent embeddings
         with torch.no_grad():
@@ -116,20 +136,19 @@ def qwen2_5_mixed_modality_forward_lantern(
                 # if latent_size is -1, compress the latent values to the latent size
                 latent_embeds = apply_latent_compression(
                     self,
-                    input_ids=input_ids,
                     latent_values=latent_values,
                     latent_grid_thw=latent_grid_thw,
                     latent_size=self.config.latent_size,
                 ).to(inputs_embeds.device, inputs_embeds.dtype)
             else:
                 latent_embeds = latent_values.to(inputs_embeds.device, inputs_embeds.dtype)
-       
+
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
         latent_mask = mask.unsqueeze(-1).expand_as(inputs_embeds)
         inputs_embeds = inputs_embeds.masked_scatter(latent_mask, latent_embeds)
-        
+
     if pixel_values_videos is not None:
         video_embeds = self.get_video_features(pixel_values_videos, video_grid_thw)
         video_embeds = torch.cat(video_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
@@ -153,7 +172,6 @@ def qwen2_5_mixed_modality_forward_lantern(
         )
 
         if (prefill_compiled_stage or prefill_noncompiled_stage) or self.rope_deltas is None:
-            
             position_ids, rope_deltas = self.model.get_rope_index(
                 input_ids,
                 image_grid_thw,
@@ -162,7 +180,7 @@ def qwen2_5_mixed_modality_forward_lantern(
                 attention_mask=attention_mask,
             )
             self.rope_deltas = rope_deltas
-            
+
         else:
             batch_size, seq_length, _ = inputs_embeds.shape
             position_ids = torch.arange(seq_length, device=inputs_embeds.device)
@@ -193,24 +211,20 @@ def qwen2_5_mixed_modality_forward_lantern(
 
     loss = None
     if labels is not None:
-        loss = self.loss_function(
-            logits=logits, labels=labels, vocab_size=self.config.text_config.vocab_size, **kwargs
-        )
+        loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.text_config.vocab_size, **kwargs)
 
     if not return_dict:
         output = (logits,) + outputs[1:]
         return (loss,) + output if loss is not None else output
 
-    
     return Qwen2_5_VLCausalLMOutputWithPast(
         loss=loss,
         logits=logits,
         past_key_values=outputs.past_key_values,
-        # hidden_states=outputs.hidden_states,
         hidden_states=hidden_states,
         attentions=outputs.attentions,
-        rope_deltas=getattr(self, 'rope_deltas', None),
+        rope_deltas=getattr(self, "rope_deltas", None),
         inputs_embeds=inputs_embeds,
         latent_mask=latent_mask,
-        last_position_hidden_state=hidden_states[..., -1, :],
+        latent_hidden_state=hidden_states[..., -1, :],
     )
