@@ -1,6 +1,6 @@
 # LantErn: Latent Visual Reasoning
 
-> **⚠️ Beta — work in progress.** This repository is the shared codebase for two ongoing research papers. APIs and training pipelines may change without notice.
+> **⚠️ Active development.** Both papers are published, but this codebase is still being extended with new features. APIs and training pipelines may change without notice.
 
 <p align="center">
   <img src="imgs/lantern_fig.png" alt="LantErn Architecture" width="200"/>
