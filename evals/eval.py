@@ -24,9 +24,12 @@ logger = logging.getLogger(__name__)
 
 BLINK_CATEGORIES = ["Object_Localization", "Spatial_Relation"]
 
+
 class MCDataset(Dataset):
     # mcdataset is a multiple choice dataset that aggregates different datasets into a single one
-    def __init__(self, datasets: list[str], use_lvr: bool = True, bbox_ablation: str = None, corrupt_image: bool = False):
+    def __init__(
+        self, datasets: list[str], use_lvr: bool = True, bbox_ablation: str = None, corrupt_image: bool = False
+    ):
         # categories that to be represented in each dataset
         self.data = []
         self.use_lvr = use_lvr
@@ -35,7 +38,7 @@ class MCDataset(Dataset):
         for dataset in datasets:
             if dataset == "viscot":
                 # load the viscot test dataset
-                #with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
+                # with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
                 with open(VISCOT_MC_TEST_PATH) as f:
                     invalid_options = 0
                     for line in f:
@@ -46,16 +49,17 @@ class MCDataset(Dataset):
 
                         # parse options
                         options = sample["options"]
+
                         # examples
-                        #['A. tree branches', 'B. cars', 'C. buildings', 'D. street']
-                        #['A. man B. woman C. child D. dog']
+                        # ['A. tree branches', 'B. cars', 'C. buildings', 'D. street']
+                        # ['A. man B. woman C. child D. dog']
                         def parse_options(options):
                             # options should be a nested list of strings
-                            if len(options) != 4: # wrong format, return None
+                            if len(options) != 4:  # wrong format, return None
                                 return None
                             else:
                                 # to remove
-                                options = [option.replace(option.split(" ")[0]+" ", "") for option in options]
+                                options = [option.replace(option.split(" ")[0] + " ", "") for option in options]
                                 # check if any option is None
                                 if any(option is None for option in options):
                                     return None
@@ -66,9 +70,11 @@ class MCDataset(Dataset):
                             invalid_options += 1
                             continue
 
-
-
-                        sample["question"] = sample["question"] + "\nOptions:\n" + "\n".join([f"{option}" for option in sample["options"]])
+                        sample["question"] = (
+                            sample["question"]
+                            + "\nOptions:\n"
+                            + "\n".join([f"{option}" for option in sample["options"]])
+                        )
                         sample["options"] = options
                         # To support distributed training and avoid too many open files,
                         # store image paths here; open images only in __getitem__.
@@ -89,13 +95,15 @@ class MCDataset(Dataset):
                     if not isinstance(imgs, list):
                         imgs = [imgs]
                     # append data to the dataset
-                    self.data.append({
-                        "question": sample["text"],
-                        "image": imgs,
-                        "label": sample["label"],
-                        "category": sample["category"],
-                        "dataset": "vstar",
-                    })
+                    self.data.append(
+                        {
+                            "question": sample["text"],
+                            "image": imgs,
+                            "label": sample["label"],
+                            "category": sample["category"],
+                            "dataset": "vstar",
+                        }
+                    )
 
             elif dataset == "blink":
                 for cfg in BLINK_CATEGORIES:
@@ -105,14 +113,19 @@ class MCDataset(Dataset):
                         options = [c for c in item["choices"]]
                         option_str = "".join(f"{l}. {c}\n" for l, c in zip(letters, options))
                         ans = item["answer"][1].upper() if len(item["answer"]) > 1 else item["answer"][0].upper()
-                        imgs = [item[k] for k in ["image_1", "image_2", "image_3", "image_4"]
-                                if k in item and item[k] is not None]
-                        self.data.append({
-                            "question": item["question"] + "\nOptions:\n" + option_str,
-                            "image": imgs,
-                            "label": ans,
-                            "category": cfg,
-                        })
+                        imgs = [
+                            item[k]
+                            for k in ["image_1", "image_2", "image_3", "image_4"]
+                            if k in item and item[k] is not None
+                        ]
+                        self.data.append(
+                            {
+                                "question": item["question"] + "\nOptions:\n" + option_str,
+                                "image": imgs,
+                                "label": ans,
+                                "category": cfg,
+                            }
+                        )
             else:
                 raise ValueError(f"Dataset {dataset} not supported")
 
@@ -121,17 +134,17 @@ class MCDataset(Dataset):
         # get the nuber of samples for each dataset
         samples_by_dataset = {}
         for sample in self.data:
-            if sample['dataset'] not in samples_by_dataset:
-                samples_by_dataset[sample['dataset']] = 0
-            samples_by_dataset[sample['dataset']] += 1
+            if sample["dataset"] not in samples_by_dataset:
+                samples_by_dataset[sample["dataset"]] = 0
+            samples_by_dataset[sample["dataset"]] += 1
         for dataset, count in samples_by_dataset.items():
             print(f"Dataset {dataset} size: {count}")
         # get the number of samples for each category
         samples_by_category = {}
         for sample in self.data:
-            if sample['category'] not in samples_by_category:
-                samples_by_category[sample['category']] = 0
-            samples_by_category[sample['category']] += 1
+            if sample["category"] not in samples_by_category:
+                samples_by_category[sample["category"]] = 0
+            samples_by_category[sample["category"]] += 1
         for category, count in samples_by_category.items():
             print(f"Category {category} size: {count}")
 
@@ -160,6 +173,7 @@ class MCDataset(Dataset):
     def _blackout_bbox(img: Image.Image, bbox) -> Image.Image:
         """Return a copy of img with the bbox region zeroed out (black)."""
         import numpy as np
+
         arr = np.array(img)
         x1, y1, x2, y2 = [int(v) for v in bbox]
         arr[y1:y2, x1:x2] = 0
@@ -180,6 +194,7 @@ class MCDataset(Dataset):
             return [new_x1, new_y1, new_x1 + bw, new_y1 + bh]
         raise ValueError(f"Unknown bbox_ablation mode: {mode!r}")
 
+
 def collate_fn_mc(samples, processor: AutoProcessor):
     messages, labels, options = [], [], []
     cropped_images = []
@@ -192,19 +207,19 @@ def collate_fn_mc(samples, processor: AutoProcessor):
             options.append(None)
         bboxs.append(sample["bbox"])
         cropped_images.append(sample["cropped_images"])
-        messages.append([
-            {
-                "role": "user",
-                "content": [
-                    *[{"type": "image", "image": img} for img in sample["image"]],
-                    {"type": "text", "text": sample["question"]}
-                ]
-            }
-        ])
+        messages.append(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        *[{"type": "image", "image": img} for img in sample["image"]],
+                        {"type": "text", "text": sample["question"]},
+                    ],
+                }
+            ]
+        )
     # prepare the inputs
-    inputs = processor.apply_chat_template(
-        messages, tokenize=False, add_generation_prompt=True
-    )
+    inputs = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
     image_inputs, _ = process_vision_info(messages)
 
@@ -218,7 +233,6 @@ def collate_fn_mc(samples, processor: AutoProcessor):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     # Qwen/Qwen2.5-VL-3B-Instruct
     parser.add_argument(
@@ -230,68 +244,63 @@ if __name__ == "__main__":
         "--lvr",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Whether to use lantern generate or the default generation"
+        help="Whether to use lantern generate or the default generation",
     )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=1,
-        help="Batch size"
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="results",
-        help="Path to the output directory"
-    )
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
+    parser.add_argument("--output_dir", type=str, default="results", help="Path to the output directory")
     parser.add_argument(
         "--bbox_ablation",
         type=str,
         default=None,
         choices=["random"],
         help="Ablation mode for the ground-truth bbox used to build LVR latents. "
-             "'random': same bbox size, random location within the image."
+        "'random': same bbox size, random location within the image.",
     )
     parser.add_argument(
         "--use_gt",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Whether to replace predicted latent tokens with GT latent embeddings. "
-             "Only relevant when --lvr is set."
+        "Only relevant when --lvr is set.",
     )
     parser.add_argument(
         "--corrupt_image",
         action=argparse.BooleanOptionalAction,
         default=False,
         help="Black out the GT bbox region in the main image before inference. "
-             "Use when evaluating a model trained with bbox blackout corruption."
+        "Use when evaluating a model trained with bbox blackout corruption.",
     )
     args = parser.parse_args()
-    print("-"*100)
+    print("-" * 100)
     print(args)
-    print("-"*100)
+    print("-" * 100)
 
     output_folder = f"{args.output_dir}/mc_results/"
     ablation_suffix = f"_bbox_{args.bbox_ablation}" if args.bbox_ablation else ""
     gt_suffix = "" if args.use_gt else "_no_gt"
     if args.lvr:
-        outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr{gt_suffix}{ablation_suffix}.json"
+        outfile_name = (
+            f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}_lvr{gt_suffix}{ablation_suffix}.json"
+        )
     else:
         outfile_name = f"{output_folder}/{'_'.join(args.model_ref.split('/')[-2:])}{ablation_suffix}.json"
     os.makedirs(output_folder, exist_ok=True)
     print(f"Output file name: {outfile_name}")
-    #datasets = ["viscot", "vstar", "blink"]
+    # datasets = ["viscot", "vstar", "blink"]
     datasets = ["viscot"]
-    dataset = MCDataset(datasets=datasets, use_lvr=args.lvr, bbox_ablation=args.bbox_ablation, corrupt_image=args.corrupt_image)
+    dataset = MCDataset(
+        datasets=datasets, use_lvr=args.lvr, bbox_ablation=args.bbox_ablation, corrupt_image=args.corrupt_image
+    )
     dataset.stats()
 
     # load the model
     from src.models import load_model
+
     model, processor = load_model(args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False)
-    padding_side='left'
+    padding_side = "left"
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
     if not hasattr(model.config, "latent_size"):
@@ -306,57 +315,41 @@ if __name__ == "__main__":
 
     processor.tokenizer.padding_side = "left"
 
-
     # check if the latent size is set
     if args.lvr:
         if not hasattr(model.config, "latent_size"):
             raise ValueError("Warning!!!! Latent size is not set")
         # set_latent_tokens(processor, model, model.config.latent_size)
 
-
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor))
+    dataloader = DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor)
+    )
     bboxs_list = []
     correct_predictions = 0
     latent_ratio = 0
     total_samples = 0
-    pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc="Evaluating")
-    for step, (batch, labels, options, bboxs, cropped_images) in pbar:
+    pbar = tqdm(dataloader, total=len(dataloader), desc="Evaluating")
+    for batch, labels, options, bboxs, cropped_images in pbar:
         bboxs_list.extend(bboxs)
-        if step >= 300:
-            break
         if args.lvr and args.use_gt:
             gt_latent_values, gt_latent_grid_thw = get_gt_latent_values(cropped_images, processor)
             batch["latent_values"] = gt_latent_values
             batch["latent_grid_thw"] = gt_latent_grid_thw
-        batch.to(model.device)
 
-        # generate ids
         generated_ids = run_batch_inference(model, batch, use_gt=args.use_gt, use_lvr=args.lvr, return_dict=False)
         # generated_ids = output.input_ids if args.lvr else output
         # calculate the latent ratio
         if args.lvr:
             latent_ratio += (generated_ids == model.config.lvr_start_id).any(axis=1).sum().item()
 
-        generated_ids_trimmed = [
-            out_ids[len(in_ids) :] for in_ids, out_ids in zip(batch.input_ids, generated_ids)
-        ]
+        generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(batch.input_ids, generated_ids)]
         # decode the generated ids
         decoded_output = processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False
         )
 
-
-
-
-        print("-"*100)
-        print("Options: ", options)
-        print("Decoded Output: ", decoded_output)
-        print("-"*100)
-        # extract the answer from the decoded output
         answers = [extract_mc_answer(x, options) for x, options in zip(decoded_output, options)]
         correct_predictions += np.sum(np.array(answers) == np.array(labels))
-
-        print("Answers: ", answers, "Labels: ", labels, "Correct Predictions: ", correct_predictions)
         total_samples += len(labels)
         current_accuracy = correct_predictions / total_samples
         current_latent_ratio = latent_ratio / total_samples

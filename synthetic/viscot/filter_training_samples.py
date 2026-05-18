@@ -63,7 +63,7 @@ from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from src.utils import center_and_crop_image
 
 DATA_PATH = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
-MODEL_ID  = "Qwen/Qwen2.5-VL-32B-Instruct"
+MODEL_ID = "Qwen/Qwen2.5-VL-32B-Instruct"
 # MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct" # debug purpouses
 
 ANSWER_SYSTEM = "Answer the question concisely. Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
@@ -95,10 +95,12 @@ class TrainingDataset(Dataset):
                 continue
             # replace img_path str from /mnt/data-artemis/gviveiros/lantern/ to /mnt/scratch-artemis/gviveiros/lantern
 
-            item = {**item, "img_path": item["img_path"].replace(
-                    "/mnt/data-artemis/gviveiros/lantern/",
-                    "/mnt/scratch-artemis/gviveiros/lantern/"
-            )}
+            item = {
+                **item,
+                "img_path": item["img_path"].replace(
+                    "/mnt/data-artemis/gviveiros/lantern/", "/mnt/scratch-artemis/gviveiros/lantern/"
+                ),
+            }
             self.samples.append({"orig_idx": orig_idx, **item})
 
         if max_samples is not None:
@@ -129,10 +131,12 @@ def collate_fn(batch, processor, include_crop: bool):
         if include_crop:
             content.append({"type": "image", "image": sample["crop"]})
         content.append({"type": "text", "text": sample["question"]})
-        messages.append([
-            {"role": "system", "content": [{"type": "text", "text": ANSWER_SYSTEM}]},
-            {"role": "user",   "content": content},
-        ])
+        messages.append(
+            [
+                {"role": "system", "content": [{"type": "text", "text": ANSWER_SYSTEM}]},
+                {"role": "user", "content": content},
+            ]
+        )
     texts = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, _ = process_vision_info(messages)
     inputs = processor(text=texts, images=image_inputs, padding=True, return_tensors="pt")
@@ -143,7 +147,7 @@ def collate_fn(batch, processor, include_crop: bool):
 def run_inference(model, processor, inputs):
     inputs = inputs.to(model.device)
     out_ids = model.generate(**inputs, max_new_tokens=128, do_sample=False, use_cache=True)
-    trimmed = [o[len(i):] for i, o in zip(inputs.input_ids, out_ids)]
+    trimmed = [o[len(i) :] for i, o in zip(inputs.input_ids, out_ids)]
     return processor.batch_decode(trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
 
@@ -156,16 +160,19 @@ def judge_answers(model, processor, questions: list, generated: list, ground_tru
     messages = []
     for q, gen, gt in zip(questions, generated, ground_truths):
         pred = gen.split("<answer>")[-1].split("</answer>")[0].strip()
-        messages.append([
-            {"role": "system", "content": [{"type": "text", "text": JUDGE_SYSTEM}]},
-            {"role": "user",   "content": [{"type": "text", "text":
-                f"Question: {q}\nGround truth: {gt}\nModel answer: {pred}"
-            }]},
-        ])
+        messages.append(
+            [
+                {"role": "system", "content": [{"type": "text", "text": JUDGE_SYSTEM}]},
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": f"Question: {q}\nGround truth: {gt}\nModel answer: {pred}"}],
+                },
+            ]
+        )
     texts = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = processor(text=texts, padding=True, return_tensors="pt").to(model.device)
     out_ids = model.generate(**inputs, max_new_tokens=4, do_sample=False, use_cache=True)
-    trimmed = [o[len(i):] for i, o in zip(inputs.input_ids, out_ids)]
+    trimmed = [o[len(i) :] for i, o in zip(inputs.input_ids, out_ids)]
     decoded = processor.batch_decode(trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=True)
     scores = []
     for raw in decoded:
@@ -195,30 +202,33 @@ def inspect_samples(dataset, n: int):
 if __name__ == "__main__":
     # ── Args ──────────────────────────────────────────────────────────────────
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path",  type=str, default=DATA_PATH)
-    parser.add_argument("--model_id",   type=str, default=MODEL_ID)
+    parser.add_argument("--data_path", type=str, default=DATA_PATH)
+    parser.add_argument("--model_id", type=str, default=MODEL_ID)
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--output_dir", type=str, default="results/filter_training")
-    parser.add_argument("--threshold",  type=int, default=JUDGE_THRESHOLD,
-                        help="Judge score threshold 0-10 (>= threshold → correct)")
-    parser.add_argument("--dummy",      type=int, default=None, metavar="N",
-                        help="Only process first N samples (sanity check)")
-    parser.add_argument("--inspect",    type=int, default=None, metavar="N",
-                        help="Print N samples and exit without running inference")
+    parser.add_argument(
+        "--threshold", type=int, default=JUDGE_THRESHOLD, help="Judge score threshold 0-10 (>= threshold → correct)"
+    )
+    parser.add_argument(
+        "--dummy", type=int, default=None, metavar="N", help="Only process first N samples (sanity check)"
+    )
+    parser.add_argument(
+        "--inspect", type=int, default=None, metavar="N", help="Print N samples and exit without running inference"
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
     dummy_tag = f"_dummy{args.dummy}" if args.dummy else ""
 
     # ── Distributed setup ─────────────────────────────────────────────────────
-    local_rank  = int(os.environ.get("LOCAL_RANK", 0))
-    world_size  = int(os.environ.get("WORLD_SIZE", 1))
-    rank        = int(os.environ.get("RANK", local_rank))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    rank = int(os.environ.get("RANK", local_rank))
     distributed = world_size > 1
     if distributed:
         dist.init_process_group(backend="nccl")
         torch.cuda.set_device(local_rank)
-    is_main  = rank == 0
+    is_main = rank == 0
     rank_tag = f"_rank{rank}" if distributed else ""
 
     dataset = TrainingDataset(args.data_path, max_samples=args.dummy)
@@ -243,25 +253,39 @@ if __name__ == "__main__":
 
     device_map = {"": f"cuda:{local_rank}"} if distributed else "auto"
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        args.model_id, torch_dtype=torch.bfloat16, device_map=device_map,
+        args.model_id,
+        torch_dtype=torch.bfloat16,
+        device_map=device_map,
         local_files_only=True,
     )
     model.eval()
 
     min_pixels = 256 * 28 * 28
     max_pixels = 3500 * 28 * 28
-    processor = AutoProcessor.from_pretrained(args.model_id, min_pixels=min_pixels, max_pixels=max_pixels,
-                                              local_files_only=True)
+    processor = AutoProcessor.from_pretrained(
+        args.model_id, min_pixels=min_pixels, max_pixels=max_pixels, local_files_only=True
+    )
     processor.tokenizer.padding_side = "left"
 
-    sampler_kwargs = dict(sampler=DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False)) \
-                     if distributed else {}
-    loader_no_crop   = DataLoader(dataset, batch_size=args.batch_size, shuffle=False,
-                                  collate_fn=partial(collate_fn, processor=processor, include_crop=False),
-                                  **sampler_kwargs)
-    loader_with_crop = DataLoader(dataset, batch_size=args.batch_size, shuffle=False,
-                                  collate_fn=partial(collate_fn, processor=processor, include_crop=True),
-                                  **sampler_kwargs)
+    sampler_kwargs = (
+        dict(sampler=DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=False))
+        if distributed
+        else {}
+    )
+    loader_no_crop = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=partial(collate_fn, processor=processor, include_crop=False),
+        **sampler_kwargs,
+    )
+    loader_with_crop = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=partial(collate_fn, processor=processor, include_crop=True),
+        **sampler_kwargs,
+    )
 
     # ── Pass 1: image + question only ─────────────────────────────────────────
     print(f"[rank {rank}] --- Pass 1: image + question (no bbox) ---")
@@ -270,7 +294,7 @@ if __name__ == "__main__":
         loader_no_crop, desc=f"No bbox (rank {rank})", disable=not is_main
     ):
         decoded = run_inference(model, processor, inputs)
-        scores  = judge_answers(model, processor, questions, decoded, ground_truths)
+        scores = judge_answers(model, processor, questions, decoded, ground_truths)
         for idx, gen, gt, score in zip(orig_indices, decoded, ground_truths, scores):
             correct = score >= args.threshold
             results_no_crop[int(idx)] = {"correct": correct, "score": score, "generated": gen[:200], "gt": gt}
@@ -278,7 +302,7 @@ if __name__ == "__main__":
                 pred = gen.split("<answer>")[-1].split("</answer>")[0].strip()
                 print(f"  [no-crop] idx={idx:5d}  score={score:2d}  gt={gt!r:30s}  pred={pred!r:30s}")
 
-    total     = len(results_no_crop)
+    total = len(results_no_crop)
     n_correct = sum(v["correct"] for v in results_no_crop.values())
     print(f"[rank {rank}] Correct without bbox: {n_correct}/{total} ({n_correct/total:.1%})")
 
@@ -294,7 +318,7 @@ if __name__ == "__main__":
         if not any(int(idx) in need_crop_check for idx in orig_indices):
             continue
         decoded = run_inference(model, processor, inputs)
-        scores  = judge_answers(model, processor, questions, decoded, ground_truths)
+        scores = judge_answers(model, processor, questions, decoded, ground_truths)
         for idx, gen, gt, score in zip(orig_indices, decoded, ground_truths, scores):
             if int(idx) in need_crop_check:
                 correct = score >= args.threshold
@@ -307,7 +331,7 @@ if __name__ == "__main__":
     keep_ids, remove_easy, remove_hard = [], [], []
     for idx, res in results_no_crop.items():
         wrong_without = not res["correct"]
-        right_with    = results_with_crop.get(idx, {}).get("correct", False)
+        right_with = results_with_crop.get(idx, {}).get("correct", False)
         if wrong_without and right_with:
             keep_ids.append(idx)
         elif not wrong_without:
@@ -319,12 +343,16 @@ if __name__ == "__main__":
 
     partial_path = os.path.join(args.output_dir, f"partial{rank_tag}{dummy_tag}.json")
     with open(partial_path, "w") as f:
-        json.dump({
-            "keep_ids":    sorted(keep_ids),
-            "remove_easy": sorted(remove_easy),
-            "remove_hard": sorted(remove_hard),
-            "total":       total,
-        }, f, indent=2)
+        json.dump(
+            {
+                "keep_ids": sorted(keep_ids),
+                "remove_easy": sorted(remove_easy),
+                "remove_hard": sorted(remove_hard),
+                "total": total,
+            },
+            f,
+            indent=2,
+        )
     print(f"[rank {rank}] Partial saved → {partial_path}")
 
     if distributed:
@@ -350,12 +378,16 @@ if __name__ == "__main__":
         with open(os.path.join(args.output_dir, f"keep_ids{dummy_tag}.json"), "w") as f:
             json.dump({"keep_ids": sorted(all_keep), "n_keep": len(all_keep), "total": all_total}, f, indent=2)
         with open(os.path.join(args.output_dir, f"remove_ids{dummy_tag}.json"), "w") as f:
-            json.dump({
-                "remove_easy":   sorted(all_easy),
-                "remove_hard":   sorted(all_hard),
-                "total_removed": len(all_easy) + len(all_hard),
-                "total":         all_total,
-            }, f, indent=2)
+            json.dump(
+                {
+                    "remove_easy": sorted(all_easy),
+                    "remove_hard": sorted(all_hard),
+                    "total_removed": len(all_easy) + len(all_hard),
+                    "total": all_total,
+                },
+                f,
+                indent=2,
+            )
         print(f"Saved to {args.output_dir}/")
 
     if distributed:

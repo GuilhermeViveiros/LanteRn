@@ -78,10 +78,11 @@ def build_same_shape_diff_rotation_map(dataset: SFTTetrisDataset, seed: int = 42
 
     distractor_map = {}
     for i, s in enumerate(dataset.dataset):
-        shape     = s["shape_C_name"]
+        shape = s["shape_C_name"]
         transform = s["transform_description"]
-        candidates = [j for j in by_shape.get(shape, [])
-                      if j != i and dataset.dataset[j]["transform_description"] != transform]
+        candidates = [
+            j for j in by_shape.get(shape, []) if j != i and dataset.dataset[j]["transform_description"] != transform
+        ]
         if candidates:
             distractor_map[i] = rng.choice(candidates)
     return distractor_map
@@ -106,13 +107,14 @@ def build_latent_consistent_map(dataset: SFTTetrisDataset, seed: int = 42) -> tu
     distractor_map = {}
     expected_answer = {}
     for i, s in enumerate(dataset.dataset):
-        shape       = s["shape_C_name"]
-        correct_t   = s["transform_description"]
+        shape = s["shape_C_name"]
+        correct_t = s["transform_description"]
         opt_transforms = s.get("option_transforms", {})
 
         # Find transforms that are (a) in i's options, (b) not the correct one
-        candidate_transforms = [t for t in opt_transforms.values()
-                                 if t != correct_t and t not in ("perturbed", "other_shape")]
+        candidate_transforms = [
+            t for t in opt_transforms.values() if t != correct_t and t not in ("perturbed", "other_shape")
+        ]
         if not candidate_transforms:
             continue
 
@@ -142,27 +144,26 @@ class DistractorDataset(Dataset):
         return len(self.base)
 
     def __getitem__(self, idx):
-        sample = self.base[idx]                         # [..., latent_visual_dict]
-        d_idx  = self.distractor_map[idx]
+        sample = self.base[idx]  # [..., latent_visual_dict]
+        d_idx = self.distractor_map[idx]
         distractor_sample = self.base[d_idx]
-        sample[-1] = distractor_sample[-1]              # swap latent visual only
+        sample[-1] = distractor_sample[-1]  # swap latent visual only
         return sample
 
 
 def _extract_answer(text: str) -> str:
-    m = re.search(r'<answer>\s*([a-d])\s*</answer>', text, re.IGNORECASE)
+    m = re.search(r"<answer>\s*([a-d])\s*</answer>", text, re.IGNORECASE)
     if m:
         return m.group(1).lower()
-    m = re.search(r'\b([a-d])\b', text[::-1], re.IGNORECASE)
+    m = re.search(r"\b([a-d])\b", text[::-1], re.IGNORECASE)
     return m.group(1).lower() if m else ""
 
 
 @torch.no_grad()
-def evaluate(model, processor, dataset, n_samples: int, batch_size: int,
-             use_gt: bool, use_lvr: bool, desc: str):
+def evaluate(model, processor, dataset, n_samples: int, batch_size: int, use_gt: bool, use_lvr: bool, desc: str):
     rng = random.Random(42)
     indices = rng.sample(range(len(dataset)), min(n_samples, len(dataset)))
-    subset  = Subset(dataset, sorted(indices))
+    subset = Subset(dataset, sorted(indices))
 
     if use_lvr:
         collate = partial(collate_fn_generate, processor=processor)
@@ -174,21 +175,20 @@ def evaluate(model, processor, dataset, n_samples: int, batch_size: int,
     correct, total = 0, 0
     for inputs, labels in tqdm(loader, desc=desc, leave=False):
         prompt_len = inputs["input_ids"].shape[1]
-        out  = run_batch_inference(model, inputs, use_lvr=use_lvr, use_gt=use_gt)
+        out = run_batch_inference(model, inputs, use_lvr=use_lvr, use_gt=use_gt)
         seqs = out.sequences if hasattr(out, "sequences") else out
-        generated = processor.tokenizer.batch_decode(
-            seqs[:, prompt_len:], skip_special_tokens=False
-        )
+        generated = processor.tokenizer.batch_decode(seqs[:, prompt_len:], skip_special_tokens=False)
         for gen, gt in zip(generated, labels):
             correct += int(_extract_answer(gen) == gt.strip().lower())
-            total   += 1
+            total += 1
     processor.tokenizer.padding_side = "right"
     return correct / max(total, 1)
 
 
 @torch.no_grad()
-def evaluate_latent_consistent(model, processor, dataset, expected_answer: dict,
-                                n_samples: int, batch_size: int, desc: str = "latent-consistent"):
+def evaluate_latent_consistent(
+    model, processor, dataset, expected_answer: dict, n_samples: int, batch_size: int, desc: str = "latent-consistent"
+):
     """
     Run inference on DistractorDataset and measure whether the model picks
     the option that is consistent with the injected distractor's rotation,
@@ -198,77 +198,143 @@ def evaluate_latent_consistent(model, processor, dataset, expected_answer: dict,
     valid_indices = sorted(expected_answer.keys())
     rng = random.Random(42)
     sampled = rng.sample(valid_indices, min(n_samples, len(valid_indices)))
-    subset  = Subset(dataset, sorted(sampled))
+    subset = Subset(dataset, sorted(sampled))
     # Build a lookup: position in subset → expected letter
     sorted_sampled = sorted(sampled)
     exp_list = [expected_answer[i] for i in sorted_sampled]
 
     collate = partial(collate_fn_generate, processor=processor)
-    loader  = DataLoader(subset, batch_size=batch_size, collate_fn=collate)
+    loader = DataLoader(subset, batch_size=batch_size, collate_fn=collate)
 
     processor.tokenizer.padding_side = "left"
     correct, total = 0, 0
     pos = 0
     for inputs, _ in tqdm(loader, desc=desc, leave=False):
         prompt_len = inputs["input_ids"].shape[1]
-        out  = run_batch_inference(model, inputs, use_lvr=True, use_gt=True)
+        out = run_batch_inference(model, inputs, use_lvr=True, use_gt=True)
         seqs = out.sequences if hasattr(out, "sequences") else out
-        generated = processor.tokenizer.batch_decode(
-            seqs[:, prompt_len:], skip_special_tokens=False
-        )
+        generated = processor.tokenizer.batch_decode(seqs[:, prompt_len:], skip_special_tokens=False)
         for gen in generated:
             expected = exp_list[pos]
             correct += int(_extract_answer(gen) == expected.lower())
-            total   += 1
-            pos     += 1
+            total += 1
+            pos += 1
     processor.tokenizer.padding_side = "right"
     return correct / max(total, 1)
 
 
-def load_and_eval(checkpoint: str, args, eval_ds, held_out_ds,
-                  distractor_eval_ds, distractor_held_ds,
-                  ss_distractor_eval_ds, ss_distractor_held_ds,
-                  lc_eval_ds, lc_eval_expected_answer,
-                  lc_held_ds, lc_expected_answer):
+def load_and_eval(
+    checkpoint: str,
+    args,
+    eval_ds,
+    held_out_ds,
+    distractor_eval_ds,
+    distractor_held_ds,
+    ss_distractor_eval_ds,
+    ss_distractor_held_ds,
+    lc_eval_ds,
+    lc_eval_expected_answer,
+    lc_held_ds,
+    lc_expected_answer,
+):
     print(f"\n── {os.path.basename(checkpoint)} ──")
-    model, processor = load_model(checkpoint, compute_dtype=torch.bfloat16, use_cache=True,
-                                  attn_implementation="flash_attention_2")
+    model, processor = load_model(
+        checkpoint, compute_dtype=torch.bfloat16, use_cache=True, attn_implementation="flash_attention_2"
+    )
     set_latent_tokens(processor, model, args.latent_size)
     model.eval().cuda()
 
     if args.use_lvr:
-        eval_acc      = evaluate(model, processor, eval_ds,            args.n_samples, args.batch_size,
-                                 use_gt=True,  use_lvr=True, desc="eval GT")
-        eval_own      = evaluate(model, processor, eval_ds,            args.n_samples, args.batch_size,
-                                 use_gt=False, use_lvr=True, desc="eval own")
-        eval_distract = evaluate(model, processor, distractor_eval_ds, args.n_samples, args.batch_size,
-                                 use_gt=True,  use_lvr=True, desc="eval distractor")
-        eval_ss       = evaluate(model, processor, ss_distractor_eval_ds, args.n_samples, args.batch_size,
-                                 use_gt=True,  use_lvr=True, desc="eval same-shape")
-        eval_lc       = evaluate_latent_consistent(model, processor, lc_eval_ds,
-                                                   lc_eval_expected_answer,
-                                                   args.n_samples, args.batch_size,
-                                                   desc="eval latent-consistent")
-        held_gt       = evaluate(model, processor, held_out_ds,        args.n_samples, args.batch_size,
-                                 use_gt=True,  use_lvr=True, desc="held GT")
-        held_own      = evaluate(model, processor, held_out_ds,        args.n_samples, args.batch_size,
-                                 use_gt=False, use_lvr=True, desc="held own")
-        held_distract = evaluate(model, processor, distractor_held_ds, args.n_samples, args.batch_size,
-                                 use_gt=True,  use_lvr=True, desc="held distractor")
-        held_ss       = evaluate(model, processor, ss_distractor_held_ds, args.n_samples, args.batch_size,
-                                 use_gt=True,  use_lvr=True, desc="held same-shape")
-        held_lc       = evaluate_latent_consistent(model, processor, lc_held_ds,
-                                                   lc_expected_answer,
-                                                   args.n_samples, args.batch_size,
-                                                   desc="held latent-consistent")
-        result = (os.path.basename(checkpoint),
-                  eval_acc, eval_own, eval_distract, eval_ss, eval_lc,
-                  held_gt, held_own, held_distract, held_ss, held_lc)
+        eval_acc = evaluate(
+            model, processor, eval_ds, args.n_samples, args.batch_size, use_gt=True, use_lvr=True, desc="eval GT"
+        )
+        eval_own = evaluate(
+            model, processor, eval_ds, args.n_samples, args.batch_size, use_gt=False, use_lvr=True, desc="eval own"
+        )
+        eval_distract = evaluate(
+            model,
+            processor,
+            distractor_eval_ds,
+            args.n_samples,
+            args.batch_size,
+            use_gt=True,
+            use_lvr=True,
+            desc="eval distractor",
+        )
+        eval_ss = evaluate(
+            model,
+            processor,
+            ss_distractor_eval_ds,
+            args.n_samples,
+            args.batch_size,
+            use_gt=True,
+            use_lvr=True,
+            desc="eval same-shape",
+        )
+        eval_lc = evaluate_latent_consistent(
+            model,
+            processor,
+            lc_eval_ds,
+            lc_eval_expected_answer,
+            args.n_samples,
+            args.batch_size,
+            desc="eval latent-consistent",
+        )
+        held_gt = evaluate(
+            model, processor, held_out_ds, args.n_samples, args.batch_size, use_gt=True, use_lvr=True, desc="held GT"
+        )
+        held_own = evaluate(
+            model, processor, held_out_ds, args.n_samples, args.batch_size, use_gt=False, use_lvr=True, desc="held own"
+        )
+        held_distract = evaluate(
+            model,
+            processor,
+            distractor_held_ds,
+            args.n_samples,
+            args.batch_size,
+            use_gt=True,
+            use_lvr=True,
+            desc="held distractor",
+        )
+        held_ss = evaluate(
+            model,
+            processor,
+            ss_distractor_held_ds,
+            args.n_samples,
+            args.batch_size,
+            use_gt=True,
+            use_lvr=True,
+            desc="held same-shape",
+        )
+        held_lc = evaluate_latent_consistent(
+            model,
+            processor,
+            lc_held_ds,
+            lc_expected_answer,
+            args.n_samples,
+            args.batch_size,
+            desc="held latent-consistent",
+        )
+        result = (
+            os.path.basename(checkpoint),
+            eval_acc,
+            eval_own,
+            eval_distract,
+            eval_ss,
+            eval_lc,
+            held_gt,
+            held_own,
+            held_distract,
+            held_ss,
+            held_lc,
+        )
     else:
-        eval_acc = evaluate(model, processor, eval_ds,     args.n_samples, args.batch_size,
-                            use_gt=False, use_lvr=False, desc="eval NTP")
-        held_acc = evaluate(model, processor, held_out_ds, args.n_samples, args.batch_size,
-                            use_gt=False, use_lvr=False, desc="held NTP")
+        eval_acc = evaluate(
+            model, processor, eval_ds, args.n_samples, args.batch_size, use_gt=False, use_lvr=False, desc="eval NTP"
+        )
+        held_acc = evaluate(
+            model, processor, held_out_ds, args.n_samples, args.batch_size, use_gt=False, use_lvr=False, desc="held NTP"
+        )
         result = (os.path.basename(checkpoint), eval_acc, None, None, None, None, held_acc, None, None, None, None)
 
     del model
@@ -278,24 +344,24 @@ def load_and_eval(checkpoint: str, args, eval_ds, held_out_ds,
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoints_dir", required=True,
-                        help="Directory containing checkpoint-* subdirs")
-    parser.add_argument("--held_out_path",   required=True,
-                        help="held_out.json generated with --held_out flag")
-    parser.add_argument("--eval_path",       default=None,
-                        help="eval.json for in-distribution comparison")
-    parser.add_argument("--n_samples",   type=int, default=200)
-    parser.add_argument("--batch_size",  type=int, default=8)
+    parser.add_argument("--checkpoints_dir", required=True, help="Directory containing checkpoint-* subdirs")
+    parser.add_argument("--held_out_path", required=True, help="held_out.json generated with --held_out flag")
+    parser.add_argument("--eval_path", default=None, help="eval.json for in-distribution comparison")
+    parser.add_argument("--n_samples", type=int, default=200)
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--latent_size", type=int, default=8)
-    parser.add_argument("--no_lvr", action="store_true",
-                        help="Evaluate NTP model (no latent visual tokens)")
-    parser.add_argument("--grayscale", action="store_true",
-                        help="Convert intermediate images to grayscale (for gray-trained checkpoints)")
+    parser.add_argument("--no_lvr", action="store_true", help="Evaluate NTP model (no latent visual tokens)")
+    parser.add_argument(
+        "--grayscale",
+        action="store_true",
+        help="Convert intermediate images to grayscale (for gray-trained checkpoints)",
+    )
     args = parser.parse_args()
     args.use_lvr = not args.no_lvr
 
     if args.eval_path is None:
         from src.constants import TETRIS_EVAL_PATH
+
         args.eval_path = TETRIS_EVAL_PATH
 
     # Find checkpoints sorted by step number.
@@ -305,10 +371,7 @@ def main():
     if os.path.basename(p).startswith("checkpoint-"):
         ckpts = [p]
     else:
-        ckpts = sorted(
-            glob.glob(os.path.join(p, "checkpoint-*")),
-            key=lambda x: int(x.split("-")[-1])
-        )
+        ckpts = sorted(glob.glob(os.path.join(p, "checkpoint-*")), key=lambda x: int(x.split("-")[-1]))
     if not ckpts:
         raise FileNotFoundError(f"No checkpoints found in {args.checkpoints_dir}")
     print(f"Found {len(ckpts)} checkpoints: {[os.path.basename(c) for c in ckpts]}")
@@ -317,19 +380,22 @@ def main():
     print(f"Mode          : {'LVR (GT + own)' if args.use_lvr else 'NTP'}")
 
     # Load datasets once
-    dummy_model, processor = load_model(ckpts[0], compute_dtype=torch.bfloat16, use_cache=False,
-                                        attn_implementation="flash_attention_2")
+    dummy_model, processor = load_model(
+        ckpts[0], compute_dtype=torch.bfloat16, use_cache=False, attn_implementation="flash_attention_2"
+    )
     set_latent_tokens(processor, dummy_model, args.latent_size)
     del dummy_model
     torch.cuda.empty_cache()
 
-    eval_ds     = SFTTetrisDataset(args.eval_path,     processor, use_lvr=args.use_lvr,
-                                   grayscale_intermediate=args.grayscale)
-    held_out_ds = SFTTetrisDataset(args.held_out_path, processor, use_lvr=args.use_lvr,
-                                   grayscale_intermediate=args.grayscale)
+    eval_ds = SFTTetrisDataset(args.eval_path, processor, use_lvr=args.use_lvr, grayscale_intermediate=args.grayscale)
+    held_out_ds = SFTTetrisDataset(
+        args.held_out_path, processor, use_lvr=args.use_lvr, grayscale_intermediate=args.grayscale
+    )
     print(f"Eval samples    : {len(eval_ds)}")
-    print(f"Held-out samples: {len(held_out_ds)}  "
-          f"(shapes: {sorted({s['shape_C_name'] for s in held_out_ds.dataset})})")
+    print(
+        f"Held-out samples: {len(held_out_ds)}  "
+        f"(shapes: {sorted({s['shape_C_name'] for s in held_out_ds.dataset})})"
+    )
 
     # Build distractor datasets
     distractor_eval_ds = distractor_held_ds = None
@@ -337,8 +403,8 @@ def main():
     lc_eval_ds = lc_eval_expected_answer = None
     lc_held_ds = lc_expected_answer = None
     if args.use_lvr:
-        eval_distractor_map  = build_distractor_map(eval_ds)
-        distractor_eval_ds   = DistractorDataset(eval_ds, eval_distractor_map)
+        eval_distractor_map = build_distractor_map(eval_ds)
+        distractor_eval_ds = DistractorDataset(eval_ds, eval_distractor_map)
         print(f"Eval distractor : {len(eval_distractor_map)} entries (random intermediate, seed=42)")
 
         ss_eval_map = build_same_shape_diff_rotation_map(eval_ds)
@@ -347,10 +413,12 @@ def main():
 
         lc_eval_map, lc_eval_expected_answer = build_latent_consistent_map(eval_ds)
         lc_eval_ds = DistractorDataset(eval_ds, lc_eval_map)
-        print(f"Eval LC         : {len(lc_eval_map)} valid pairs (same shape_C, different rotation in options, seed=42)")
+        print(
+            f"Eval LC         : {len(lc_eval_map)} valid pairs (same shape_C, different rotation in options, seed=42)"
+        )
 
-        held_distractor_map  = build_distractor_map(held_out_ds)
-        distractor_held_ds   = DistractorDataset(held_out_ds, held_distractor_map)
+        held_distractor_map = build_distractor_map(held_out_ds)
+        distractor_held_ds = DistractorDataset(held_out_ds, held_distractor_map)
         print(f"Held distractor : {len(held_distractor_map)} entries (random intermediate, seed=42)")
 
         ss_held_map = build_same_shape_diff_rotation_map(held_out_ds)
@@ -359,27 +427,53 @@ def main():
 
         lc_map, lc_expected_answer = build_latent_consistent_map(held_out_ds)
         lc_held_ds = DistractorDataset(held_out_ds, lc_map)
-        print(f"Held LC         : {len(lc_map)} valid pairs "
-              f"(same shape_C, different rotation in options, seed=42)")
+        print(f"Held LC         : {len(lc_map)} valid pairs " f"(same shape_C, different rotation in options, seed=42)")
 
     # Evaluate each checkpoint
     results = []
     for ckpt in ckpts:
-        results.append(load_and_eval(ckpt, args, eval_ds, held_out_ds,
-                                     distractor_eval_ds, distractor_held_ds,
-                                     ss_distractor_eval_ds, ss_distractor_held_ds,
-                                     lc_eval_ds, lc_eval_expected_answer,
-                                     lc_held_ds, lc_expected_answer))
+        results.append(
+            load_and_eval(
+                ckpt,
+                args,
+                eval_ds,
+                held_out_ds,
+                distractor_eval_ds,
+                distractor_held_ds,
+                ss_distractor_eval_ds,
+                ss_distractor_held_ds,
+                lc_eval_ds,
+                lc_eval_expected_answer,
+                lc_held_ds,
+                lc_expected_answer,
+            )
+        )
 
     # Print table
     print("\n" + "=" * 140)
     if args.use_lvr:
-        print(f"{'checkpoint':<25} {'eval_gt':>8} {'eval_own':>9} {'eval_dist':>10} {'eval_ss':>8} {'eval_lc':>8} "
-              f"{'held_gt':>8} {'held_own':>9} {'held_dist':>10} {'held_ss':>8} {'held_lc':>8}")
+        print(
+            f"{'checkpoint':<25} {'eval_gt':>8} {'eval_own':>9} {'eval_dist':>10} {'eval_ss':>8} {'eval_lc':>8} "
+            f"{'held_gt':>8} {'held_own':>9} {'held_dist':>10} {'held_ss':>8} {'held_lc':>8}"
+        )
         print("-" * 140)
-        for name, eval_acc, eval_own, eval_dist, eval_ss, eval_lc, held_gt, held_own, held_dist, held_ss, held_lc in results:
-            print(f"{name:<25} {eval_acc:>7.1%} {eval_own:>9.1%} {eval_dist:>10.1%} {eval_ss:>8.1%} {eval_lc:>8.1%} "
-                  f"{held_gt:>8.1%} {held_own:>9.1%} {held_dist:>10.1%} {held_ss:>8.1%} {held_lc:>8.1%}")
+        for (
+            name,
+            eval_acc,
+            eval_own,
+            eval_dist,
+            eval_ss,
+            eval_lc,
+            held_gt,
+            held_own,
+            held_dist,
+            held_ss,
+            held_lc,
+        ) in results:
+            print(
+                f"{name:<25} {eval_acc:>7.1%} {eval_own:>9.1%} {eval_dist:>10.1%} {eval_ss:>8.1%} {eval_lc:>8.1%} "
+                f"{held_gt:>8.1%} {held_own:>9.1%} {held_dist:>10.1%} {held_ss:>8.1%} {held_lc:>8.1%}"
+            )
         print("=" * 140)
         print("eval_own   = in-distribution accuracy with model's own latents")
         print("eval_dist  = in-distribution accuracy with random distractor latent (any shape/rotation)")

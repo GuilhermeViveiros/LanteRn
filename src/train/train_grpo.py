@@ -48,16 +48,12 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
     # compute type
-    compute_dtype = (torch.float16 if grpo_params.fp16 else (torch.bfloat16 if grpo_params.bf16 else torch.float32))
+    compute_dtype = torch.float16 if grpo_params.fp16 else (torch.bfloat16 if grpo_params.bf16 else torch.float32)
     logger.info(colored(f"Compute dtype: {compute_dtype}", "cyan"))
 
     # load model
     logger.info(colored(f"Loading model from {grpo_params.model_path}", "cyan"))
-    model, processor = load_model(
-        grpo_params.model_path,
-        compute_dtype=compute_dtype,
-        use_cache=model_params.use_cache
-    )
+    model, processor = load_model(grpo_params.model_path, compute_dtype=compute_dtype, use_cache=model_params.use_cache)
 
     processor.tokenizer.bos_token_id = model.config.bos_token_id
     processor.tokenizer.eos_token_id = model.config.eos_token_id
@@ -65,7 +61,9 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     logger.info(colored(f"Loading reference model from {grpo_params.model_path}", "cyan"))
 
     # set the latent tokens
-    assert model.config.latent_size > 0 or model.config.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
+    assert (
+        model.config.latent_size > 0 or model.config.latent_size == -1
+    ), "Latent size must be -1 for dynamic latent size or a positive integer"
     set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
 
     resume_from_checkpoint = get_last_checkpoint(grpo_params.output_dir)
@@ -74,7 +72,9 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     else:
         logger.info(colored("Starting training from scratch", "cyan"))
     # freeze specific components according to the training parameters
-    configure_vision_tower(model, freeze_vision_tower=grpo_params.freeze_vision_tower, freeze_merger=grpo_params.freeze_merger)
+    configure_vision_tower(
+        model, freeze_vision_tower=grpo_params.freeze_vision_tower, freeze_merger=grpo_params.freeze_merger
+    )
     configure_llm(model, freeze_llm=grpo_params.freeze_llm)
 
     # Gradient Checkpointing
@@ -85,15 +85,11 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     logger.info(colored(f"Latent size: {latent_size}", "cyan"))
     system_prompt = build_system_prompt(latent_size)
     train_dataset = GRPODataset(
-        data_path=data_params.data_path,
-        image_root=data_params.image_root,
-        system_prompt=None,
-        dummy=False
+        data_path=data_params.data_path, image_root=data_params.image_root, system_prompt=None, dummy=False
     )
 
     # prepare rewards
     reward_funcs = build_reward_funcs(grpo_params, model)
-
 
     # Train
     trainer = LantErnGRPOTrainer(
@@ -102,7 +98,7 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
         args=grpo_params,
         processing_class=processor,
         train_dataset=train_dataset,
-        reward_funcs=reward_funcs
+        reward_funcs=reward_funcs,
     )
 
     tok = processor.tokenizer
@@ -113,13 +109,12 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     trainer.generation_config.pad_token_id = tok.pad_token_id
     trainer.generation_config.bad_words_ids = [[im_start_id]]
 
-    trainer.train(
-        resume_from_checkpoint=resume_from_checkpoint
-    )
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     # save the tokenizer
     processor.tokenizer.save_pretrained(grpo_params.output_dir)
 
     logger.info("Training completed")
+
 
 if __name__ == "__main__":
     parser = HfArgumentParser((GRPOArguments, ModelParams, RLDataParams))

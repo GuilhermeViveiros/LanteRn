@@ -5,13 +5,13 @@ Includes all 7 tetrominoes, all 12 pentominoes, and 10 selected hexominoes.
 Each shape has its unique rotations pre-computed (duplicates removed via canonical form).
 """
 
-
 Cells = list[tuple[int, int]]
 
 
 # ---------------------------------------------------------------------------
 # Rotation utilities
 # ---------------------------------------------------------------------------
+
 
 def _normalize(cells: Cells) -> tuple:
     """Translate so that min(row) == 0 and min(col) == 0, return sorted tuple."""
@@ -48,34 +48,31 @@ def get_unique_rotations(base_cells: Cells) -> list[Cells]:
 # To restore the full dataset, uncomment all shapes below.
 _SHAPE_DEFS = [
     # ---- Tetrominoes (4 cells) — only fully asymmetric (4 unique rotations) ----
-    ("T4",  "tetromino", [(0,0),(0,1),(0,2),(1,1)],          (160,   0, 240)),  # purple
-    ("J",   "tetromino", [(0,0),(1,0),(1,1),(1,2)],          (0,     0, 240)),  # blue
-    ("L4",  "tetromino", [(0,2),(1,0),(1,1),(1,2)],          (240, 160,   0)),  # orange
-
+    ("T4", "tetromino", [(0, 0), (0, 1), (0, 2), (1, 1)], (160, 0, 240)),  # purple
+    ("J", "tetromino", [(0, 0), (1, 0), (1, 1), (1, 2)], (0, 0, 240)),  # blue
+    ("L4", "tetromino", [(0, 2), (1, 0), (1, 1), (1, 2)], (240, 160, 0)),  # orange
     # ---- Pentominoes (5 cells) — only fully asymmetric (4 unique rotations) ----
-    ("F5",  "pentomino", [(0,1),(0,2),(1,0),(1,1),(2,1)],    (220,  80,  80)),  # rose
-    ("L5",  "pentomino", [(0,0),(1,0),(2,0),(3,0),(3,1)],    (240, 180,  80)),  # gold
-    ("N5",  "pentomino", [(0,1),(1,0),(1,1),(2,0),(3,0)],    (180, 240, 100)),  # yellow-green
-    ("P5",  "pentomino", [(0,0),(0,1),(1,0),(1,1),(2,0)],    (240, 100, 180)),  # pink
-    ("T5",  "pentomino", [(0,0),(0,1),(0,2),(1,1),(2,1)],    (140, 100, 240)),  # violet
-    ("U5",  "pentomino", [(0,0),(0,2),(1,0),(1,1),(1,2)],    (80,  200, 200)),  # teal
-    ("V5",  "pentomino", [(0,0),(1,0),(2,0),(2,1),(2,2)],    (240, 140, 140)),  # salmon
-    ("W5",  "pentomino", [(0,0),(1,0),(1,1),(2,1),(2,2)],    (140, 240, 160)),  # mint
-    ("Y5",  "pentomino", [(0,1),(1,0),(1,1),(2,1),(3,1)],    (180, 120, 240)),  # lavender
-
+    ("F5", "pentomino", [(0, 1), (0, 2), (1, 0), (1, 1), (2, 1)], (220, 80, 80)),  # rose
+    ("L5", "pentomino", [(0, 0), (1, 0), (2, 0), (3, 0), (3, 1)], (240, 180, 80)),  # gold
+    ("N5", "pentomino", [(0, 1), (1, 0), (1, 1), (2, 0), (3, 0)], (180, 240, 100)),  # yellow-green
+    ("P5", "pentomino", [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0)], (240, 100, 180)),  # pink
+    ("T5", "pentomino", [(0, 0), (0, 1), (0, 2), (1, 1), (2, 1)], (140, 100, 240)),  # violet
+    ("U5", "pentomino", [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2)], (80, 200, 200)),  # teal
+    ("V5", "pentomino", [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)], (240, 140, 140)),  # salmon
+    ("W5", "pentomino", [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2)], (140, 240, 160)),  # mint
+    ("Y5", "pentomino", [(0, 1), (1, 0), (1, 1), (2, 1), (3, 1)], (180, 120, 240)),  # lavender
     # ---- Hexominoes (6 cells) — only fully asymmetric ----
-    ("H_Lbig",  "hexomino", [(0,0),(1,0),(2,0),(3,0),(4,0),(4,1)],       (200,  60, 120)),  # crimson
-    ("H_Tbig",  "hexomino", [(0,0),(0,1),(0,2),(0,3),(1,1),(2,1)],       (60,  200, 160)),  # aquamarine
-    ("H_Sbig",  "hexomino", [(0,1),(0,2),(1,0),(1,1),(2,0),(2,1)],       (120,  80, 200)),  # indigo
-    ("H_cross", "hexomino", [(0,1),(1,0),(1,1),(1,2),(2,1),(3,1)],       (200, 100,  60)),  # burnt-orange
-    ("H_Ubig",  "hexomino", [(0,0),(0,3),(1,0),(1,1),(1,2),(1,3)],       (80,  160, 240)),  # cornflower
+    ("H_Lbig", "hexomino", [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (4, 1)], (200, 60, 120)),  # crimson
+    ("H_Tbig", "hexomino", [(0, 0), (0, 1), (0, 2), (0, 3), (1, 1), (2, 1)], (60, 200, 160)),  # aquamarine
+    ("H_Sbig", "hexomino", [(0, 1), (0, 2), (1, 0), (1, 1), (2, 0), (2, 1)], (120, 80, 200)),  # indigo
+    ("H_cross", "hexomino", [(0, 1), (1, 0), (1, 1), (1, 2), (2, 1), (3, 1)], (200, 100, 60)),  # burnt-orange
+    ("H_Ubig", "hexomino", [(0, 0), (0, 3), (1, 0), (1, 1), (1, 2), (1, 3)], (80, 160, 240)),  # cornflower
     # Held-out hexominoes — kept out of SHAPES (see HELD_OUT_SHAPES below)
     # ("H_hook",  "hexomino", [(0,0),(0,1),(0,2),(1,0),(2,0),(2,1)],       (160, 200,  80)),
     # ("H_F",     "hexomino", [(0,1),(0,2),(1,0),(1,1),(2,1),(3,1)],       (240,  80, 200)),
     # ("H_G",     "hexomino", [(0,0),(0,1),(0,2),(1,0),(2,0),(2,1)],       (100, 240, 120)),
     # ("H_Y",     "hexomino", [(0,1),(1,0),(1,1),(2,1),(3,1),(4,1)],       (240, 200,  60)),
     # ("H_R",     "hexomino", [(0,0),(0,1),(1,0),(1,1),(2,1),(3,1)],       (80,  120, 240)),
-
     # ---- Heptominoes (7 cells) — excluded from 10k set ----
     # ("G_Lbig",  "heptomino", [(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(5,1)],         (220,  80,  80)),
     # ("G_Ttall", "heptomino", [(0,0),(0,1),(0,2),(0,3),(0,4),(1,2),(2,2)],         (80,  220, 140)),
@@ -92,7 +89,6 @@ _SHAPE_DEFS = [
     # ("G_hook2", "heptomino", [(0,0),(0,1),(0,2),(0,3),(1,3),(2,3),(2,2)],         (240, 160, 200)),
     # ("G_E",     "heptomino", [(0,0),(0,1),(0,2),(1,0),(1,1),(2,0),(2,1)],         (160, 100, 200)),
     # ("G_spiral","heptomino", [(0,0),(0,1),(0,2),(1,2),(1,1),(2,1),(2,0)],         (100, 200, 160)),
-
     # ---- Octominoes (8 cells) — excluded from 10k set ----
     # ("K_Lbig",  "octomino",  [(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(6,0),(6,1)],   (60,  180,  80)),
     # ("K_T",     "octomino",  [(0,0),(0,1),(0,2),(0,3),(0,4),(1,2),(2,2),(3,2)],   (180, 100, 180)),
@@ -114,13 +110,15 @@ SHAPES: list[dict] = []
 
 for name, family, base_cells, color in _SHAPE_DEFS:
     rotations = get_unique_rotations(base_cells)
-    SHAPES.append({
-        "name": name,
-        "family": family,
-        "rotations": rotations,   # list of lists of (r,c) tuples
-        "color": color,
-        "n_cells": len(base_cells),
-    })
+    SHAPES.append(
+        {
+            "name": name,
+            "family": family,
+            "rotations": rotations,  # list of lists of (r,c) tuples
+            "color": color,
+            "n_cells": len(base_cells),
+        }
+    )
 
 # Lookup by name
 SHAPE_BY_NAME: dict = {s["name"]: s for s in SHAPES}
@@ -136,20 +134,25 @@ for s in SHAPES:
 # ---------------------------------------------------------------------------
 
 _HELD_OUT_DEFS = [
-    ("H_hook", "hexomino", [(0,0),(0,1),(0,2),(1,0),(2,0),(2,1)], (160, 200,  80)),
-    ("H_F",    "hexomino", [(0,1),(0,2),(1,0),(1,1),(2,1),(3,1)], (240,  80, 200)),
-    ("H_G",    "hexomino", [(0,0),(0,1),(0,2),(1,0),(2,0),(2,1)], (100, 240, 120)),
-    ("H_Y",    "hexomino", [(0,1),(1,0),(1,1),(2,1),(3,1),(4,1)], (240, 200,  60)),
-    ("H_R",    "hexomino", [(0,0),(0,1),(1,0),(1,1),(2,1),(3,1)], ( 80, 120, 240)),
+    ("H_hook", "hexomino", [(0, 0), (0, 1), (0, 2), (1, 0), (2, 0), (2, 1)], (160, 200, 80)),
+    ("H_F", "hexomino", [(0, 1), (0, 2), (1, 0), (1, 1), (2, 1), (3, 1)], (240, 80, 200)),
+    ("H_G", "hexomino", [(0, 0), (0, 1), (0, 2), (1, 0), (2, 0), (2, 1)], (100, 240, 120)),
+    ("H_Y", "hexomino", [(0, 1), (1, 0), (1, 1), (2, 1), (3, 1), (4, 1)], (240, 200, 60)),
+    ("H_R", "hexomino", [(0, 0), (0, 1), (1, 0), (1, 1), (2, 1), (3, 1)], (80, 120, 240)),
 ]
 
 HELD_OUT_SHAPES: list[dict] = []
 for _name, _family, _base, _color in _HELD_OUT_DEFS:
     _rots = get_unique_rotations(_base)
-    HELD_OUT_SHAPES.append({
-        "name": _name, "family": _family, "rotations": _rots,
-        "color": _color, "n_cells": len(_base),
-    })
+    HELD_OUT_SHAPES.append(
+        {
+            "name": _name,
+            "family": _family,
+            "rotations": _rots,
+            "color": _color,
+            "n_cells": len(_base),
+        }
+    )
 
 HELD_OUT_SHAPE_NAMES: set = {s["name"] for s in HELD_OUT_SHAPES}
 
@@ -160,21 +163,26 @@ HELD_OUT_SHAPE_NAMES: set = {s["name"] for s in HELD_OUT_SHAPES}
 # ---------------------------------------------------------------------------
 
 _HARDER_C_DEFS = [
-    ("G_Lbig",  "heptomino", [(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(5,1)],         (220,  80,  80)),
-    ("G_Ttall", "heptomino", [(0,0),(0,1),(0,2),(0,3),(0,4),(1,2),(2,2)],         ( 80, 220, 140)),
-    ("G_stair", "heptomino", [(0,0),(1,0),(1,1),(2,1),(2,2),(3,2),(3,3)],         (220, 180,  60)),
-    ("G_plus",  "heptomino", [(0,2),(1,0),(1,1),(1,2),(1,3),(2,2),(3,2)],         (180,  60, 220)),
-    ("G_F",     "heptomino", [(0,1),(0,2),(1,0),(1,1),(2,1),(2,2),(3,2)],         (220,  80, 160)),
+    ("G_Lbig", "heptomino", [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (5, 1)], (220, 80, 80)),
+    ("G_Ttall", "heptomino", [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (2, 2)], (80, 220, 140)),
+    ("G_stair", "heptomino", [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2), (3, 3)], (220, 180, 60)),
+    ("G_plus", "heptomino", [(0, 2), (1, 0), (1, 1), (1, 2), (1, 3), (2, 2), (3, 2)], (180, 60, 220)),
+    ("G_F", "heptomino", [(0, 1), (0, 2), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2)], (220, 80, 160)),
 ]
 
 HARDER_C_SHAPES: list[dict] = []
 for _name, _family, _base, _color in _HARDER_C_DEFS:
     _rots = get_unique_rotations(_base)
     # Only keep shapes with ≥2 unique rotations (needed as valid shape_C targets)
-    HARDER_C_SHAPES.append({
-        "name": _name, "family": _family, "rotations": _rots,
-        "color": _color, "n_cells": len(_base),
-    })
+    HARDER_C_SHAPES.append(
+        {
+            "name": _name,
+            "family": _family,
+            "rotations": _rots,
+            "color": _color,
+            "n_cells": len(_base),
+        }
+    )
 
 HARDER_C_SHAPE_NAMES: set = {s["name"] for s in HARDER_C_SHAPES}
 

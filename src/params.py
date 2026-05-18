@@ -17,9 +17,10 @@ from src.constants import (
 @dataclass
 class ModelParams:
     model_id: str = field(default="Qwen/Qwen2.5-VL-3B-Instruct")
-    latent_size: int = field(default=-1) # -1 for dynamic latent size (same as visual tokens)
+    latent_size: int = field(default=-1)  # -1 for dynamic latent size (same as visual tokens)
     use_cache: bool = field(default=True)
     attn_implementation: str = field(default="flash_attention_2")
+
 
 @dataclass
 class TrainingParams(HFTrainingArguments):
@@ -30,16 +31,35 @@ class TrainingParams(HFTrainingArguments):
     learning_rate: float = field(default=1e-5)
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
-    gamma: float = field(default=0.1) # weight for the latent similarity loss (InfoNCE / cosine / MSE)
-    latent_loss_type: str = field(default="mse", metadata={"help": "Latent supervision loss type. One of: mse | infonce | cosine | mse+infonce"})
-    temperature: float = field(default=0.07, metadata={"help": "Softmax temperature for InfoNCE loss (ignored for mse/cosine)"})
-    scheduled_sampling_prob: float = field(default=0.0, metadata={"help": "Max fraction of latent tokens replaced with model's own predictions. Ramps from 0 to this value between scheduled_sampling_warmup and end of training."})
-    scheduled_sampling_warmup: float = field(default=0.6, metadata={"help": "Fraction of training steps before scheduled sampling begins (0.6 = starts at 60%)."})
-    use_family_batching: bool = field(default=False, metadata={"help": "Group batches by family_batch_key for hard negatives in InfoNCE."})
-    family_batch_key: str = field(default="shape_C_name", metadata={"help": "JSON field to group batches by. shape_C_name = hardest (same query shape, different transformation)."})
+    gamma: float = field(default=0.1)  # weight for the latent similarity loss (InfoNCE / cosine / MSE)
+    latent_loss_type: str = field(
+        default="mse", metadata={"help": "Latent supervision loss type. One of: mse | infonce | cosine | mse+infonce"}
+    )
+    temperature: float = field(
+        default=0.07, metadata={"help": "Softmax temperature for InfoNCE loss (ignored for mse/cosine)"}
+    )
+    scheduled_sampling_prob: float = field(
+        default=0.0,
+        metadata={
+            "help": "Max fraction of latent tokens replaced with model's own predictions. Ramps from 0 to this value between scheduled_sampling_warmup and end of training."
+        },
+    )
+    scheduled_sampling_warmup: float = field(
+        default=0.6,
+        metadata={"help": "Fraction of training steps before scheduled sampling begins (0.6 = starts at 60%)."},
+    )
+    use_family_batching: bool = field(
+        default=False, metadata={"help": "Group batches by family_batch_key for hard negatives in InfoNCE."}
+    )
+    family_batch_key: str = field(
+        default="shape_C_name",
+        metadata={
+            "help": "JSON field to group batches by. shape_C_name = hardest (same query shape, different transformation)."
+        },
+    )
     gradient_checkpointing: bool = field(default=True)
     fp16: bool = field(default=False)
-    max_steps: int = field(default=-1) # -1 for no max steps
+    max_steps: int = field(default=-1)  # -1 for no max steps
     bf16: bool = field(default=True)
     report_to: str = field(default="wandb")
     wandb_project: str = field(default="LantErn-SFT")
@@ -57,7 +77,8 @@ class TrainingParams(HFTrainingArguments):
     save_safetensors: bool = field(default=True)
     seed: int = field(default=42)
     resume_from_checkpoint: bool = field(default=False)
-    #use_liger_kernel: bool = field(default=True) # LantErn does not support liger kernel
+    # use_liger_kernel: bool = field(default=True) # LantErn does not support liger kernel
+
 
 @dataclass
 class GRPOArguments(GRPOConfig):
@@ -99,7 +120,7 @@ class GRPOArguments(GRPOConfig):
     # ------------------------------------------------------------------
     num_train_epochs: int = field(default=1)
     save_steps: int = field(default=300)
-    max_steps: int = field(default=-1) # -1 for no max steps
+    max_steps: int = field(default=-1)  # -1 for no max steps
 
     # ------------------------------------------------------------------
     # Generation / decoding
@@ -138,16 +159,21 @@ class SFTDataParams:
     corrupt_image: bool = field(default=False)
     corruption_type: str = field(default="bbox_blackout")
     filter_ids_path: Optional[str] = field(default=None)
-    dataset_type: str = field(default="viscot",
-                              metadata={"help": "viscot | tetris"})
-    max_train_samples: Optional[int] = field(default=None,
-                              metadata={"help": "Cap training set size. None = use all samples."})
-    use_lvr: bool = field(default=True,
-                          metadata={"help": "Use latent visual reasoning tokens (LantErn). "
-                                            "Set False for NTP baseline."})
-    grayscale_intermediate: bool = field(default=False,
-                          metadata={"help": "Convert intermediate (latent) image to grayscale. "
-                                            "Default False (coloured). Set True for ablation1."})
+    dataset_type: str = field(default="viscot", metadata={"help": "viscot | tetris"})
+    max_train_samples: Optional[int] = field(
+        default=None, metadata={"help": "Cap training set size. None = use all samples."}
+    )
+    use_lvr: bool = field(
+        default=True, metadata={"help": "Use latent visual reasoning tokens (LantErn). " "Set False for NTP baseline."}
+    )
+    grayscale_intermediate: bool = field(
+        default=False,
+        metadata={
+            "help": "Convert intermediate (latent) image to grayscale. "
+            "Default False (coloured). Set True for ablation1."
+        },
+    )
+
 
 @dataclass
 class RLDataParams:

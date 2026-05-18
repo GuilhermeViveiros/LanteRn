@@ -35,55 +35,59 @@ class LatentUtilityCallback(TrainerCallback):
         seed: int = 42,
     ):
         import random as _random
+
         rng = _random.Random(seed)
         n = min(max_eval_samples, len(eval_dataset))
         indices = rng.sample(range(len(eval_dataset)), n)
         from torch.utils.data import Subset
+
         self.eval_dataset = Subset(eval_dataset, sorted(indices))
-        self.collate_fn   = collate_fn
-        self.processor    = processor
-        self.batch_size   = batch_size
+        self.collate_fn = collate_fn
+        self.processor = processor
+        self.batch_size = batch_size
 
     @staticmethod
     def _extract_answer(text: str) -> str:
         """Pull the letter out of <answer>...</answer> or last (a/b/c/d) token."""
-        m = re.search(r'<answer>\s*([a-d])\s*</answer>', text, re.IGNORECASE)
+        m = re.search(r"<answer>\s*([a-d])\s*</answer>", text, re.IGNORECASE)
         if m:
             return m.group(1).lower()
-        m = re.search(r'\b([a-d])\b', text[::-1], re.IGNORECASE)
+        m = re.search(r"\b([a-d])\b", text[::-1], re.IGNORECASE)
         return m.group(1).lower() if m else ""
 
     @staticmethod
     def _collapse_vision_tokens(text: str) -> str:
         """Replace <|vision_start|>...<|vision_end|> blocks with <img>."""
-        return re.sub(r'<\|vision_start\|>.*?<\|vision_end\|>', '<img>', text, flags=re.DOTALL)
+        return re.sub(r"<\|vision_start\|>.*?<\|vision_end\|>", "<img>", text, flags=re.DOTALL)
 
     @torch.no_grad()
     def _run_condition(self, model, dataloader, use_gt: bool, perturbation, desc: str = "", n_log: int = 32):
         from evals import run_batch_inference
+
         lvr_start_token = "<|lvr_start|>"
-        correct    = 0
-        lvr_used   = 0
-        total      = 0
+        correct = 0
+        lvr_used = 0
+        total = 0
         log_prompts = []
-        log_preds   = []
-        log_gts     = []
+        log_preds = []
+        log_gts = []
         for inputs, labels in tqdm(dataloader, desc=desc, leave=False):
             prompt_len = inputs["input_ids"].shape[1]
             out = run_batch_inference(
-                model, inputs,
+                model,
+                inputs,
                 use_lvr=True,
                 use_gt=use_gt,
                 perturbation=perturbation,
             )
             seqs = out.sequences if hasattr(out, "sequences") else out
-            prompts   = self.processor.tokenizer.batch_decode(seqs[:, :prompt_len],  skip_special_tokens=False)
-            generated = self.processor.tokenizer.batch_decode(seqs[:, prompt_len:],  skip_special_tokens=False)
+            prompts = self.processor.tokenizer.batch_decode(seqs[:, :prompt_len], skip_special_tokens=False)
+            generated = self.processor.tokenizer.batch_decode(seqs[:, prompt_len:], skip_special_tokens=False)
             for prompt, gen, gt in zip(prompts, generated, labels):
                 pred_ans = self._extract_answer(gen)
-                correct  += int(pred_ans == gt.strip().lower())
+                correct += int(pred_ans == gt.strip().lower())
                 lvr_used += int(lvr_start_token in gen)
-                total    += 1
+                total += 1
                 if len(log_preds) < n_log:  # noqa: SIM102
                     log_prompts.append(self._collapse_vision_tokens(prompt))
                     log_preds.append(gen)
@@ -95,20 +99,20 @@ class LatentUtilityCallback(TrainerCallback):
     @torch.no_grad()
     def on_evaluate(self, args, state, control, model=None, **kwargs):
         _dist = torch.distributed.is_available() and torch.distributed.is_initialized()
-        rank  = torch.distributed.get_rank() if _dist else 0
+        rank = torch.distributed.get_rank() if _dist else 0
 
         # Each condition is assigned to one rank; ranks >= len(conditions) sit idle.
         conditions = [
-            ("latent_utility/gt",     dict(use_gt=True,  perturbation=None)),
-            ("latent_utility/own",    dict(use_gt=False, perturbation=None)),
-            ("latent_utility/zeros",  dict(use_gt=True,  perturbation="zeros")),
-            ("latent_utility/random", dict(use_gt=True,  perturbation="random")),
+            ("latent_utility/gt", dict(use_gt=True, perturbation=None)),
+            ("latent_utility/own", dict(use_gt=False, perturbation=None)),
+            ("latent_utility/zeros", dict(use_gt=True, perturbation="zeros")),
+            ("latent_utility/random", dict(use_gt=True, perturbation="random")),
         ]
 
-        _C = "\033[96m"   # cyan
+        _C = "\033[96m"  # cyan
         _R = "\033[0m"
 
-        acc      = 0.0
+        acc = 0.0
         lvr_rate = 0.0
         log_prompts, log_preds, log_gts = [], [], []
         if rank < len(conditions):
@@ -134,10 +138,11 @@ class LatentUtilityCallback(TrainerCallback):
         # Gather scalar metrics [acc, lvr_rate] per rank → rank 0.
         if _dist:
             device = torch.device(f"cuda:{torch.cuda.current_device()}")
-            metrics_t   = torch.tensor([acc, lvr_rate], dtype=torch.float32, device=device)
-            world_size  = torch.distributed.get_world_size()
-            gather_list = [torch.zeros(2, dtype=torch.float32, device=device)
-                           for _ in range(world_size)] if rank == 0 else None
+            metrics_t = torch.tensor([acc, lvr_rate], dtype=torch.float32, device=device)
+            world_size = torch.distributed.get_world_size()
+            gather_list = (
+                [torch.zeros(2, dtype=torch.float32, device=device) for _ in range(world_size)] if rank == 0 else None
+            )
             torch.distributed.gather(metrics_t, gather_list, dst=0)
             # Gather decoded strings via gather_object (CPU, no size constraint)
             gen_obj = {"prompts": log_prompts, "preds": log_preds, "gts": log_gts}
@@ -146,20 +151,21 @@ class LatentUtilityCallback(TrainerCallback):
             torch.distributed.barrier()
         else:
             gather_list = [torch.tensor([acc, lvr_rate])]
-            gen_gather  = [{"prompts": log_prompts, "preds": log_preds, "gts": log_gts}]
+            gen_gather = [{"prompts": log_prompts, "preds": log_preds, "gts": log_gts}]
 
-         # Send to wandb
+        # Send to wandb
         if wandb.run:
             if rank == 0:
                 results = {}
                 for i, (name, _) in enumerate(conditions):
                     label = name.split("/")[-1]
-                    results[name]                               = gather_list[i][0].item()
+                    results[name] = gather_list[i][0].item()
                     results[f"latent_utility/{label}_lvr_rate"] = gather_list[i][1].item()
                 print(f"{_C}[LatentUtility] step {state.global_step} → {results}{_R}", flush=True)
 
                 results["train/global_step"] = state.global_step
                 wandb.log(results)
+
 
 class GenerationAccuracyCallback(TrainerCallback):
     """
@@ -177,27 +183,29 @@ class GenerationAccuracyCallback(TrainerCallback):
         seed: int = 42,
     ):
         import random as _random
+
         rng = _random.Random(seed)
         n = min(max_eval_samples, len(eval_dataset))
         indices = rng.sample(range(len(eval_dataset)), n)
         from torch.utils.data import Subset
+
         self.eval_dataset = Subset(eval_dataset, sorted(indices))
-        self.collate_fn   = collate_fn
-        self.processor    = processor
-        self.batch_size   = batch_size
+        self.collate_fn = collate_fn
+        self.processor = processor
+        self.batch_size = batch_size
 
     @staticmethod
     def _extract_answer(text: str) -> str:
-        m = re.search(r'<answer>\s*([a-d])\s*</answer>', text, re.IGNORECASE)
+        m = re.search(r"<answer>\s*([a-d])\s*</answer>", text, re.IGNORECASE)
         if m:
             return m.group(1).lower()
-        m = re.search(r'\b([a-d])\b', text[::-1], re.IGNORECASE)
+        m = re.search(r"\b([a-d])\b", text[::-1], re.IGNORECASE)
         return m.group(1).lower() if m else ""
 
     @torch.no_grad()
     def on_evaluate(self, args, state, control, model=None, **kwargs):
         _dist = torch.distributed.is_available() and torch.distributed.is_initialized()
-        rank       = torch.distributed.get_rank()       if _dist else 0
+        rank = torch.distributed.get_rank() if _dist else 0
         world_size = torch.distributed.get_world_size() if _dist else 1
 
         _C = "\033[96m"
@@ -205,6 +213,7 @@ class GenerationAccuracyCallback(TrainerCallback):
 
         # Split samples across ranks
         from torch.utils.data import Subset
+
         all_indices = list(range(len(self.eval_dataset)))
         rank_indices = all_indices[rank::world_size]
         rank_dataset = Subset(self.eval_dataset, rank_indices)
@@ -220,23 +229,22 @@ class GenerationAccuracyCallback(TrainerCallback):
         unwrapped.eval()
 
         from evals import run_batch_inference
+
         correct = 0
-        total   = 0
+        total = 0
         log_preds, log_gts = [], []
         for inputs, labels in tqdm(dataloader, desc=f"rank {rank} [gen_acc]", leave=False):
-            inputs = {k: v.to(model.device) if hasattr(v, "to") else v
-                      for k, v in inputs.items()}
+            inputs = {k: v.to(model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
             prompt_len = inputs["input_ids"].shape[1]
-            out = run_batch_inference(model, inputs, use_lvr=False, use_gt=False,
-                                      output_attentions=False, return_dict=True)
-            seqs    = out.sequences if hasattr(out, "sequences") else out
-            decoded = self.processor.tokenizer.batch_decode(
-                seqs[:, prompt_len:], skip_special_tokens=False
+            out = run_batch_inference(
+                model, inputs, use_lvr=False, use_gt=False, output_attentions=False, return_dict=True
             )
+            seqs = out.sequences if hasattr(out, "sequences") else out
+            decoded = self.processor.tokenizer.batch_decode(seqs[:, prompt_len:], skip_special_tokens=False)
             for pred, gt in zip(decoded, labels):
                 pred_ans = self._extract_answer(pred)
                 correct += int(pred_ans == gt.strip().lower())
-                total   += 1
+                total += 1
                 if len(log_preds) < 8:
                     log_preds.append(pred[:1000])
                     log_gts.append(gt.strip())
@@ -246,34 +254,39 @@ class GenerationAccuracyCallback(TrainerCallback):
 
         # Gather across ranks
         device = torch.device(f"cuda:{torch.cuda.current_device()}")
-        metrics_t   = torch.tensor([correct, total], dtype=torch.float32, device=device)
-        gather_list = [torch.zeros(2, dtype=torch.float32, device=device)
-                       for _ in range(world_size)] if rank == 0 else None
+        metrics_t = torch.tensor([correct, total], dtype=torch.float32, device=device)
+        gather_list = (
+            [torch.zeros(2, dtype=torch.float32, device=device) for _ in range(world_size)] if rank == 0 else None
+        )
         if _dist:
             torch.distributed.gather(metrics_t, gather_list, dst=0)
-            gen_obj    = {"preds": log_preds, "gts": log_gts}
+            gen_obj = {"preds": log_preds, "gts": log_gts}
             gen_gather = [None] * world_size if rank == 0 else None
             torch.distributed.gather_object(gen_obj, gen_gather, dst=0)
             torch.distributed.barrier()
         else:
             gather_list = [metrics_t]
-            gen_gather  = [{"preds": log_preds, "gts": log_gts}]
+            gen_gather = [{"preds": log_preds, "gts": log_gts}]
 
         if rank == 0:
             total_correct = sum(g[0].item() for g in gather_list)
-            total_total   = sum(g[1].item() for g in gather_list)
+            total_total = sum(g[1].item() for g in gather_list)
             acc = total_correct / max(total_total, 1)
-            print(f"{_C}[GenAcc] step {state.global_step} → acc={acc:.3f} ({int(total_correct)}/{int(total_total)}){_R}", flush=True)
+            print(
+                f"{_C}[GenAcc] step {state.global_step} → acc={acc:.3f} ({int(total_correct)}/{int(total_total)}){_R}",
+                flush=True,
+            )
             wandb.log({"eval/generation_acc": acc}, step=state.global_step)
 
             all_preds = [p for g in gen_gather for p in g["preds"]]
-            all_gts   = [g for obj in gen_gather for g in obj["gts"]]
+            all_gts = [g for obj in gen_gather for g in obj["gts"]]
             n = min(len(all_gts), len(all_preds))
             if n > 0:
                 table = wandb.Table(columns=["sample", "gt", "prediction"])
                 for j in range(n):
                     table.add_data(j, all_gts[j], all_preds[j])
                 wandb.log({"eval/generations": table}, step=state.global_step)
+
 
 class VisCoTestLogger(TrainerCallback):
     def __init__(
@@ -282,7 +295,7 @@ class VisCoTestLogger(TrainerCallback):
         collate_fn: Callable,
         processor: AutoProcessor,
         test_steps: int = 1,
-        report_to: str = "wandb"
+        report_to: str = "wandb",
     ):
         assert test_steps > 0, "test_steps must be greater than 0"
         self.dataset = dataset
@@ -294,6 +307,7 @@ class VisCoTestLogger(TrainerCallback):
 
     def on_step_end(self, args, state, control, metrics=None, **kwargs):
         pass
+
 
 class ProgressBarLossLogger(TrainerCallback):
     def __init__(self):
@@ -313,7 +327,7 @@ class ProgressBarLossLogger(TrainerCallback):
         logs = state.log_history[-1] if len(state.log_history) > 0 else {}
 
         if self.pbar:
-            ce  = logs.get("ce_loss")
+            ce = logs.get("ce_loss")
             tot = logs.get("total_loss")
             mse = logs.get("mse_loss")
             nce = logs.get("infonce_loss")
@@ -339,8 +353,20 @@ class ProgressBarLossLogger(TrainerCallback):
         if self.pbar:
             self.pbar.close()
 
+
 class LantErnSFTrainer(Trainer):
-    def __init__(self, *args, gamma: float = 0.1, latent_only: bool = False, use_lvr: bool = True, latent_loss_type: str = "mse", temperature: float = 0.07, scheduled_sampling_prob: float = 0.0, scheduled_sampling_warmup: float = 0.6, **kwargs):
+    def __init__(
+        self,
+        *args,
+        gamma: float = 0.1,
+        latent_only: bool = False,
+        use_lvr: bool = True,
+        latent_loss_type: str = "mse",
+        temperature: float = 0.07,
+        scheduled_sampling_prob: float = 0.0,
+        scheduled_sampling_warmup: float = 0.6,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.gamma = gamma
         self.latent_only = latent_only
@@ -351,13 +377,16 @@ class LantErnSFTrainer(Trainer):
         self.scheduled_sampling_warmup = scheduled_sampling_warmup
         # only rank0
         if is_rank0():
-            logger.info(f"Using gamma: {gamma}, latent_only: {latent_only}, latent_loss_type: {latent_loss_type}, temperature: {temperature}, scheduled_sampling_prob: {scheduled_sampling_prob}, scheduled_sampling_warmup: {scheduled_sampling_warmup}")
+            logger.info(
+                f"Using gamma: {gamma}, latent_only: {latent_only}, latent_loss_type: {latent_loss_type}, temperature: {temperature}, scheduled_sampling_prob: {scheduled_sampling_prob}, scheduled_sampling_warmup: {scheduled_sampling_warmup}"
+            )
         self.mse_loss = torch.nn.MSELoss()
 
     def _get_train_sampler(self, dataset=None):
         from torch.utils.data import SequentialSampler
 
         from src.datasets.family_sampler import FamilyGroupedDataset
+
         # FamilyGroupedDataset pre-orders indices by family chunk — must use
         # SequentialSampler to preserve that ordering.  For all other datasets
         # fall back to the default (RandomSampler / distributed sampler).
@@ -367,21 +396,24 @@ class LantErnSFTrainer(Trainer):
         return super()._get_train_sampler(dataset)
 
     @staticmethod
-    def infonce_loss(pred: torch.Tensor, gt: torch.Tensor, temperature: float = 0.07,
-                     hard_negative_mask: torch.Tensor = None) -> torch.Tensor:
+    def infonce_loss(
+        pred: torch.Tensor, gt: torch.Tensor, temperature: float = 0.07, hard_negative_mask: torch.Tensor = None
+    ) -> torch.Tensor:
         """Bidirectional NT-Xent InfoNCE loss. pred/gt: [N, D].
         hard_negative_mask: [N, N] bool — True for same-shape_C pairs (i!=j).
         Hard negative logits are upweighted by log(2) to force tighter discrimination.
         """
         pred_n = torch.nn.functional.normalize(pred, dim=-1)
-        gt_n   = torch.nn.functional.normalize(gt,   dim=-1)
+        gt_n = torch.nn.functional.normalize(gt, dim=-1)
         logits = torch.matmul(pred_n, gt_n.t()) / temperature  # [N, N]
         if hard_negative_mask is not None:
             import math
+
             logits = logits + hard_negative_mask.float() * math.log(2.0)
         labels = torch.arange(pred.size(0), device=pred.device)
-        return (torch.nn.functional.cross_entropy(logits, labels) +
-                torch.nn.functional.cross_entropy(logits.t(), labels)) / 2.0
+        return (
+            torch.nn.functional.cross_entropy(logits, labels) + torch.nn.functional.cross_entropy(logits.t(), labels)
+        ) / 2.0
 
     # override the custom_loss function
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
@@ -398,7 +430,9 @@ class LantErnSFTrainer(Trainer):
             ce_loss = outputs.loss
             if wandb.run and is_rank0():
                 lr = self.lr_scheduler.get_last_lr()[0] if self.lr_scheduler is not None else 0.0
-                wandb.log({"ce_loss": ce_loss.item(), "total_loss": ce_loss.item(), "lr": lr, "epoch": self.state.epoch})
+                wandb.log(
+                    {"ce_loss": ce_loss.item(), "total_loss": ce_loss.item(), "lr": lr, "epoch": self.state.epoch}
+                )
             return (ce_loss, outputs) if return_outputs else ce_loss
 
         # In latent-only mode, only CE loss is needed — no MSE supervision.
@@ -408,44 +442,54 @@ class LantErnSFTrainer(Trainer):
             return (ce_loss, outputs) if return_outputs else ce_loss
 
         # get idx where token is <|lvr_sep|> / <|lvr_start|>
-        lvr_sep_mask   = (input_ids == self.model.config.lvr_sep_id)
-        lvr_start_mask = (input_ids == self.model.config.lvr_start_id)
+        lvr_sep_mask = input_ids == self.model.config.lvr_sep_id
+        lvr_start_mask = input_ids == self.model.config.lvr_start_id
 
         # ── Compute n_replaced BEFORE any forward pass ──────────────────────────
         n_replaced = 0
         if self.scheduled_sampling_prob > 0 and self.state.max_steps > 0:
             progress = self.state.global_step / self.state.max_steps
-            warmup   = self.scheduled_sampling_warmup
+            warmup = self.scheduled_sampling_warmup
             if is_rank0() and self.state.global_step % 10 == 0:
-                logger.info(f"[SchedSampling] step={self.state.global_step}/{self.state.max_steps} "
-                            f"progress={progress:.3f} warmup={warmup}")
+                logger.info(
+                    f"[SchedSampling] step={self.state.global_step}/{self.state.max_steps} "
+                    f"progress={progress:.3f} warmup={warmup}"
+                )
             if progress >= warmup:
                 sched_progress = (progress - warmup) / max(1.0 - warmup, 1e-8)
-                latent_size    = self.model.config.latent_size
-                n_replaced     = round(sched_progress * self.scheduled_sampling_prob * latent_size)
-                n_replaced     = min(n_replaced, latent_size)
+                latent_size = self.model.config.latent_size
+                n_replaced = round(sched_progress * self.scheduled_sampling_prob * latent_size)
+                n_replaced = min(n_replaced, latent_size)
                 if is_rank0() and self.state.global_step % 10 == 0:
-                    logger.info(f"[SchedSampling] sched_progress={sched_progress:.3f} "
-                                f"n_replaced={n_replaced}/{latent_size}")
+                    logger.info(
+                        f"[SchedSampling] sched_progress={sched_progress:.3f} " f"n_replaced={n_replaced}/{latent_size}"
+                    )
 
-        _PIXEL_KEYS = ('input_ids', 'pixel_values', 'image_grid_thw',
-                       'pixel_values_videos', 'video_grid_thw',
-                       'latent_values', 'latent_grid_thw',
-                       'latent_mask_out', 'answer_positions')
+        _PIXEL_KEYS = (
+            "input_ids",
+            "pixel_values",
+            "image_grid_thw",
+            "pixel_values_videos",
+            "video_grid_thw",
+            "latent_values",
+            "latent_grid_thw",
+            "latent_mask_out",
+            "answer_positions",
+        )
 
         if n_replaced > 0:
             # ── Two-pass scheduled sampling — SINGLE backward (no ZeRO conflict) ──
             # Pass 1: no_grad — only used to build self-predicted embeddings
             with torch.no_grad():
-                ref_outputs     = model(**inputs, return_dict=True)
-                ref_hidden      = ref_outputs.hidden_states   # [B, T, D]
-                gt_input_embeds = ref_outputs.inputs_embeds   # [B, T, D]
+                ref_outputs = model(**inputs, return_dict=True)
+                ref_hidden = ref_outputs.hidden_states  # [B, T, D]
+                gt_input_embeds = ref_outputs.inputs_embeds  # [B, T, D]
 
             # Collect hidden states at [lvr_start, sep_0..sep_{k-2}] for each sample
             ref_pred_list = []
             for b in range(input_ids.shape[0]):
                 start_pos = lvr_start_mask[b].nonzero(as_tuple=False).squeeze(-1)
-                sep_pos   = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)
+                sep_pos = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)
                 pred_idxs = torch.cat([start_pos, sep_pos[:-1]])
                 ref_pred_list.append(ref_hidden[b, pred_idxs])
 
@@ -456,22 +500,24 @@ class LantErnSFTrainer(Trainer):
                 new_embeds[b, sep_pos[-n_replaced:]] = ref_pred_list[b][-n_replaced:]
 
             # gt_list: GT visual embeddings from the original input (detached — no grad needed)
-            gt_list = [gt_input_embeds[b, lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)].detach()
-                       for b in range(input_ids.shape[0])]
+            gt_list = [
+                gt_input_embeds[b, lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)].detach()
+                for b in range(input_ids.shape[0])
+            ]
 
             # Pass 2: with grad — the ONLY backward pass
             second_inputs = {k: v for k, v in inputs.items() if k not in _PIXEL_KEYS}
-            second_inputs['inputs_embeds'] = new_embeds
-            outputs      = model(**second_inputs, return_dict=True)
-            ce_loss      = outputs.loss
-            hidden_states    = outputs.hidden_states
+            second_inputs["inputs_embeds"] = new_embeds
+            outputs = model(**second_inputs, return_dict=True)
+            ce_loss = outputs.loss
+            hidden_states = outputs.hidden_states
             input_embeddings = new_embeds
 
             # pred_list from second forward — trains latent production under self-context
             pred_list = []
             for b in range(input_ids.shape[0]):
                 start_pos = lvr_start_mask[b].nonzero(as_tuple=False).squeeze(-1)
-                sep_pos   = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)
+                sep_pos = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)
                 pred_idxs = torch.cat([start_pos, sep_pos[:-1]])
                 pred_list.append(hidden_states[b, pred_idxs])
 
@@ -480,9 +526,9 @@ class LantErnSFTrainer(Trainer):
 
         else:
             # ── Standard single forward ──────────────────────────────────────────
-            outputs          = model(**inputs, return_dict=True)
-            ce_loss          = outputs.loss
-            hidden_states    = outputs.hidden_states
+            outputs = model(**inputs, return_dict=True)
+            ce_loss = outputs.loss
+            hidden_states = outputs.hidden_states
             input_embeddings = outputs.inputs_embeds
 
             # Shifted MSE — k pairs for k GT visual embeds (latent_size = k):
@@ -491,9 +537,11 @@ class LantErnSFTrainer(Trainer):
             pred_list, gt_list = [], []
             for b in range(input_ids.shape[0]):
                 start_pos = lvr_start_mask[b].nonzero(as_tuple=False).squeeze(-1)
-                sep_pos   = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)
+                sep_pos = lvr_sep_mask[b].nonzero(as_tuple=False).squeeze(-1)
                 if start_pos.numel() == 0 or sep_pos.numel() == 0:
-                    raise ValueError(f"Sample {b} has no latent tokens — every sample must have <lvr_start> and <lvr_sep>")
+                    raise ValueError(
+                        f"Sample {b} has no latent tokens — every sample must have <lvr_start> and <lvr_sep>"
+                    )
                 pred_idxs = torch.cat([start_pos, sep_pos[:-1]])
                 pred_list.append(hidden_states[b, pred_idxs])
                 gt_list.append(input_embeddings[b, sep_pos])
@@ -502,7 +550,7 @@ class LantErnSFTrainer(Trainer):
             return (ce_loss, outputs) if return_outputs else ce_loss
 
         pred_embeddings = torch.cat(pred_list, dim=0)
-        gt_embeddings   = torch.cat(gt_list,   dim=0)
+        gt_embeddings = torch.cat(gt_list, dim=0)
 
         # Per-token (flat) — for MSE logging and token-level cosine monitoring
         sim_loss = 1 - torch.nn.functional.cosine_similarity(pred_embeddings, gt_embeddings).mean()
@@ -510,18 +558,18 @@ class LantErnSFTrainer(Trainer):
 
         # Block-level: flatten latent_size tokens per sample → [B, latent_size * D]
         pred_block = torch.stack([p.flatten() for p in pred_list])
-        gt_block   = torch.stack([g.flatten() for g in gt_list])
+        gt_block = torch.stack([g.flatten() for g in gt_list])
 
         # Build hard-negative mask from shape_name_ids if available (same shape, different sample).
         # shape_name_ids is an int64 tensor (zlib.adler32 of the name); -1 means unknown.
         hard_negative_mask = None
         shape_name_ids = inputs.get("shape_name_ids")
         if shape_name_ids is not None and self.latent_loss_type in ("infonce", "mse+infonce"):
-            ids  = shape_name_ids.to(pred_block.device)
-            mask = (ids.unsqueeze(0) == ids.unsqueeze(1))   # [N, N] — same shape name
-            mask.fill_diagonal_(False)                       # exclude self-pairs
+            ids = shape_name_ids.to(pred_block.device)
+            mask = ids.unsqueeze(0) == ids.unsqueeze(1)  # [N, N] — same shape name
+            mask.fill_diagonal_(False)  # exclude self-pairs
             valid = ids >= 0
-            mask &= valid.unsqueeze(0) & valid.unsqueeze(1) # exclude unknown (-1)
+            mask &= valid.unsqueeze(0) & valid.unsqueeze(1)  # exclude unknown (-1)
             if mask.any():
                 hard_negative_mask = mask
 
@@ -541,7 +589,6 @@ class LantErnSFTrainer(Trainer):
 
         # compute the total loss
         loss = ce_loss + self.gamma * latent_loss
-
 
         # HF Trainer logging (no prog_bar)
         if hasattr(self, "state") and hasattr(self.state, "log_history"):
@@ -567,7 +614,12 @@ class LantErnSFTrainer(Trainer):
                 "lr": lr,
                 "epoch": self.state.epoch,
                 "scheduled_sampling/n_replaced": n_replaced,
-                "scheduled_sampling/sched_progress": (max(0, (self.state.global_step / self.state.max_steps) - self.scheduled_sampling_warmup) / max(1.0 - self.scheduled_sampling_warmup, 1e-8)) if self.state.max_steps > 0 else 0.0,
+                "scheduled_sampling/sched_progress": (
+                    max(0, (self.state.global_step / self.state.max_steps) - self.scheduled_sampling_warmup)
+                    / max(1.0 - self.scheduled_sampling_warmup, 1e-8)
+                )
+                if self.state.max_steps > 0
+                else 0.0,
             }
             if nce_loss is not None:
                 log_dict["infonce_loss"] = nce_loss.item()
@@ -577,6 +629,3 @@ class LantErnSFTrainer(Trainer):
             wandb.log(log_dict)
 
         return (loss, outputs) if return_outputs else loss
-
-
-

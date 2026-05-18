@@ -65,10 +65,7 @@ def make_prompt_messages(user_text: str, system_prompt: Optional[str] = None) ->
     }
     if system_prompt is not None:
         raise ValueError("System prompt is not supported yet")
-        return [
-            {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
-            prompt
-        ]
+        return [{"role": "system", "content": [{"type": "text", "text": system_prompt}]}, prompt]
     else:
         return [prompt]
 

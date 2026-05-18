@@ -8,10 +8,10 @@ _slurm_ntasks = int(os.environ.get("SLURM_NTASKS", 1))
 _torchrun_active = "RANK" in os.environ or "LOCAL_RANK" in os.environ
 if _slurm_ntasks > 1 or _torchrun_active:
     _local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("SLURM_LOCALID", 0)))
-    _rank       = int(os.environ.get("RANK",       os.environ.get("SLURM_PROCID",  0)))
-    _world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS",  1)))
+    _rank = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", 0)))
+    _world_size = int(os.environ.get("WORLD_SIZE", os.environ.get("SLURM_NTASKS", 1)))
     os.environ["LOCAL_RANK"] = str(_local_rank)
-    os.environ["RANK"]       = str(_rank)
+    os.environ["RANK"] = str(_rank)
     os.environ["WORLD_SIZE"] = str(_world_size)
     # Restrict each process to its own GPU so HF Trainer never triggers DataParallel.
     if "CUDA_VISIBLE_DEVICES" not in os.environ:
@@ -87,6 +87,7 @@ def _save_data_diagnostics(dataset, output_dir: str, n_samples: int = 8):
 
         # Resize to fixed height for display
         h = 224
+
         def _resize_h(im):
             w = int(im.width * h / im.height)
             return im.resize((w, h))
@@ -101,8 +102,7 @@ def _save_data_diagnostics(dataset, output_dir: str, n_samples: int = 8):
         scale_y = orig_r.height / img_orig.height
         x1, y1, x2, y2 = bbox
         ImageDraw.Draw(orig_ann).rectangle(
-            [x1 * scale_x, y1 * scale_y, x2 * scale_x, y2 * scale_y],
-            outline=(255, 0, 0), width=2
+            [x1 * scale_x, y1 * scale_y, x2 * scale_x, y2 * scale_y], outline=(255, 0, 0), width=2
         )
 
         # Stitch side by side with labels
@@ -136,7 +136,7 @@ def _debug_tetris_batch(data_module: dict, output_dir: str, batch_size: int = 6,
     os.makedirs(debug_dir, exist_ok=True)
 
     train_ds = data_module["train_dataset"]
-    n_total  = len(train_ds)
+    n_total = len(train_ds)
 
     # Sample chunk-aligned start indices (must match training batch boundaries)
     # Spread evenly across the dataset then shuffle for variety
@@ -146,13 +146,13 @@ def _debug_tetris_batch(data_module: dict, output_dir: str, batch_size: int = 6,
     random.shuffle(candidates)
     starts = [c * batch_size for c in candidates[:n_batches]]
 
-    BORDER  = 4
-    pad     = 8
+    BORDER = 4
+    pad = 8
     label_h = 32
-    GREEN   = (50,  220,  80)
-    RED     = (220,  50,  50)
-    BG      = (22,   22,  22)
-    H       = 224
+    GREEN = (50, 220, 80)
+    RED = (220, 50, 50)
+    BG = (22, 22, 22)
+    H = 224
 
     def _framed(im: Image.Image, color, border: int) -> Image.Image:
         frame = Image.new("RGB", (im.width + 2 * border, im.height + 2 * border), color)
@@ -162,21 +162,21 @@ def _debug_tetris_batch(data_module: dict, output_dir: str, batch_size: int = 6,
     for b_idx, start in enumerate(sorted(starts)):
         rows = []
         for i in range(start, min(start + batch_size, n_total)):
-            sample     = train_ds[i]
+            sample = train_ds[i]
             latent_msg = sample[2]
-            inter_img  = next(c["image"] for c in latent_msg["content"] if c["type"] == "image")
+            inter_img = next(c["image"] for c in latent_msg["content"] if c["type"] == "image")
             shape_name = latent_msg.get("shape_C_name", "?")
-            ikey       = latent_msg.get("intermediate_key", "")
-            short_key  = ikey.split("_")[-2] + "_" + ikey.split("_")[-1] if "_" in ikey else ikey
-            label      = f"{'[+]' if i == start else '[-]'} {shape_name} | {short_key}"
+            ikey = latent_msg.get("intermediate_key", "")
+            short_key = ikey.split("_")[-2] + "_" + ikey.split("_")[-1] if "_" in ikey else ikey
+            label = f"{'[+]' if i == start else '[-]'} {shape_name} | {short_key}"
             w = int(inter_img.width * H / inter_img.height)
             rows.append((inter_img.convert("RGB").resize((w, H)), label, i == start))
 
         n = len(rows)
-        framed  = [_framed(im, GREEN if anchor else RED, BORDER) for im, _, anchor in rows]
+        framed = [_framed(im, GREEN if anchor else RED, BORDER) for im, _, anchor in rows]
         total_w = sum(f.width for f in framed) + pad * (n - 1)
-        strip   = Image.new("RGB", (total_w, framed[0].height + label_h), BG)
-        draw    = ImageDraw.Draw(strip)
+        strip = Image.new("RGB", (total_w, framed[0].height + label_h), BG)
+        draw = ImageDraw.Draw(strip)
         x = 0
         for f, (_, label, anchor) in zip(framed, rows):
             strip.paste(f, (x, label_h))
@@ -196,16 +196,13 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
         logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
-
-    compute_dtype = (torch.float16 if training_params.fp16 else (torch.bfloat16 if training_params.bf16 else torch.float32))
+    compute_dtype = (
+        torch.float16 if training_params.fp16 else (torch.bfloat16 if training_params.bf16 else torch.float32)
+    )
     logger.info(colored(f"Compute dtype: {compute_dtype}", "cyan"))
 
     # Load Model
-    model, processor = load_model(
-        model_params.model_id,
-        compute_dtype=compute_dtype,
-        use_cache=model_params.use_cache
-    )
+    model, processor = load_model(model_params.model_id, compute_dtype=compute_dtype, use_cache=model_params.use_cache)
 
     # check if we should resume training from a checkpoint
     if training_params.resume_from_checkpoint:
@@ -217,9 +214,10 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         logger.info(colored("Starting training from scratch", "cyan"))
 
     # set the latent tokens
-    assert model_params.latent_size > 0 or model_params.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
+    assert (
+        model_params.latent_size > 0 or model_params.latent_size == -1
+    ), "Latent size must be -1 for dynamic latent size or a positive integer"
     set_latent_tokens(processor, model, model_params.latent_size)
-
 
     # freeze specific components according to the training parameters
     if training_params.freeze_latent_only:
@@ -227,7 +225,9 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         trainable = [(n, p.shape) for n, p in model.named_parameters() if p.requires_grad]
         logger.info(colored(f"Latent-only mode: {len(trainable)} trainable parameter tensors: {trainable}", "yellow"))
     else:
-        configure_vision_tower(model, freeze_vision_tower=training_params.freeze_vision_tower, freeze_merger=training_params.freeze_merger)
+        configure_vision_tower(
+            model, freeze_vision_tower=training_params.freeze_vision_tower, freeze_merger=training_params.freeze_merger
+        )
         configure_llm(model, freeze_llm=training_params.freeze_llm)
 
     # Gradient Checkpointing
@@ -236,11 +236,15 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
 
     # if eval_steps or test_steps are defined, ensure the split percentages are > 0
     if data_params.split_percentages[1] > 0:
-        assert training_params.eval_steps > 0, "Eval steps must be greater than 0 if eval percentage is greater than 0 (data_params.split_percentages[1] > 0)"
+        assert (
+            training_params.eval_steps > 0
+        ), "Eval steps must be greater than 0 if eval percentage is greater than 0 (data_params.split_percentages[1] > 0)"
     else:
         training_params.test_steps = 0
     if data_params.split_percentages[2] > 0:
-        assert training_params.test_steps > 0, "Test steps must be greater than 0 if test percentage is greater than 0 (data_params.split_percentages[2] > 0)"
+        assert (
+            training_params.test_steps > 0
+        ), "Test steps must be greater than 0 if test percentage is greater than 0 (data_params.split_percentages[2] > 0)"
     else:
         training_params.test_steps = 0
 
@@ -257,8 +261,10 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         if getattr(training_params, "use_family_batching", False):
             num_gpus = int(os.environ.get("WORLD_SIZE", 1))
             chunk_size = training_params.per_device_train_batch_size * num_gpus
-            logger.info(f"[FamilyBatching] wrapping train dataset with FamilyGroupedIterableDataset "
-                        f"(chunk_size={chunk_size}, key={training_params.family_batch_key})")
+            logger.info(
+                f"[FamilyBatching] wrapping train dataset with FamilyGroupedIterableDataset "
+                f"(chunk_size={chunk_size}, key={training_params.family_batch_key})"
+            )
             data_module["train_dataset"] = FamilyGroupedDataset(
                 dataset=data_module["train_dataset"],
                 chunk_size=chunk_size,
@@ -283,36 +289,42 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     else:
         raise ValueError(f"Invalid dataset type: {data_params.dataset_type}")
 
-
     if is_rank0() and data_params.dataset_type == "tetris" and data_params.use_lvr:
-        _debug_tetris_batch(data_module, training_params.output_dir,
-                            batch_size=training_params.per_device_train_batch_size)
+        _debug_tetris_batch(
+            data_module, training_params.output_dir, batch_size=training_params.per_device_train_batch_size
+        )
 
     callbacks = [ProgressBarLossLogger()]
     if data_params.dataset_type == "tetris" and "eval_dataset" in data_module:
         if data_params.use_lvr:
-            callbacks.append(LatentUtilityCallback(
-                eval_dataset=data_module["eval_dataset"],
-                collate_fn=generate_collate,
-                processor=processor,
-                batch_size=training_params.per_device_eval_batch_size,
-            ))
+            callbacks.append(
+                LatentUtilityCallback(
+                    eval_dataset=data_module["eval_dataset"],
+                    collate_fn=generate_collate,
+                    processor=processor,
+                    batch_size=training_params.per_device_eval_batch_size,
+                )
+            )
         else:
-            callbacks.append(GenerationAccuracyCallback(
-                eval_dataset=data_module["eval_dataset"],
-                collate_fn=generate_collate,
-                processor=processor,
-                batch_size=training_params.per_device_eval_batch_size,
-                max_eval_samples=300,
-            ))
+            callbacks.append(
+                GenerationAccuracyCallback(
+                    eval_dataset=data_module["eval_dataset"],
+                    collate_fn=generate_collate,
+                    processor=processor,
+                    batch_size=training_params.per_device_eval_batch_size,
+                    max_eval_samples=300,
+                )
+            )
     if training_params.test_steps > 0 and "test_dataset" in data_module:
-        callbacks.append(VisCoTestLogger(
-            dataset=data_module.pop("test_dataset"),
-            collate_fn=generate_collate,
-            processor=processor, # necessary for the test script
-            test_steps=training_params.test_steps,
-            report_to="wandb"
-        ))
+        callbacks.append(
+            VisCoTestLogger(
+                dataset=data_module.pop("test_dataset"),
+                collate_fn=generate_collate,
+                processor=processor,  # necessary for the test script
+                test_steps=training_params.test_steps,
+                report_to="wandb",
+            )
+        )
 
     # Train
     trainer = LantErnSFTrainer(
@@ -326,12 +338,10 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         scheduled_sampling_prob=training_params.scheduled_sampling_prob,
         scheduled_sampling_warmup=training_params.scheduled_sampling_warmup,
         callbacks=callbacks,
-        **data_module
+        **data_module,
     )
 
-    trainer.train(
-        resume_from_checkpoint=resume_from_checkpoint
-    )
+    trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     # save processor
     processor.save_pretrained(training_params.output_dir)
 

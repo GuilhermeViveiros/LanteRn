@@ -43,7 +43,6 @@ from src.utils import rank0_print
 logger = logging.getLogger("LantErn-TetrisDataset")
 
 
-
 class SFTTetrisDataset(Dataset):
     def __init__(
         self,
@@ -70,7 +69,7 @@ class SFTTetrisDataset(Dataset):
             marker = "analogy_data" + os.sep
             idx = path.find(marker)
             if idx != -1:
-                path = path[idx + len(marker):]
+                path = path[idx + len(marker) :]
             return os.path.join(data_dir, path)
 
         for sample in self.dataset:
@@ -78,8 +77,7 @@ class SFTTetrisDataset(Dataset):
             traces = sample["reasoning_traces"]
             traces["intermediate_img_path"] = _normalize(traces["intermediate_img_path"])
 
-        rank0_print(f"Loaded {len(self.dataset)} analogy samples from {data_path} "
-                    f"(use_lvr={use_lvr})", flush=True)
+        rank0_print(f"Loaded {len(self.dataset)} analogy samples from {data_path} " f"(use_lvr={use_lvr})", flush=True)
 
         if dummy:
             self.dataset = self.dataset[:1000]
@@ -98,10 +96,10 @@ class SFTTetrisDataset(Dataset):
         traces = data["reasoning_traces"]
 
         question = data["question"]
-        answer   = traces["answer"]
+        answer = traces["answer"]
 
-        pre_text   = traces["pre_visual_text_think"]
-        post_list  = traces["post_visual_text_think"]   # list of 4, one non-empty
+        pre_text = traces["pre_visual_text_think"]
+        post_list = traces["post_visual_text_think"]  # list of 4, one non-empty
         text_think = traces.get("text_think", "")
         inter_path = traces["intermediate_img_path"]
 
@@ -110,7 +108,7 @@ class SFTTetrisDataset(Dataset):
         composite_img = Image.open(data["img_path"])
 
         user_content = [
-            {"type": "text",  "text": question},
+            {"type": "text", "text": question},
             {"type": "image", "image": composite_img},
         ]
 
@@ -122,32 +120,32 @@ class SFTTetrisDataset(Dataset):
                 + post_text
                 + text_think
                 + "</think>"
-                + "<answer> " + answer + "</answer>"
+                + "<answer> "
+                + answer
+                + "</answer>"
             )
             if self.grayscale_intermediate:
                 intermediate_img = Image.open(inter_path).convert("RGB")
             else:
                 intermediate_img = Image.open(inter_path).convert("RGB")
-            latent_msg = {"role": "assistant", "content": [{"type": "image", "image": intermediate_img}],
-                          "shape_C_name": data.get("shape_C_name"),
-                          "intermediate_key": data.get("intermediate_key", "")}
+            latent_msg = {
+                "role": "assistant",
+                "content": [{"type": "image", "image": intermediate_img}],
+                "shape_C_name": data.get("shape_C_name"),
+                "intermediate_key": data.get("intermediate_key", ""),
+            }
             return [
-                {"role": "user",      "content": user_content},
+                {"role": "user", "content": user_content},
                 {"role": "assistant", "content": [{"type": "text", "text": assistant_content}]},
                 latent_msg,
             ]
         else:
             # NTP: pure text reasoning, no latent visual tokens
             assistant_content = (
-                "<think>"
-                + pre_text
-                + post_text
-                + text_think
-                + "</think>"
-                + "<answer> " + answer + "</answer>"
+                "<think>" + pre_text + post_text + text_think + "</think>" + "<answer> " + answer + "</answer>"
             )
             return [
-                {"role": "user",      "content": user_content},
+                {"role": "user", "content": user_content},
                 {"role": "assistant", "content": [{"type": "text", "text": assistant_content}]},
             ]
 
@@ -155,6 +153,7 @@ class SFTTetrisDataset(Dataset):
 # ---------------------------------------------------------------------------
 # Collate functions  (identical logic to sft_viscot_data.py)
 # ---------------------------------------------------------------------------
+
 
 def _mask_image_output_tokens(input_ids: torch.Tensor, image_token: int) -> torch.Tensor:
     return (input_ids == image_token).long()
@@ -165,11 +164,11 @@ def collate_fn_latent_sft(samples: list[list], processor: AutoProcessor):
     shape_names = [s[-1].pop("shape_C_name", None) for s in samples]
     latent_visuals = [s.pop(-1) for s in samples]
 
-    text          = processor.apply_chat_template(samples, tokenize=False)
+    text = processor.apply_chat_template(samples, tokenize=False)
     image_inputs, video_inputs = process_vision_info(samples)
 
     # Expand <|lvr_sep|> to latent_size copies
-    latent_text         = processor.apply_chat_template(latent_visuals, tokenize=False)
+    latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
     latent_image_inputs, _ = process_vision_info(latent_visuals)
     latent_inputs = processor(
         text=latent_text,
@@ -178,7 +177,7 @@ def collate_fn_latent_sft(samples: list[list], processor: AutoProcessor):
         return_tensors="pt",
     )
     latent_grid_thw = latent_inputs["image_grid_thw"]
-    merge_length    = processor.image_processor.merge_size ** 2
+    merge_length = processor.image_processor.merge_size**2
 
     if processor.latent_size == -1:
         num_latent_tokens = [int(g.prod()) // merge_length for g in latent_grid_thw]
@@ -202,18 +201,18 @@ def collate_fn_latent_sft(samples: list[list], processor: AutoProcessor):
     # Build labels: only supervise the assistant turn
     labels = torch.full_like(inputs["input_ids"], -100)
     assistant_start = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
-    assistant_end   = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
+    assistant_end = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
 
     def _find(seq, subseq):
         n, m = len(seq), len(subseq)
         for i in range(n - m + 1):
-            if seq[i:i+m] == subseq:
+            if seq[i : i + m] == subseq:
                 return i
         return -1
 
     # In text_think the answer appears as "option (X)" →  ' ('(320) + bare_letter(64-67).
     # We find that position for answer_ce_loss monitoring.
-    _OPEN_PAREN = 320          # token for ' ('
+    _OPEN_PAREN = 320  # token for ' ('
     _LETTER_IDS = {64, 65, 66, 67}  # bare a / b / c / d
     answer_positions = torch.full((len(inputs["input_ids"]),), -1, dtype=torch.long)
 
@@ -233,20 +232,20 @@ def collate_fn_latent_sft(samples: list[list], processor: AutoProcessor):
                 break
 
     labels[labels == processor.tokenizer.pad_token_id] = -100
-    labels[labels == processor.lvr_sep_id]             = -100
+    labels[labels == processor.lvr_sep_id] = -100
 
     import zlib
-    inputs["labels"]           = labels
+
+    inputs["labels"] = labels
     inputs["answer_positions"] = answer_positions
-    inputs["latent_mask_out"]  = _mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
-    inputs["latent_values"]    = latent_inputs["pixel_values"]
-    inputs["latent_grid_thw"]  = latent_grid_thw
+    inputs["latent_mask_out"] = _mask_image_output_tokens(inputs["input_ids"], processor.lvr_sep_id)
+    inputs["latent_values"] = latent_inputs["pixel_values"]
+    inputs["latent_grid_thw"] = latent_grid_thw
     # Encode shape names as deterministic int64 so Accelerate can concatenate across
     # gradient-accumulation steps (strings can't be tensor-concatenated).
-    inputs["shape_name_ids"] = torch.tensor([
-        zlib.adler32(n.encode()) if n is not None else -1
-        for n in shape_names
-    ], dtype=torch.long)
+    inputs["shape_name_ids"] = torch.tensor(
+        [zlib.adler32(n.encode()) if n is not None else -1 for n in shape_names], dtype=torch.long
+    )
 
     return inputs
 
@@ -268,12 +267,12 @@ def collate_fn_ntp(samples: list[list], processor: AutoProcessor):
 
     labels = torch.full_like(inputs["input_ids"], -100)
     assistant_start = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
-    assistant_end   = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
+    assistant_end = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
 
     def _find(seq, subseq):
         n, m = len(seq), len(subseq)
         for i in range(n - m + 1):
-            if seq[i:i+m] == subseq:
+            if seq[i : i + m] == subseq:
                 return i
         return -1
 
@@ -297,7 +296,7 @@ def collate_fn_ntp(samples: list[list], processor: AutoProcessor):
 
     labels[labels == processor.tokenizer.pad_token_id] = -100
 
-    inputs["labels"]           = labels
+    inputs["labels"] = labels
     inputs["answer_positions"] = answer_positions
 
     return inputs
@@ -306,44 +305,46 @@ def collate_fn_ntp(samples: list[list], processor: AutoProcessor):
 def collate_fn_generate_ntp(samples: list[list], processor: AutoProcessor):
     """Generate collate for NTP mode: no latent visual, returns (inputs, labels)."""
     user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
-    labels       = [s for bs in samples for s in bs if s["role"] == "assistant"]
-    labels       = [
-        l["content"][0]["text"].split("<answer>")[-1].replace("</answer>", "")
-        for l in labels
-    ]
+    labels = [s for bs in samples for s in bs if s["role"] == "assistant"]
+    labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>", "") for l in labels]
 
     image_inputs, video_inputs = process_vision_info(user_samples)
     text = processor.apply_chat_template(user_samples, tokenize=False, add_generation_prompt=True)
     inputs = processor(
-        text=text, images=image_inputs, videos=video_inputs,
-        return_tensors="pt", padding=True,
+        text=text,
+        images=image_inputs,
+        videos=video_inputs,
+        return_tensors="pt",
+        padding=True,
     )
     return inputs, labels
 
 
 def collate_fn_generate(samples: list[list], processor: AutoProcessor):
     latent_visuals = [s.pop(-1) for s in samples]
-    user_samples   = [[s] for bs in samples for s in bs if s["role"] == "user"]
-    labels         = [s for bs in samples for s in bs if s["role"] == "assistant"]
-    labels         = [
-        l["content"][0]["text"].split("<answer>")[-1].replace("</answer>", "")
-        for l in labels
-    ]
+    user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
+    labels = [s for bs in samples for s in bs if s["role"] == "assistant"]
+    labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>", "") for l in labels]
 
     image_inputs, video_inputs = process_vision_info(user_samples)
     text = processor.apply_chat_template(user_samples, tokenize=False, add_generation_prompt=True)
     inputs = processor(
-        text=text, images=image_inputs, videos=video_inputs,
-        return_tensors="pt", padding=True,
+        text=text,
+        images=image_inputs,
+        videos=video_inputs,
+        return_tensors="pt",
+        padding=True,
     )
 
-    latent_text         = processor.apply_chat_template(latent_visuals, tokenize=False)
+    latent_text = processor.apply_chat_template(latent_visuals, tokenize=False)
     latent_image_inputs, _ = process_vision_info(latent_visuals)
     latent_inputs = processor(
-        text=latent_text, images=latent_image_inputs,
-        padding=True, return_tensors="pt",
+        text=latent_text,
+        images=latent_image_inputs,
+        padding=True,
+        return_tensors="pt",
     )
-    inputs["latent_values"]   = latent_inputs["pixel_values"]
+    inputs["latent_values"] = latent_inputs["pixel_values"]
     inputs["latent_grid_thw"] = latent_inputs["image_grid_thw"]
 
     return inputs, labels
@@ -352,6 +353,7 @@ def collate_fn_generate(samples: list[list], processor: AutoProcessor):
 # ---------------------------------------------------------------------------
 # Data module
 # ---------------------------------------------------------------------------
+
 
 def make_tetris_data_module(
     processor: AutoProcessor,
@@ -368,12 +370,18 @@ def make_tetris_data_module(
     use_lvr=False produces NTP-style batches (no latent visual tokens).
     """
     import os
-    train_path = data_path  # expected: .../train.json
-    eval_path  = os.path.join(os.path.dirname(data_path), "eval.json")
 
-    train_ds = SFTTetrisDataset(data_path=train_path, processor=processor,
-                                dummy=dummy, use_lvr=use_lvr, max_samples=max_train_samples,
-                                grayscale_intermediate=grayscale_intermediate)
+    train_path = data_path  # expected: .../train.json
+    eval_path = os.path.join(os.path.dirname(data_path), "eval.json")
+
+    train_ds = SFTTetrisDataset(
+        data_path=train_path,
+        processor=processor,
+        dummy=dummy,
+        use_lvr=use_lvr,
+        max_samples=max_train_samples,
+        grayscale_intermediate=grayscale_intermediate,
+    )
     rank0_print(f"Train: {len(train_ds)} samples (grayscale_intermediate={grayscale_intermediate})", flush=True)
 
     if generate:
@@ -387,9 +395,13 @@ def make_tetris_data_module(
         "data_collator": partial(collate, processor=processor),
     }
     if os.path.exists(eval_path):
-        eval_ds = SFTTetrisDataset(data_path=eval_path, processor=processor,
-                                   dummy=dummy, use_lvr=use_lvr,
-                                   grayscale_intermediate=grayscale_intermediate)
+        eval_ds = SFTTetrisDataset(
+            data_path=eval_path,
+            processor=processor,
+            dummy=dummy,
+            use_lvr=use_lvr,
+            grayscale_intermediate=grayscale_intermediate,
+        )
         rank0_print(f"Eval:  {len(eval_ds)} samples", flush=True)
         out["eval_dataset"] = eval_ds
     else:

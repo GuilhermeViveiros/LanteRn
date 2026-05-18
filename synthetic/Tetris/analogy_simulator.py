@@ -34,30 +34,30 @@ from .pieces import (
 # Each sample independently picks 4 of these without replacement so no two
 # options share a color, and the correct answer has no systematic color bias.
 _OPTION_COLOR_PALETTE = [
-    (220,  50,  50),   # red
-    ( 50, 110, 230),   # blue
-    ( 50, 200,  70),   # green
-    (230, 180,  35),   # amber
-    (175,  50, 225),   # violet
-    ( 35, 205, 205),   # cyan
-    (230,  95,  35),   # orange
-    (205,  50, 165),   # magenta
-    ( 50, 180, 130),   # teal
-    (240, 230,  60),   # yellow
-    (130,  80, 230),   # indigo
-    (230, 130,  80),   # salmon
-    ( 80, 230, 180),   # mint
-    (230,  80, 120),   # rose
-    (100, 200, 240),   # sky blue
-    (200, 230,  80),   # lime
-    (240, 160,  60),   # tangerine
-    (160,  60, 200),   # purple
-    ( 60, 160, 200),   # steel blue
-    (200,  90,  90),   # brick
-    ( 90, 200, 130),   # seafoam
-    (230, 200, 100),   # gold
-    (100, 130, 230),   # periwinkle
-    (230, 100, 180),   # hot pink
+    (220, 50, 50),  # red
+    (50, 110, 230),  # blue
+    (50, 200, 70),  # green
+    (230, 180, 35),  # amber
+    (175, 50, 225),  # violet
+    (35, 205, 205),  # cyan
+    (230, 95, 35),  # orange
+    (205, 50, 165),  # magenta
+    (50, 180, 130),  # teal
+    (240, 230, 60),  # yellow
+    (130, 80, 230),  # indigo
+    (230, 130, 80),  # salmon
+    (80, 230, 180),  # mint
+    (230, 80, 120),  # rose
+    (100, 200, 240),  # sky blue
+    (200, 230, 80),  # lime
+    (240, 160, 60),  # tangerine
+    (160, 60, 200),  # purple
+    (60, 160, 200),  # steel blue
+    (200, 90, 90),  # brick
+    (90, 200, 130),  # seafoam
+    (230, 200, 100),  # gold
+    (100, 130, 230),  # periwinkle
+    (230, 100, 180),  # hot pink
 ]
 from .renderer import _get_font, draw_piece_on_grid, draw_piece_standalone, render_rotation_strip
 from .simulator import (
@@ -70,6 +70,7 @@ from .simulator import (
 # ---------------------------------------------------------------------------
 # Perturbation helpers
 # ---------------------------------------------------------------------------
+
 
 def _adjacent_cells(cells: list) -> list[tuple[int, int]]:
     """Return all orthogonally adjacent cells that are NOT already in the shape."""
@@ -147,6 +148,7 @@ def _perturb_cells(cells: list, rng: random.Random, mode: str = "random") -> Opt
 # Analogy composite image builder
 # ---------------------------------------------------------------------------
 
+
 def build_analogy_composite(
     img_A: Image.Image,
     img_B: Image.Image,
@@ -171,71 +173,79 @@ def build_analogy_composite(
     if labels is None:
         labels = ["a", "b", "c", "d"]
 
-    sa_w, sa_h = img_A.size       # standalone size — A and B
-    c_w,  c_h  = img_C.size       # C on grid
+    sa_w, sa_h = img_A.size  # standalone size — A and B
+    c_w, c_h = img_C.size  # C on grid
     op_w, op_h = options[0].size  # option panel size
 
-    font_lbl  = _get_font(26)
-    font_text = _get_font(32)     # large text throughout
+    font_lbl = _get_font(26)
+    font_text = _get_font(32)  # large text throughout
 
-    bg         = (18, 18, 22)
+    bg = (18, 18, 22)
     text_color = (210, 210, 220)
-    sep_color  = (55, 55, 70)
+    sep_color = (55, 55, 70)
 
-    GAP = 20   # horizontal gap between elements in top row / options row
-    PAD = 16   # outer padding
-    SEP = 2    # separator height
-    LBL = 42   # label height above options
+    GAP = 20  # horizontal gap between elements in top row / options row
+    PAD = 16  # outer padding
+    SEP = 2  # separator height
+    LBL = 42  # label height above options
 
     # ── measure text ─────────────────────────────────────────────────────────
     rot_text = "is rotated to"
-    tw  = int(font_text.getlength(rot_text)) if hasattr(font_text, "getlength") else 120
-    th  = int(font_text.size) if hasattr(font_text, "size") else 20
+    tw = int(font_text.getlength(rot_text)) if hasattr(font_text, "getlength") else 120
+    th = int(font_text.size) if hasattr(font_text, "size") else 20
 
     # Inline row: "As" + C + "is rotated to"
-    pre_w_est  = int(font_text.getlength("As"))           if hasattr(font_text, "getlength") else 30
+    pre_w_est = int(font_text.getlength("As")) if hasattr(font_text, "getlength") else 30
     post_w_est = int(font_text.getlength("is rotated to")) if hasattr(font_text, "getlength") else 130
-    inline_w   = pre_w_est + 14 + c_w + 14 + post_w_est
+    inline_w = pre_w_est + 14 + c_w + 14 + post_w_est
 
     # ── canvas width ──────────────────────────────────────────────────────────
-    top_w      = sa_w + GAP + tw + GAP + sa_w
+    top_w = sa_w + GAP + tw + GAP + sa_w
     opts_row_w = 4 * op_w + 3 * GAP
-    inner_w    = max(top_w, inline_w, opts_row_w)
-    total_w    = inner_w + 2 * PAD
+    inner_w = max(top_w, inline_w, opts_row_w)
+    total_w = inner_w + 2 * PAD
 
     # ── canvas height ─────────────────────────────────────────────────────────
     inline_row_h = max(th, c_h)
-    total_h = (PAD
-               + sa_h + 4               # top row (A → B) — small gap before line
-               + SEP + PAD + 10         # separator + generous space below
-               + inline_row_h + PAD     # inline "As [C] is rotated to"
-               + LBL + op_h + PAD)      # options row
+    total_h = (
+        PAD
+        + sa_h
+        + 4  # top row (A → B) — small gap before line
+        + SEP
+        + PAD
+        + 10  # separator + generous space below
+        + inline_row_h
+        + PAD  # inline "As [C] is rotated to"
+        + LBL
+        + op_h
+        + PAD
+    )  # options row
 
     canvas = Image.new("RGB", (total_w, total_h), bg)
-    draw   = ImageDraw.Draw(canvas)
+    draw = ImageDraw.Draw(canvas)
 
     # ── Top row: A  "is rotated to"  B ───────────────────────────────────────
     row_x = PAD + (inner_w - top_w) // 2
-    cy    = PAD
+    cy = PAD
 
     canvas.paste(img_A, (row_x, cy))
     tx = row_x + sa_w + GAP
     draw.text((tx, cy + (sa_h - th) // 2), rot_text, fill=text_color, font=font_text)
     canvas.paste(img_B, (tx + tw + GAP, cy))
-    cy += sa_h + 4   # small gap — line sits close to A-B row
+    cy += sa_h + 4  # small gap — line sits close to A-B row
 
     # ── Separator ────────────────────────────────────────────────────────────
     draw.rectangle([PAD, cy, total_w - PAD, cy + SEP - 1], fill=sep_color)
-    cy += SEP + PAD + 10   # generous space below the line before C
+    cy += SEP + PAD + 10  # generous space below the line before C
 
     # ── Inline row: "As"  [C image]  "is rotated to" ─────────────────────────
-    pre_text  = "As"
+    pre_text = "As"
     post_text = "is rotated to"
-    pre_w  = int(font_text.getlength(pre_text))  if hasattr(font_text, "getlength") else 30
+    pre_w = int(font_text.getlength(pre_text)) if hasattr(font_text, "getlength") else 30
     post_w = int(font_text.getlength(post_text)) if hasattr(font_text, "getlength") else 130
-    img_gap = 20   # gap between text and C image
+    img_gap = 20  # gap between text and C image
 
-    row_h3 = max(th, c_h)   # row height = tallest element
+    row_h3 = max(th, c_h)  # row height = tallest element
 
     # C image pinned to canvas centre
     c_x = PAD + (inner_w - c_w) // 2
@@ -266,6 +276,7 @@ def build_analogy_composite(
 # ---------------------------------------------------------------------------
 # Core sample generation
 # ---------------------------------------------------------------------------
+
 
 def generate_analogy_sample(
     shape_A: dict,
@@ -339,9 +350,9 @@ def generate_analogy_sample(
             # fallback: any different offset
             alt = [o for o in valid_offsets(cells_A, grid_rows, grid_cols) if o != off_A]
             if not alt:
-                return generate_analogy_sample(shape_A, shape_C, "rotation",
-                                               grid_rows, grid_cols,
-                                               panel_cell_size, opt_cell_size, rng)
+                return generate_analogy_sample(
+                    shape_A, shape_C, "rotation", grid_rows, grid_cols, panel_cell_size, opt_cell_size, rng
+                )
             delta = (alt[0][0] - off_A[0], alt[0][1] - off_A[1])
         else:
             delta = rng.choice(cands)
@@ -354,21 +365,17 @@ def generate_analogy_sample(
         cands = []
         for dr in range(-2, 3):
             for dc in range(-2, 3):
-                if fits_in_grid(rots_A[gt_rot_A],
-                                (off_A[0] + dr, off_A[1] + dc), grid_rows, grid_cols):
+                if fits_in_grid(rots_A[gt_rot_A], (off_A[0] + dr, off_A[1] + dc), grid_rows, grid_cols):
                     cands.append((dr, dc))
         delta = rng.choice(cands) if cands else (0, 0)
-        transform_desc = TRANSFORM_DESCRIPTIONS["combined"].format(
-            angle=angle, dr=delta[0], dc=delta[1]
-        )
+        transform_desc = TRANSFORM_DESCRIPTIONS["combined"].format(angle=angle, dr=delta[0], dc=delta[1])
 
     # B = A after transformation
     cells_B = rots_A[gt_rot_A]
     off_B_base = valid_offsets(cells_B, grid_rows, grid_cols)
     if delta != (0, 0):
         new_off_B = (off_A[0] + delta[0], off_A[1] + delta[1])
-        off_B = new_off_B if fits_in_grid(cells_B, new_off_B, grid_rows, grid_cols) \
-                else rng.choice(off_B_base)
+        off_B = new_off_B if fits_in_grid(cells_B, new_off_B, grid_rows, grid_cols) else rng.choice(off_B_base)
     else:
         off_B = rng.choice(off_B_base)
 
@@ -390,13 +397,14 @@ def generate_analogy_sample(
     # Retry with a rotation step that actually changes C's appearance.
     if _normalize(cells_gt_C) == _normalize(cells_C) and effective_type in ("rotation", "combined"):
         # Force a rotation step that produces a visually different result for C
-        valid_steps = [i for i in range(1, n_rots_C)
-                       if _normalize(rots_C[(ref_rot_C + i) % n_rots_C]) != _normalize(cells_C)]
+        valid_steps = [
+            i for i in range(1, n_rots_C) if _normalize(rots_C[(ref_rot_C + i) % n_rots_C]) != _normalize(cells_C)
+        ]
         if not valid_steps:
             # shape_C has only one unique visual state — skip entirely
             raise ValueError(f"shape_C '{shape_C['name']}' has no visually distinct rotation; skip sample")
         new_step = rng.choice(valid_steps)
-        gt_rot_C  = (ref_rot_C + new_step) % n_rots_C
+        gt_rot_C = (ref_rot_C + new_step) % n_rots_C
         cells_gt_C = rots_C[gt_rot_C]
         # Recompute angle / transform_desc for the adjusted step
         angle = ROTATION_ANGLES.get(new_step, new_step * 90)
@@ -404,8 +412,11 @@ def generate_analogy_sample(
 
     if delta != (0, 0):
         new_off_gt_C = (off_C[0] + delta[0], off_C[1] + delta[1])
-        off_gt_C = new_off_gt_C if fits_in_grid(cells_gt_C, new_off_gt_C, grid_rows, grid_cols) \
-                   else rng.choice(valid_offsets(cells_gt_C, grid_rows, grid_cols))
+        off_gt_C = (
+            new_off_gt_C
+            if fits_in_grid(cells_gt_C, new_off_gt_C, grid_rows, grid_cols)
+            else rng.choice(valid_offsets(cells_gt_C, grid_rows, grid_cols))
+        )
     else:
         off_gt_C = rng.choice(valid_offsets(cells_gt_C, grid_rows, grid_cols))
 
@@ -413,10 +424,9 @@ def generate_analogy_sample(
     def _also_correct(cells_d, offset_d, shape_d) -> bool:
         """True if this option is visually equivalent to the correct answer."""
         if effective_type == "rotation":
-            return (shape_d["name"] == shape_C["name"] and
-                    _normalize(cells_d) == _normalize(cells_gt_C))
+            return shape_d["name"] == shape_C["name"] and _normalize(cells_d) == _normalize(cells_gt_C)
         else:
-            abs_d  = frozenset(_apply_offset(cells_d, offset_d))
+            abs_d = frozenset(_apply_offset(cells_d, offset_d))
             abs_gt = frozenset(_apply_offset(cells_gt_C, off_gt_C))
             return abs_d == abs_gt
 
@@ -538,8 +548,7 @@ def generate_analogy_sample(
         shuffled = [all_opts[i] for i in indices]
         slot_to_src = {slot: src for slot, src in enumerate(indices)}
     answer = "abcd"[correct_pos]
-    option_transforms = {"abcd"[slot]: all_opt_transforms[src]
-                         for slot, src in slot_to_src.items()}
+    option_transforms = {"abcd"[slot]: all_opt_transforms[src] for slot, src in slot_to_src.items()}
 
     # --- 6. Render ---
     # A, B, C all at the same cell_size so both rows are structurally identical.
@@ -559,8 +568,7 @@ def generate_analogy_sample(
         ]
     else:
         opt_imgs = [
-            draw_piece_on_grid(cells, _col, off, grid_rows, grid_cols, opt_cell_size)
-            for cells, off, _col in shuffled
+            draw_piece_on_grid(cells, _col, off, grid_rows, grid_cols, opt_cell_size) for cells, off, _col in shuffled
         ]
 
     composite_img, bboxes = build_analogy_composite(img_A, img_B, img_C, opt_imgs)
@@ -568,15 +576,15 @@ def generate_analogy_sample(
     # Mental-rotation strip following the circular rotation path.
     # 270° is shown as a single −90° (CCW) step instead of three CW steps.
     _rot_step = (gt_rot_C - ref_rot_C) % n_rots_C
-    if _rot_step == 3:   # 270° CW  =  −90° CCW
+    if _rot_step == 3:  # 270° CW  =  −90° CCW
         rotation_steps = [rots_C[ref_rot_C], rots_C[gt_rot_C]]
         _clockwise = False
     else:
-        rotation_steps = [rots_C[(ref_rot_C + i) % n_rots_C]
-                          for i in range(_rot_step + 1)]
+        rotation_steps = [rots_C[(ref_rot_C + i) % n_rots_C] for i in range(_rot_step + 1)]
         _clockwise = True
     intermediate_img = render_rotation_strip(
-        rotation_steps, shape_C["color"],
+        rotation_steps,
+        shape_C["color"],
         clockwise=_clockwise,
         angle=angle if _clockwise else 90,
         cell_size=cell_size,
@@ -584,23 +592,24 @@ def generate_analogy_sample(
     )
 
     return {
-        "composite_img":         composite_img,
-        "intermediate_img":      intermediate_img,
-        "bboxes":                bboxes,
-        "answer":                answer,
+        "composite_img": composite_img,
+        "intermediate_img": intermediate_img,
+        "bboxes": bboxes,
+        "answer": answer,
         "transform_description": transform_desc,
-        "transform_type":        effective_type,
-        "shape_A_name":          shape_A["name"],
-        "shape_C_name":          shape_C["name"],
-        "shape_A_family":        shape_A["family"],
-        "shape_C_family":        shape_C["family"],
-        "option_transforms":     option_transforms,
+        "transform_type": effective_type,
+        "shape_A_name": shape_A["name"],
+        "shape_C_name": shape_C["name"],
+        "shape_A_family": shape_A["family"],
+        "shape_C_family": shape_C["family"],
+        "option_transforms": option_transforms,
     }
 
 
 # ---------------------------------------------------------------------------
 # Batch convenience
 # ---------------------------------------------------------------------------
+
 
 def generate_analogy_batch(
     n: int,
@@ -620,11 +629,8 @@ def generate_analogy_batch(
     samples = []
     for _ in range(n):
         shape_A = rng.choice(eligible_A)
-        shape_C = rng.choice([s for s in SHAPES
-                               if s["name"] != shape_A["name"]
-                               and s["family"] != shape_A["family"]])
+        shape_C = rng.choice([s for s in SHAPES if s["name"] != shape_A["name"] and s["family"] != shape_A["family"]])
         ttype = rng.choice(transform_types)
-        s = generate_analogy_sample(shape_A, shape_C, ttype,
-                                    grid_rows, grid_cols, cell_size, rng)
+        s = generate_analogy_sample(shape_A, shape_C, ttype, grid_rows, grid_cols, cell_size, rng)
         samples.append(s)
     return samples

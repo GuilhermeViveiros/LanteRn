@@ -9,12 +9,14 @@ from transformers.generation.utils import GenerateDecoderOnlyOutput
 
 logger = logging.getLogger("LantErn-Generate")
 
+
 @dataclass
 class LantErnGenerateOutput(GenerateDecoderOnlyOutput):
     # By inheriting from GenerateDecoderOnlyOutput, all its fields are inherited.
     # You only need to add new fields that are unique to this subclass.
     latent_embeds: Optional[torch.BFloat16Tensor] = None
     latent_mask: Optional[torch.BoolTensor] = None
+
 
 def generate(
     model,
@@ -28,7 +30,6 @@ def generate(
     perturbation: Optional[str] = None,
     **kwargs,
 ):
-
     # init values
     pad_token_id = generation_config._pad_token_tensor
     output_attentions = generation_config.output_attentions
@@ -54,9 +55,7 @@ def generate(
     # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
     if return_dict_in_generate and model.config.is_encoder_decoder:
         encoder_attentions = kwargs["encoder_outputs"].get("attentions") if output_attentions else None
-        encoder_hidden_states = (
-            kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
-        )
+        encoder_hidden_states = kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
 
     # keep track of which sequences are already finished
     batch_size, cur_len = input_ids.shape[:2]
@@ -131,9 +130,7 @@ def generate(
                     cross_attentions += (outputs.cross_attentions,)
             if output_hidden_states:
                 decoder_hidden_states += (
-                    (outputs.decoder_hidden_states,)
-                    if model.config.is_encoder_decoder
-                    else (outputs.hidden_states,)
+                    (outputs.decoder_hidden_states,) if model.config.is_encoder_decoder else (outputs.hidden_states,)
                 )
 
         # token selection
@@ -174,7 +171,7 @@ def generate(
         # 4) Build the next_tokens
         #    priority: latent_sep -> latent_end -> next_tokens
         # ---------------------------------------------------------
-        next_tokens = torch.where(need_pad_mask,  torch.full_like(next_tokens, latent_pad_idx),  next_tokens)
+        next_tokens = torch.where(need_pad_mask, torch.full_like(next_tokens, latent_pad_idx), next_tokens)
         next_tokens = torch.where(latent_end_mask, torch.full_like(next_tokens, latent_end_idx), next_tokens)
 
         # ---------------------------------------------------------
@@ -274,9 +271,7 @@ def generate_skip_latent(
 
     if return_dict_in_generate and model.config.is_encoder_decoder:
         encoder_attentions = kwargs["encoder_outputs"].get("attentions") if output_attentions else None
-        encoder_hidden_states = (
-            kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
-        )
+        encoder_hidden_states = kwargs["encoder_outputs"].get("hidden_states") if output_hidden_states else None
 
     batch_size, cur_len = input_ids.shape[:2]
     this_peer_finished = False
@@ -344,9 +339,7 @@ def generate_skip_latent(
                     cross_attentions += (outputs.cross_attentions,)
             if output_hidden_states:
                 decoder_hidden_states += (
-                    (outputs.decoder_hidden_states,)
-                    if model.config.is_encoder_decoder
-                    else (outputs.hidden_states,)
+                    (outputs.decoder_hidden_states,) if model.config.is_encoder_decoder else (outputs.hidden_states,)
                 )
 
         if do_sample:

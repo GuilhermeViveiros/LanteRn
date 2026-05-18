@@ -23,16 +23,8 @@ def random_crop_bbox(img: Image.Image, crop_ratio: float = 0.4):
 
 def get_gt_latent_values(cropped_images, processor):
     """Encode a list of cropped PIL images into pixel_values + image_grid_thw."""
-    messages = [
-        [{
-            "role": "assistant",
-            "content": [{"type": "image", "image": img[0]}]
-        }] for img in cropped_images
-    ]
-    texts = [
-        processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
-        for msg in messages
-    ]
+    messages = [[{"role": "assistant", "content": [{"type": "image", "image": img[0]}]}] for img in cropped_images]
+    texts = [processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True) for msg in messages]
     image_inputs, _ = process_vision_info(messages)
     inputs = processor(
         text=texts,
@@ -42,8 +34,9 @@ def get_gt_latent_values(cropped_images, processor):
     )
     return inputs["pixel_values"], inputs["image_grid_thw"]
 
+
 # Run batch Inference
-#@measure_time
+# @measure_time
 @torch.no_grad()
 def run_batch_inference(
     model,
@@ -54,7 +47,6 @@ def run_batch_inference(
     use_gt: bool = False,
     perturbation: str = None,
 ):
-
     # get gt latent values
     gt_latent_embeds = None
     if "latent_values" in inputs and use_gt:
@@ -88,8 +80,10 @@ def run_batch_inference(
             lantern_generate,
             gt_latent_embeds=gt_latent_embeds if use_gt else None,
             perturbation=perturbation,
-        ) if use_lvr else None,
+        )
+        if use_lvr
+        else None,
         use_cache=True,
         output_attentions=output_attentions,
-        return_dict_in_generate=return_dict
+        return_dict_in_generate=return_dict,
     )

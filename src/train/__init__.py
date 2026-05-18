@@ -16,11 +16,7 @@ def set_latent_tokens(processor, model, latent_size: int, special_tokens: bool =
     processor.latent_size = latent_size
     model.config.latent_size = latent_size
 
-    model.config.additional_special_tokens = [
-        "<|lvr_start|>",
-        "<|lvr_sep|>",
-        "<|lvr_end|>"
-    ]
+    model.config.additional_special_tokens = ["<|lvr_start|>", "<|lvr_sep|>", "<|lvr_end|>"]
 
     # resize the model embeddings size
     model.resize_token_embeddings(len(processor.tokenizer))
@@ -37,6 +33,7 @@ def set_requires_grad(parameters, requires_grad):
     for p in parameters:
         p.requires_grad = requires_grad
 
+
 def configure_vision_tower(model, freeze_vision_tower: bool = True, freeze_merger: bool = True, **kwargs):
     vision_model_params = model.visual.parameters()
     set_requires_grad(vision_model_params, not freeze_vision_tower)
@@ -46,6 +43,7 @@ def configure_vision_tower(model, freeze_vision_tower: bool = True, freeze_merge
     merger_params = model.visual.merger.parameters()
     set_requires_grad(merger_params, not freeze_merger)
     logger.info(colored(f"Freezing merger: {freeze_merger}", "cyan"))
+
 
 def configure_llm(model, freeze_llm: bool = False, **kwargs):
     lm_head = model.lm_head.parameters()
@@ -75,10 +73,12 @@ def configure_latent_only(model):
         mask = torch.zeros(total_rows, dtype=torch.bool)
         for idx in ids:
             mask[idx] = True
+
         def hook(grad):
             masked = grad.clone()
             masked[~mask] = 0.0
             return masked
+
         return hook
 
     # embed_tokens
@@ -92,4 +92,3 @@ def configure_latent_only(model):
     lm_weight.register_hook(_make_mask_hook(lvr_ids, lm_weight.shape[0]))
 
     logger.info(colored(f"Latent-only mode: training only token IDs {lvr_ids} in embed_tokens + lm_head", "cyan"))
-

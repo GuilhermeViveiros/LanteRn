@@ -44,7 +44,6 @@ def apply_latent_compression(
     if latent_size == -1:
         return list(latent_image_embeds)
 
-
     # ---------------------------------------------------------
     # 2) Process latent image features into exactly `latent_size` tokens
     #    (vectorizable except for variable lens, so minimal loop)
@@ -56,15 +55,14 @@ def apply_latent_compression(
         n_features = le.shape[0]
 
         if latent_size != n_features:
-            leave_out = n_features % latent_size # Make divisible
+            leave_out = n_features % latent_size  # Make divisible
             if leave_out > 0:
                 le = le[:-leave_out, :]
 
             group_size = le.shape[0] // latent_size
 
             le = (
-                le.view(latent_size, group_size, self.config.hidden_size)
-                  .mean(dim=1)  # -> (latent_size, hidden)
+                le.view(latent_size, group_size, self.config.hidden_size).mean(dim=1)  # -> (latent_size, hidden)
             )
         processed_latents.append(le)
 
@@ -72,6 +70,7 @@ def apply_latent_compression(
     latent_avg_embeds = torch.stack(processed_latents, dim=0)
 
     return latent_avg_embeds
+
 
 def get_last_checkpoint(output_dir: str):
     """
@@ -83,6 +82,7 @@ def get_last_checkpoint(output_dir: str):
     if len(checkpoints) == 0:
         return None
     return os.path.join(output_dir, max(checkpoints))
+
 
 if __name__ == "__main__":
     output_dir = "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_16_lambda_0.1"

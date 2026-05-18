@@ -44,10 +44,10 @@ class FamilyGroupedDataset(Dataset):
         seed: int = 42,
     ):
         super().__init__()
-        self.dataset    = dataset
+        self.dataset = dataset
         self.chunk_size = chunk_size
-        self.group_key  = group_key
-        self.seed       = seed
+        self.group_key = group_key
+        self.seed = seed
 
         rng = random.Random(seed)
 
@@ -86,8 +86,10 @@ class FamilyGroupedDataset(Dataset):
             rng.shuffle(keys)
             effective_chunk = min(chunk_size, len(keys))
             if effective_chunk < chunk_size:
-                logging.warning(f"[FamilyGroupedDataset] group has only {len(keys)} unique intermediate_keys "
-                                f"< chunk_size={chunk_size}; using effective_chunk={effective_chunk}")
+                logging.warning(
+                    f"[FamilyGroupedDataset] group has only {len(keys)} unique intermediate_keys "
+                    f"< chunk_size={chunk_size}; using effective_chunk={effective_chunk}"
+                )
             pointers = {k: 0 for k in keys}
             while True:
                 chunk = []

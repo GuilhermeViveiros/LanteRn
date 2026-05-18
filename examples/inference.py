@@ -30,13 +30,15 @@ LATENT_SIZE = 8
 
 
 def build_inputs(processor, image: Image.Image, question: str):
-    messages = [{
-        "role": "user",
-        "content": [
-            {"type": "image", "image": image},
-            {"type": "text",  "text": question},
-        ],
-    }]
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": question},
+            ],
+        }
+    ]
     text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, _ = process_vision_info(messages)
     return processor(text=[text], images=image_inputs, padding=True, return_tensors="pt")
@@ -97,9 +99,8 @@ def run(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model",  default="AGViveiros/LanteRn-3B-Tetris",
-                        help="HF repo ID or local checkpoint path")
-    parser.add_argument("--image",  required=True, help="Path to input image")
+    parser.add_argument("--model", default="AGViveiros/LanteRn-3B-Tetris", help="HF repo ID or local checkpoint path")
+    parser.add_argument("--image", required=True, help="Path to input image")
     parser.add_argument("--question", default="What is the answer? Think step by step.")
     parser.add_argument("--no-lvr", action="store_true", help="Disable latent visual reasoning")
     parser.add_argument("--max-new-tokens", type=int, default=512)

@@ -13,6 +13,7 @@ from PIL import Image, ImageDraw, ImageFont
 # Single-panel renderer
 # ---------------------------------------------------------------------------
 
+
 def draw_piece_on_grid(
     cells: list[tuple[int, int]],
     color: tuple[int, int, int],
@@ -57,8 +58,8 @@ def draw_piece_on_grid(
 
     # Draw piece cells
     dr, dc = offset
-    highlight = tuple(min(255, v + 60) for v in color)   # lighter top-left edge
-    shadow    = tuple(max(0,   v - 60) for v in color)   # darker bottom-right edge
+    highlight = tuple(min(255, v + 60) for v in color)  # lighter top-left edge
+    shadow = tuple(max(0, v - 60) for v in color)  # darker bottom-right edge
 
     for r, c in cells:
         pr = r + dr
@@ -88,6 +89,7 @@ def draw_piece_on_grid(
 # Mental-rotation strip  (circular layout)
 # ---------------------------------------------------------------------------
 
+
 def render_rotation_strip(
     rotation_steps: list[list[tuple[int, int]]],
     color: tuple[int, int, int],
@@ -106,20 +108,20 @@ def render_rotation_strip(
                                                [C@180°]            (L-shape)
         270° CCW (2 steps): [C@left] ←"90° left"← [C]
     """
-    piece_color = (0, 0, 0)       if bw else color
-    strip_bg    = (255, 255, 255) if bw else bg_color
+    piece_color = (0, 0, 0) if bw else color
+    strip_bg = (255, 255, 255) if bw else bg_color
     imgs = [draw_piece_standalone(c, piece_color, cell_size, bg_color=strip_bg) for c in rotation_steps]
     if len(imgs) < 2:
         imgs = imgs * 2
 
-    PAD         = 20
-    GAP         = 70
-    BEND        = 36
-    arrow_color = (80, 80, 80)    if bw else (140, 170, 200)
-    text_color  = (40, 40, 40)    if bw else (190, 200, 215)
-    font        = _get_font(15)
+    PAD = 20
+    GAP = 70
+    BEND = 36
+    arrow_color = (80, 80, 80) if bw else (140, 170, 200)
+    text_color = (40, 40, 40) if bw else (190, 200, 215)
+    font = _get_font(15)
     # Use max dimensions across all panels so no piece gets clipped
-    pw = max(im.width  for im in imgs)
+    pw = max(im.width for im in imgs)
     ph = max(im.height for im in imgs)
 
     def _bez(p0, p1, p2, n=70):
@@ -127,35 +129,39 @@ def render_rotation_strip(
         for i in range(n + 1):
             t = i / n
             mt = 1 - t
-            pts.append((int(mt*mt*p0[0]+2*mt*t*p1[0]+t*t*p2[0]),
-                        int(mt*mt*p0[1]+2*mt*t*p1[1]+t*t*p2[1])))
+            pts.append(
+                (
+                    int(mt * mt * p0[0] + 2 * mt * t * p1[0] + t * t * p2[0]),
+                    int(mt * mt * p0[1] + 2 * mt * t * p1[1] + t * t * p2[1]),
+                )
+            )
         return pts
 
     def _draw_arrow(draw_obj, pts, lbl, label_x, label_y):
         for j in range(len(pts) - 2):
-            draw_obj.line([pts[j], pts[j+1]], fill=arrow_color, width=2)
+            draw_obj.line([pts[j], pts[j + 1]], fill=arrow_color, width=2)
         if len(pts) >= 2:
-            dx, dy = pts[-1][0]-pts[-2][0], pts[-1][1]-pts[-2][1]
-            L = math.sqrt(dx*dx+dy*dy)
+            dx, dy = pts[-1][0] - pts[-2][0], pts[-1][1] - pts[-2][1]
+            L = math.sqrt(dx * dx + dy * dy)
             if L > 1e-6:
-                dx, dy = dx/L, dy/L
+                dx, dy = dx / L, dy / L
                 px, py = -dy, dx
                 s = 14
-                bx, by = pts[-1][0]-dx*s, pts[-1][1]-dy*s
-                q1 = (int(bx+px*s*.45), int(by+py*s*.45))
-                q2 = (int(bx-px*s*.45), int(by-py*s*.45))
+                bx, by = pts[-1][0] - dx * s, pts[-1][1] - dy * s
+                q1 = (int(bx + px * s * 0.45), int(by + py * s * 0.45))
+                q2 = (int(bx - px * s * 0.45), int(by - py * s * 0.45))
                 draw_obj.polygon([pts[-1], q1, q2], fill=arrow_color)
         lw = int(font.getlength(lbl)) if hasattr(font, "getlength") else 50
-        draw_obj.text((label_x - lw//2, label_y), lbl, fill=text_color, font=font)
+        draw_obj.text((label_x - lw // 2, label_y), lbl, fill=text_color, font=font)
 
     # ── single horizontal row for all cases ────────────────────────────────
     if True:  # always
         n_panels = len(imgs)
-        total_w  = PAD + n_panels * pw + (n_panels - 1) * GAP + PAD
-        total_h  = ph + 2*PAD + BEND
+        total_w = PAD + n_panels * pw + (n_panels - 1) * GAP + PAD
+        total_h = ph + 2 * PAD + BEND
 
         canvas = Image.new("RGB", (total_w, total_h), strip_bg)
-        draw   = ImageDraw.Draw(canvas)
+        draw = ImageDraw.Draw(canvas)
 
         y0 = PAD + BEND
         cy = y0 + ph // 2
@@ -169,11 +175,11 @@ def render_rotation_strip(
             for i, im in enumerate(imgs):
                 _paste(im, PAD + i * (pw + GAP))
             for i in range(n_panels - 1):
-                x_left  = PAD + i * (pw + GAP) + pw
+                x_left = PAD + i * (pw + GAP) + pw
                 x_right = PAD + (i + 1) * (pw + GAP)
-                p0 = (x_left,  cy)
+                p0 = (x_left, cy)
                 p2 = (x_right, cy)
-                p1 = ((p0[0]+p2[0])//2, y0 - BEND//2)
+                p1 = ((p0[0] + p2[0]) // 2, y0 - BEND // 2)
                 pts = _bez(p0, p1, p2)
                 _draw_arrow(draw, pts, "90\u00b0 right", p1[0], PAD + 2)
         else:
@@ -181,8 +187,8 @@ def render_rotation_strip(
             _paste(imgs[1], PAD)
             _paste(imgs[0], PAD + pw + GAP)
             p0 = (PAD + pw + GAP, cy)
-            p2 = (PAD + pw,       cy)
-            p1 = ((p0[0]+p2[0])//2, y0 - BEND//2)
+            p2 = (PAD + pw, cy)
+            p1 = ((p0[0] + p2[0]) // 2, y0 - BEND // 2)
             pts = _bez(p0, p1, p2)
             _draw_arrow(draw, pts, "90\u00b0 left", p1[0], PAD + 2)
 
@@ -192,6 +198,7 @@ def render_rotation_strip(
 # ---------------------------------------------------------------------------
 # Standalone piece renderer (no grid, no border — tight crop centred)
 # ---------------------------------------------------------------------------
+
 
 def draw_piece_standalone(
     cells: list[tuple[int, int]],
@@ -218,23 +225,23 @@ def draw_piece_standalone(
     span_c = max(cols) - min(cols) + 1
 
     if canvas_cells is None:
-        pad  = 2
-        side = max(span_r, span_c) + 2 * pad   # square: same for all rotations of a piece
+        pad = 2
+        side = max(span_r, span_c) + 2 * pad  # square: same for all rotations of a piece
         canvas_w = side * cell_size
         canvas_h = side * cell_size
-        start_r  = (side - span_r) // 2 - min(rows)
-        start_c  = (side - span_c) // 2 - min(cols)
+        start_r = (side - span_r) // 2 - min(rows)
+        start_c = (side - span_c) // 2 - min(cols)
     else:
         canvas_w = canvas_cells * cell_size
         canvas_h = canvas_cells * cell_size
-        start_r  = (canvas_cells - span_r) // 2 - min(rows)
-        start_c  = (canvas_cells - span_c) // 2 - min(cols)
+        start_r = (canvas_cells - span_r) // 2 - min(rows)
+        start_c = (canvas_cells - span_c) // 2 - min(cols)
 
-    img  = Image.new("RGB", (canvas_w, canvas_h), bg_color)
+    img = Image.new("RGB", (canvas_w, canvas_h), bg_color)
     draw = ImageDraw.Draw(img)
 
     highlight = tuple(min(255, v + 60) for v in color)
-    shadow    = tuple(max(0,   v - 60) for v in color)
+    shadow = tuple(max(0, v - 60) for v in color)
 
     for r, c in cells:
         pr = r + start_r
@@ -257,9 +264,9 @@ def draw_piece_standalone(
 # Composite image builder
 # ---------------------------------------------------------------------------
 
-_LABEL_HEIGHT = 28   # pixels for the "(A)" header above each option panel
+_LABEL_HEIGHT = 28  # pixels for the "(A)" header above each option panel
 _SECTION_LABEL_HEIGHT = 22  # pixels for "Reference" / "Options" section header
-_PAD = 8             # outer / inter-panel padding
+_PAD = 8  # outer / inter-panel padding
 
 
 def _get_font(size: int = 14) -> ImageFont.ImageFont:
@@ -307,17 +314,17 @@ def build_composite_image(
         labels = ["A", "B", "C", "D"]
 
     ref_w, ref_h = reference_img.size
-    opt_w, opt_h = options[0].size   # assume all options same size
+    opt_w, opt_h = options[0].size  # assume all options same size
 
-    font_label    = _get_font(15)
-    font_section  = _get_font(13)
-    text_color    = (220, 220, 220)
+    font_label = _get_font(15)
+    font_section = _get_font(13)
+    text_color = (220, 220, 220)
     section_color = (150, 150, 170)
-    sep_color     = (55, 55, 70)
-    bg            = (18, 18, 22)
+    sep_color = (55, 55, 70)
+    bg = (18, 18, 22)
 
     # Options row: 4 panels side by side
-    options_row_w = 4 * opt_w + 5 * _PAD   # _PAD on each side + between
+    options_row_w = 4 * opt_w + 5 * _PAD  # _PAD on each side + between
     options_row_h = _LABEL_HEIGHT + opt_h + _PAD
 
     # Total canvas width: wide enough for both reference and options row
@@ -327,10 +334,14 @@ def build_composite_image(
     sep_h = 2
     total_h = (
         _PAD
-        + _SECTION_LABEL_HEIGHT + _PAD
+        + _SECTION_LABEL_HEIGHT
+        + _PAD
         + ref_h
-        + _PAD + sep_h + _PAD
-        + _SECTION_LABEL_HEIGHT + _PAD
+        + _PAD
+        + sep_h
+        + _PAD
+        + _SECTION_LABEL_HEIGHT
+        + _PAD
         + options_row_h
         + _PAD
     )
@@ -366,8 +377,7 @@ def build_composite_image(
         # Label above option
         label_text = f"({label})"
         lw = font_label.getlength(label_text) if hasattr(font_label, "getlength") else 20
-        draw.text((ox + (opt_w - lw) // 2, cy + 4), label_text,
-                  fill=text_color, font=font_label)
+        draw.text((ox + (opt_w - lw) // 2, cy + 4), label_text, fill=text_color, font=font_label)
 
         # Option image
         img_y = cy + _LABEL_HEIGHT
@@ -392,9 +402,8 @@ if __name__ == "__main__":
     cells = shape["rotations"][0]
     color = shape["color"]
 
-    ref  = draw_piece_on_grid(cells, color, offset=(2, 2))
-    opts = [draw_piece_on_grid(cells, color, offset=(r, c))
-            for r, c in [(1,1),(3,1),(1,3),(3,3)]]
+    ref = draw_piece_on_grid(cells, color, offset=(2, 2))
+    opts = [draw_piece_on_grid(cells, color, offset=(r, c)) for r, c in [(1, 1), (3, 1), (1, 3), (3, 3)]]
 
     img, bboxes = build_composite_image(ref, opts)
     img.save("/tmp/composite_test.png")

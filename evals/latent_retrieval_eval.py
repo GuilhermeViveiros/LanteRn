@@ -53,6 +53,7 @@ from src.models.utils import apply_latent_compression
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 @torch.no_grad()
 def compute_gt_tensors(model, cropped_images, processor):
     """
@@ -62,7 +63,7 @@ def compute_gt_tensors(model, cropped_images, processor):
         raw_tensors: (batch, latent_size, D) — full, saved to disk
     """
     pv, grid_thw = get_gt_latent_values(cropped_images, processor)
-    pv       = pv.to(model.device)
+    pv = pv.to(model.device)
     grid_thw = grid_thw.to(model.device)
     embeds = apply_latent_compression(
         model,
@@ -91,8 +92,8 @@ def pool_predicted_latents(latent_embeds_list):
                 raw_tensors.append(None)
                 valid.append(False)
             else:
-                mean_vecs.append(stacked.mean(dim=0))   # (D,)
-                raw_tensors.append(stacked)              # (latent_size, D)
+                mean_vecs.append(stacked.mean(dim=0))  # (D,)
+                raw_tensors.append(stacked)  # (latent_size, D)
                 valid.append(True)
         else:
             mean_vecs.append(None)
@@ -131,19 +132,19 @@ def retrieval_metrics(sim_matrix: torch.Tensor, correct_indices: list) -> dict:
     """
     ranks = []
     for i, gi in enumerate(correct_indices):
-        row  = sim_matrix[i]
+        row = sim_matrix[i]
         rank = int((row > row[gi]).sum().item()) + 1
         ranks.append(rank)
     ranks = np.array(ranks)
     return {
-        "R@1":        float((ranks <= 1).mean()),
-        "R@5":        float((ranks <= 5).mean()),
-        "R@10":       float((ranks <= 10).mean()),
-        "mean_rank":  float(ranks.mean()),
-        "mrr":        float((1.0 / ranks).mean()),
-        "n_queries":  int(len(ranks)),
+        "R@1": float((ranks <= 1).mean()),
+        "R@5": float((ranks <= 5).mean()),
+        "R@10": float((ranks <= 10).mean()),
+        "mean_rank": float(ranks.mean()),
+        "mrr": float((1.0 / ranks).mean()),
+        "n_queries": int(len(ranks)),
         "gallery_size": int(sim_matrix.shape[1]),
-        "_ranks":     ranks.tolist(),  # per-query, not saved to final JSON
+        "_ranks": ranks.tolist(),  # per-query, not saved to final JSON
     }
 
 
@@ -151,12 +152,14 @@ def collate_fn_retrieval(samples, processor: AutoProcessor):
     """Wraps collate_fn_mc and also returns per-sample metadata."""
     metadata = []
     for s in samples:
-        metadata.append({
-            "question":      s.get("question", ""),
-            "image_path":    s.get("image", [None])[0],
-            "gt_answer":     s.get("label", None),
-            "gt_rationale":  s.get("reasoning_traces", None),
-        })
+        metadata.append(
+            {
+                "question": s.get("question", ""),
+                "image_path": s.get("image", [None])[0],
+                "gt_answer": s.get("label", None),
+                "gt_rationale": s.get("reasoning_traces", None),
+            }
+        )
     inputs, labels, options, bboxs, cropped_images = collate_fn_mc(samples, processor)
     return inputs, labels, options, bboxs, cropped_images, metadata
 
@@ -165,19 +168,22 @@ def collate_fn_retrieval(samples, processor: AutoProcessor):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_ref",  type=str,
-                        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062")
-    parser.add_argument("--batch_size",   type=int, default=1)
-    parser.add_argument("--max_samples",  type=int, default=300,
-                        help="Max number of samples to evaluate (independent of batch size)")
-    parser.add_argument("--dummy",        action="store_true",
-                        help="Run on 5 samples only for quick sanity check")
+    parser.add_argument(
+        "--model_ref",
+        type=str,
+        default="/mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062",
+    )
+    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument(
+        "--max_samples", type=int, default=300, help="Max number of samples to evaluate (independent of batch size)"
+    )
+    parser.add_argument("--dummy", action="store_true", help="Run on 5 samples only for quick sanity check")
     parser.add_argument("--output_dir", type=str, default="results/latent_retrieval")
     args = parser.parse_args()
 
-    crops_dir   = os.path.abspath(os.path.join(args.output_dir, "crops"))
+    crops_dir = os.path.abspath(os.path.join(args.output_dir, "crops"))
     latents_dir = os.path.abspath(os.path.join(args.output_dir, "latents"))
-    os.makedirs(crops_dir,   exist_ok=True)
+    os.makedirs(crops_dir, exist_ok=True)
     os.makedirs(latents_dir, exist_ok=True)
 
     # ── Load model ────────────────────────────────────────────────────────────
@@ -192,41 +198,44 @@ if __name__ == "__main__":
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False)
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
-    model.config.lvr_end_id   = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
-    model.config.lvr_sep_id   = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
+    model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
+    model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
     processor.tokenizer.padding_side = "left"
     print(f"Model loaded: {args.model_ref}")
     print(f"Latent size:  {model.config.latent_size}")
-    print(f"LVR token IDs: start={model.config.lvr_start_id}, sep={model.config.lvr_sep_id}, end={model.config.lvr_end_id}")
+    print(
+        f"LVR token IDs: start={model.config.lvr_start_id}, sep={model.config.lvr_sep_id}, end={model.config.lvr_end_id}"
+    )
 
     # ── Dataset ───────────────────────────────────────────────────────────────
-    dataset    = MCDataset(datasets=["viscot"], use_lvr=True)
+    dataset = MCDataset(datasets=["viscot"], use_lvr=True)
     max_samples = 5 if args.dummy else args.max_samples
     if max_samples < len(dataset.data):
         dataset.data = dataset.data[:max_samples]
     if args.dummy:
         print("*** DUMMY MODE: 5 samples only ***")
     dataloader = DataLoader(
-        dataset, batch_size=args.batch_size, shuffle=False,
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
         collate_fn=partial(collate_fn_retrieval, processor=processor),
     )
     print(f"Dataset size (capped): {len(dataset)}")
 
     # ── Collect GT gallery and predicted latents ───────────────────────────────
-    gt_mean_vecs  = []   # (D,) per sample — for retrieval
-    gt_raw        = []   # (latent_size, D) per sample — saved to disk
+    gt_mean_vecs = []  # (D,) per sample — for retrieval
+    gt_raw = []  # (latent_size, D) per sample — saved to disk
     pred_mean_vecs = []  # (D,) or None per sample
-    pred_raw       = []  # (latent_size, D) or None per sample
-    valid          = []  # True if model predicted latents
-    records        = []  # per-sample metadata accumulated during loop
+    pred_raw = []  # (latent_size, D) or None per sample
+    valid = []  # True if model predicted latents
+    records = []  # per-sample metadata accumulated during loop
 
     sample_idx = 0
-    input_len  = None  # set from first batch (same for all in the run)
+    input_len = None  # set from first batch (same for all in the run)
 
     for step, (batch, labels, options, bboxs, cropped_images, metadata) in tqdm(
         enumerate(dataloader), total=len(dataloader), desc="Collecting"
     ):
-
         # GT gallery tensors
         gt_mean, gt_raw_batch = compute_gt_tensors(model, cropped_images, processor)
         gt_mean_vecs.extend(gt_mean.cpu().unbind(0))
@@ -234,8 +243,12 @@ if __name__ == "__main__":
 
         # Predicted latents — own generation, no GT injection
         output = run_batch_inference(
-            model, batch,
-            use_lvr=True, use_gt=False, return_dict=True, output_attentions=False,
+            model,
+            batch,
+            use_lvr=True,
+            use_gt=False,
+            return_dict=True,
+            output_attentions=False,
         )
 
         if input_len is None:
@@ -253,7 +266,7 @@ if __name__ == "__main__":
             p_mean, p_raw, p_valid = pool_predicted_latents(output.latent_embeds)
         else:
             B = len(bboxs)
-            p_mean, p_raw, p_valid = [None]*B, [None]*B, [False]*B
+            p_mean, p_raw, p_valid = [None] * B, [None] * B, [False] * B
 
         pred_mean_vecs.extend(p_mean)
         pred_raw.extend(p_raw)
@@ -264,7 +277,7 @@ if __name__ == "__main__":
             sid = sample_idx + i
 
             # Save bbox crop image
-            crop_img  = cropped_images[i][0]
+            crop_img = cropped_images[i][0]
             crop_path = os.path.join(crops_dir, f"sample_{sid}_crop.png")
             if isinstance(crop_img, Image.Image):
                 crop_img.save(crop_path)
@@ -284,24 +297,27 @@ if __name__ == "__main__":
             # Count text / latent tokens
             seq = output.sequences[i].cpu()
             n_text, n_latent = count_tokens(
-                seq, input_len,
+                seq,
+                input_len,
                 model.config.lvr_start_id,
                 model.config.lvr_end_id,
             )
 
-            records.append({
-                "sample_id":          sid,
-                "question":           metadata[i]["question"],
-                "image_path":         metadata[i]["image_path"],
-                "cropped_image_path": crop_path,
-                "prediction":         decoded[i],
-                "n_text_tokens":      n_text,
-                "n_latent_tokens":    n_latent,
-                "gt_answer":          metadata[i]["gt_answer"],
-                "gt_rationale":       metadata[i]["gt_rationale"],
-                "pred_latent_path":   pred_latent_path,
-                "oracle_latent_path": oracle_latent_path,
-            })
+            records.append(
+                {
+                    "sample_id": sid,
+                    "question": metadata[i]["question"],
+                    "image_path": metadata[i]["image_path"],
+                    "cropped_image_path": crop_path,
+                    "prediction": decoded[i],
+                    "n_text_tokens": n_text,
+                    "n_latent_tokens": n_latent,
+                    "gt_answer": metadata[i]["gt_answer"],
+                    "gt_rationale": metadata[i]["gt_rationale"],
+                    "pred_latent_path": pred_latent_path,
+                    "oracle_latent_path": oracle_latent_path,
+                }
+            )
 
         sample_idx += len(metadata)
 
@@ -314,7 +330,7 @@ if __name__ == "__main__":
     gallery = torch.stack(gt_mean_vecs).float().cpu()  # (N, D)
 
     # ── Oracle: GT as queries → R@1 must be 1.0 ──────────────────────────────
-    oracle_sim     = cosine_sim_matrix(gallery, gallery)
+    oracle_sim = cosine_sim_matrix(gallery, gallery)
     oracle_metrics = retrieval_metrics(oracle_sim, list(range(N)))
     oracle_metrics.pop("_ranks")
     print("\nOracle (GT → GT gallery):")
@@ -327,11 +343,11 @@ if __name__ == "__main__":
     print(f"Valid percentage: {valid_pct:.2f}% ({len(valid_idx)}/{len(valid)})")
 
     pred_metrics = {}
-    paired_mse   = None
+    paired_mse = None
 
     if valid_idx:
-        queries    = torch.stack([pred_mean_vecs[i] for i in valid_idx]).cpu()
-        pred_sim   = cosine_sim_matrix(queries, gallery)
+        queries = torch.stack([pred_mean_vecs[i] for i in valid_idx]).cpu()
+        pred_sim = cosine_sim_matrix(queries, gallery)
         pred_metrics = retrieval_metrics(pred_sim, valid_idx)
         pred_metrics.pop("_ranks")
 
@@ -343,17 +359,17 @@ if __name__ == "__main__":
         print(f"Lift over random:    {pred_metrics['R@1'] / random_r1:.1f}x")
 
         # Paired MSE / cosine
-        gt_for_valid   = gallery[valid_idx]
+        gt_for_valid = gallery[valid_idx]
         mse_per_sample = ((queries - gt_for_valid) ** 2).mean(dim=-1)
         cos_per_sample = F.cosine_similarity(queries, gt_for_valid, dim=-1)
-        paired_mse     = mse_per_sample.mean().item()
-        paired_cos     = cos_per_sample.mean().item()
+        paired_mse = mse_per_sample.mean().item()
+        paired_cos = cos_per_sample.mean().item()
         print("\nPaired pred↔GT (own sample only):")
         print(f"  MSE (mean):    {paired_mse:.6f}")
         print(f"  MSE (std):     {mse_per_sample.std().item():.6f}")
         print(f"  Cosine (mean): {paired_cos:.6f}")
         print(f"  Cosine (std):  {cos_per_sample.std().item():.6f}")
-        pred_metrics["paired_mse"]    = paired_mse
+        pred_metrics["paired_mse"] = paired_mse
         pred_metrics["paired_cosine"] = paired_cos
     else:
         print("\nNo samples predicted latents — model never emitted <|lvr_start|>")
@@ -368,13 +384,13 @@ if __name__ == "__main__":
     # ── Save aggregate JSON ───────────────────────────────────────────────────
     ckpt_name = "_".join(args.model_ref.rstrip("/").split("/")[-2:])
     results = {
-        "model":          args.model_ref,
-        "oracle":         oracle_metrics,
-        "predicted":      pred_metrics,
-        "random_r1":      1.0 / N,
-        "n_total":        N,
+        "model": args.model_ref,
+        "oracle": oracle_metrics,
+        "predicted": pred_metrics,
+        "random_r1": 1.0 / N,
+        "n_total": N,
         "n_with_latents": n_valid,
-        "paired_mse":     paired_mse if valid_idx else None,
+        "paired_mse": paired_mse if valid_idx else None,
     }
     out_path = os.path.join(args.output_dir, f"{ckpt_name}_retrieval.json")
     with open(out_path, "w") as f:

@@ -19,17 +19,18 @@ from .pieces import SHAPES, SHAPES_BY_FAMILY
 # ---------------------------------------------------------------------------
 
 TRANSFORM_DESCRIPTIONS = {
-    "rotation":    "{angle}° clockwise rotation",
+    "rotation": "{angle}° clockwise rotation",
     "translation": "translation of {dr:+d} row(s) and {dc:+d} column(s)",
-    "combined":    "{angle}° clockwise rotation and translation of {dr:+d} row(s) and {dc:+d} column(s)",
+    "combined": "{angle}° clockwise rotation and translation of {dr:+d} row(s) and {dc:+d} column(s)",
 }
 
-ROTATION_ANGLES = {1: 90, 2: 180, 3: 270}   # rotation index offset → degrees
+ROTATION_ANGLES = {1: 90, 2: 180, 3: 270}  # rotation index offset → degrees
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _apply_offset(cells, offset):
     dr, dc = offset

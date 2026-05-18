@@ -36,7 +36,7 @@ from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from src.utils import center_and_crop_image, extract_mc_answer
 
 DATA_PATH = "/mnt/scratch-artemis/gviveiros/lantern/oe_to_mc/viscot_mc_test.jsonl"
-MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct"
+MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 
 system_content = "Put your final answer inside <answer>ANSWER_GOES_HERE</answer> tags."
 
@@ -61,14 +61,16 @@ class VisCoTDataset(Dataset):
                 if options is None:
                     invalid += 1
                     continue
-                self.samples.append({
-                    "idx": idx,
-                    "question": sample["question"] + "\nOptions:\n" + "\n".join(options),
-                    "options": options,
-                    "label": sample["answer"],
-                    "img_path": sample["img_path"],
-                    "bbox": sample["bbox"],
-                })
+                self.samples.append(
+                    {
+                        "idx": idx,
+                        "question": sample["question"] + "\nOptions:\n" + "\n".join(options),
+                        "options": options,
+                        "label": sample["answer"],
+                        "img_path": sample["img_path"],
+                        "bbox": sample["bbox"],
+                    }
+                )
         print(f"Loaded {len(self.samples)} samples ({invalid} skipped, invalid options)")
 
     def __len__(self):
@@ -92,10 +94,12 @@ def collate_fn(batch, processor, include_crop: bool):
         if include_crop:
             content.append({"type": "image", "image": sample["crop"]})
         content.append({"type": "text", "text": sample["question"]})
-        messages.append([
-            {"role": "system", "content": [{"type": "text", "text": system_content}]},
-            {"role": "user",   "content": content},
-        ])
+        messages.append(
+            [
+                {"role": "system", "content": [{"type": "text", "text": system_content}]},
+                {"role": "user", "content": content},
+            ]
+        )
 
     texts = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     image_inputs, _ = process_vision_info(messages)
@@ -117,14 +121,14 @@ def run_inference(model, processor, inputs):
         do_sample=False,
         use_cache=True,
     )
-    trimmed = [out[len(inp):] for inp, out in zip(inputs.input_ids, generated_ids)]
+    trimmed = [out[len(inp) :] for inp, out in zip(inputs.input_ids, generated_ids)]
     return processor.batch_decode(trimmed, skip_special_tokens=False, clean_up_tokenization_spaces=False)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path",  type=str, default=DATA_PATH)
-    parser.add_argument("--model_id",   type=str, default=MODEL_ID)
+    parser.add_argument("--data_path", type=str, default=DATA_PATH)
+    parser.add_argument("--model_id", type=str, default=MODEL_ID)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--output_dir", type=str, default="results/filter_easy")
     args = parser.parse_args()
@@ -149,10 +153,18 @@ if __name__ == "__main__":
     processor.tokenizer.padding_side = "left"
 
     dataset = VisCoTDataset(args.data_path)
-    loader_no_crop   = DataLoader(dataset, batch_size=args.batch_size, shuffle=False,
-                                  collate_fn=partial(collate_fn, processor=processor, include_crop=False))
-    loader_with_crop = DataLoader(dataset, batch_size=args.batch_size, shuffle=False,
-                                  collate_fn=partial(collate_fn, processor=processor, include_crop=True))
+    loader_no_crop = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=partial(collate_fn, processor=processor, include_crop=False),
+    )
+    loader_with_crop = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=partial(collate_fn, processor=processor, include_crop=True),
+    )
 
     ckpt_pass1 = os.path.join(args.output_dir, "checkpoint_pass1.json")
 
@@ -169,13 +181,15 @@ if __name__ == "__main__":
             decoded = run_inference(model, processor, inputs)
             answers = [extract_mc_answer(x, opts) for x, opts in zip(decoded, options_batch)]
             for idx, ans, label in zip(indices, answers, labels):
-                results_no_crop[int(idx)] = (ans == label)
+                results_no_crop[int(idx)] = ans == label
         with open(ckpt_pass1, "w") as f:
             json.dump({str(k): v for k, v in results_no_crop.items()}, f)
         print(f"Pass-1 checkpoint saved to {ckpt_pass1}")
 
     n_correct_without = sum(results_no_crop.values())
-    print(f"Correct without bbox: {n_correct_without}/{len(results_no_crop)} ({n_correct_without/len(results_no_crop):.1%})")
+    print(
+        f"Correct without bbox: {n_correct_without}/{len(results_no_crop)} ({n_correct_without/len(results_no_crop):.1%})"
+    )
 
     # Pass 2: with bbox crop — only for samples wrong in pass 1
     print("\n--- Pass 2: image + bbox_crop + question ---")
@@ -189,19 +203,19 @@ if __name__ == "__main__":
         answers = [extract_mc_answer(x, opts) for x, opts in zip(decoded, options_batch)]
         for idx, ans, label in zip(indices, answers, labels):
             if int(idx) in need_crop_check:
-                results_with_crop[int(idx)] = (ans == label)
+                results_with_crop[int(idx)] = ans == label
 
     # Classify
     keep_ids, remove_easy, remove_hard = [], [], []
     for idx in results_no_crop:
         wrong_without = not results_no_crop[idx]
-        right_with    = results_with_crop.get(idx, False)
+        right_with = results_with_crop.get(idx, False)
         if wrong_without and right_with:
-            keep_ids.append(idx)       # bbox is decisive → keep
+            keep_ids.append(idx)  # bbox is decisive → keep
         elif not wrong_without:
-            remove_easy.append(idx)    # correct without bbox → too easy
+            remove_easy.append(idx)  # correct without bbox → too easy
         else:
-            remove_hard.append(idx)    # wrong both ways → bbox doesn't help
+            remove_hard.append(idx)  # wrong both ways → bbox doesn't help
 
     total = len(results_no_crop)
     print("\n=== Results ===")
@@ -213,11 +227,15 @@ if __name__ == "__main__":
         json.dump({"keep_ids": sorted(keep_ids), "n_keep": len(keep_ids), "total": total}, f, indent=2)
 
     with open(os.path.join(args.output_dir, "remove_ids.json"), "w") as f:
-        json.dump({
-            "remove_easy": sorted(remove_easy),
-            "remove_hard": sorted(remove_hard),
-            "total_removed": len(remove_easy) + len(remove_hard),
-            "total": total,
-        }, f, indent=2)
+        json.dump(
+            {
+                "remove_easy": sorted(remove_easy),
+                "remove_hard": sorted(remove_hard),
+                "total_removed": len(remove_easy) + len(remove_hard),
+                "total": total,
+            },
+            f,
+            indent=2,
+        )
 
     print(f"\nSaved to {args.output_dir}/")

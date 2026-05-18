@@ -77,7 +77,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Mask everything after the first EOS token
         is_eos = completion_ids == self.eos_token_id
         eos_idx = torch.full((is_eos.size(0),), is_eos.size(1), dtype=torch.long, device=device)
-        eos_idx[is_eos.any(dim=1)] = is_eos.int().argmax(dim=1)[is_eos.any(dim=1)] # add the eos_idx for each sequence
+        eos_idx[is_eos.any(dim=1)] = is_eos.int().argmax(dim=1)[is_eos.any(dim=1)]  # add the eos_idx for each sequence
         sequence_indices = torch.arange(is_eos.size(1), device=device).expand(is_eos.size(0), -1)
         completion_mask = (sequence_indices <= eos_idx.unsqueeze(1)).int()
         prompt_ids = [p[m].tolist() for p, m in zip(prompt_ids, prompt_mask.bool(), strict=True)]
@@ -103,7 +103,9 @@ class LantErnGRPOTrainer(GRPOTrainer):
             rewards_per_func[:, i] = torch.tensor(rewards, device=self.accelerator.device)
 
         # Gather across all ranks so each rank has the global tensor
-        rewards_per_func = gather(rewards_per_func)  # we need this because GRPO slices over the full reward batch, so we need to gather the rewards from all ranks
+        rewards_per_func = gather(
+            rewards_per_func
+        )  # we need this because GRPO slices over the full reward batch, so we need to gather the rewards from all ranks
 
         return rewards_per_func
 
@@ -124,7 +126,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
         latent_embeds=None,
         latent_mask=None,
     ) -> dict[str, torch.Tensor | None]:
-
         """Compute log-probs and (optionally) entropies for each token."""
         batch_size = batch_size or input_ids.size(0)  # Chunk inputs into smaller batches to reduce memory peak
         all_logps = []
@@ -161,7 +162,9 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 if current_latent_num > 0:
                     model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
                     latent_embeds_batch = prepare_latent_embeds(latent_embeds)
-                    model_inputs["latent_embeds"] = latent_embeds_batch[latent_num_pointer: latent_num_pointer + current_latent_num]
+                    model_inputs["latent_embeds"] = latent_embeds_batch[
+                        latent_num_pointer : latent_num_pointer + current_latent_num
+                    ]
                     # update latent_num_pointer
                     latent_num_pointer += current_latent_num
             # Only add logits_to_keep if the model supports it
@@ -258,9 +261,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Concatenate prompt_mask with completion_mask for logit computation
         prompt_completion_ids = torch.cat([prompt_ids, completion_ids], dim=1)  # (B, P+C)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)  # (B, P+C)
-        latent_mask, \
-            latent_embeds = extra_fields["latent_mask"], extra_fields["latent_embeds"]
-
+        latent_mask, latent_embeds = extra_fields["latent_mask"], extra_fields["latent_embeds"]
 
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
         batch_size = self.args.per_device_train_batch_size if mode == "train" else self.args.per_device_eval_batch_size
@@ -283,7 +284,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         forward_kwargs["latent_embeds"] = latent_embeds
         forward_kwargs["latent_mask"] = latent_mask
-
 
         # If token_type_ids are used, extend them with zeros for the completion part
         if "token_type_ids" in forward_kwargs:
@@ -308,7 +308,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if self.args.gradient_accumulation_steps % generate_every != 0 or (
                 self.use_vllm and self.vllm_importance_sampling_correction
             ):
-                #print("Model. Calculating old per token logps...")
+                # print("Model. Calculating old per token logps...")
                 old_per_token_logps, _ = self._get_per_token_logps_and_entropies(
                     self.model,
                     prompt_completion_ids,
@@ -441,7 +441,6 @@ class LantErnGRPOTrainer(GRPOTrainer):
         self._metrics[mode]["reward_std"].append(std_rewards.mean().item())
         self._metrics[mode]["frac_reward_zero_std"].append(is_std_zero.float().mean().item())
 
-
         # Log prompt and completion texts
         self._logs["prompt"].extend(gather_object(prompts_text))
         self._logs["completion"].extend(gather_object(completions_text))
@@ -523,10 +522,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
     def _compute_loss(self, model, inputs):
         # Compute the per-token log probabilities for the model
-        prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"] # (B, P)
-        completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"] # (B, C)
-        latent_embeds, latent_mask = inputs["latent_embeds"], inputs["latent_mask"] # (B, P+C)
-        combined_completion_mask = completion_mask & ~latent_mask[:, prompt_mask.size(1):] # (B, P+C)
+        prompt_ids, prompt_mask = inputs["prompt_ids"], inputs["prompt_mask"]  # (B, P)
+        completion_ids, completion_mask = inputs["completion_ids"], inputs["completion_mask"]  # (B, C)
+        latent_embeds, latent_mask = inputs["latent_embeds"], inputs["latent_mask"]  # (B, P+C)
+        combined_completion_mask = completion_mask & ~latent_mask[:, prompt_mask.size(1) :]  # (B, P+C)
 
         input_ids = torch.cat([prompt_ids, completion_ids], dim=1)
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)

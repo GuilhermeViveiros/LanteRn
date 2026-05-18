@@ -157,16 +157,12 @@ def freeze_vision(model, freeze_projector: bool = False):
             if hasattr(model, proj_name):
                 _freeze_module(getattr(model, proj_name), f"model.{proj_name}")
             if hasattr(model, "model") and hasattr(model.model, proj_name):
-                _freeze_module(
-                    getattr(model.model, proj_name), f"model.model.{proj_name}"
-                )
+                _freeze_module(getattr(model.model, proj_name), f"model.model.{proj_name}")
 
     # Print trainable parameter count (sanity check)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
-    print(
-        f"[freeze] trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)"
-    )
+    print(f"[freeze] trainable params: {trainable:,} / {total:,} ({100 * trainable / total:.2f}%)")
     if not frozen_any:
         print(
             "[freeze] WARNING: did not find a recognized vision module to freeze. "

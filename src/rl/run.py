@@ -60,7 +60,7 @@ def main(grpo_params: GRPOParams, json_path: str, image_root: str):
 
     processor.tokenizer.padding_side = "left"
     if processor.tokenizer.pad_token is None:
-       processor.tokenizer.pad_token = processor.tokenizer.eos_token
+        processor.tokenizer.pad_token = processor.tokenizer.eos_token
 
     # ensure_lvr_tokens(model, processor)
     configure_generation_cache(model)
@@ -92,9 +92,7 @@ def main(grpo_params: GRPOParams, json_path: str, image_root: str):
     ds = ds.cast_column("images", Sequence(HFImage()))
 
     # Convert to GRPO dataset columns (and drop old columns)
-    ds = ds.map(
-        lambda ex: convert_example(ex, system_prompt), remove_columns=ds.column_names
-    )
+    ds = ds.map(lambda ex: convert_example(ex, system_prompt), remove_columns=ds.column_names)
 
     # ----------------------------
     # 3) Train with GRPO

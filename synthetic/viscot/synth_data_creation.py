@@ -19,10 +19,10 @@ def download_data():
     from huggingface_hub import hf_hub_download
 
     # 1. Configuration
-    REPO_ID      = "deepcs233/Visual-CoT"      # the dataset repo id on HF
-    REPO_TYPE    = "dataset"
-    LOCAL_DIR    = "/mnt/data-artemis/gviveiros/LVR-Finetune/visual_cot_images"       # local folder to download into
-    TAR_FILES    = [
+    REPO_ID = "deepcs233/Visual-CoT"  # the dataset repo id on HF
+    REPO_TYPE = "dataset"
+    LOCAL_DIR = "/mnt/data-artemis/gviveiros/LVR-Finetune/visual_cot_images"  # local folder to download into
+    TAR_FILES = [
         "cot_images_tar_split/cot_images_00",
         "cot_images_tar_split/cot_images_01",
         # add all the tar files you need …
@@ -39,11 +39,12 @@ def download_data():
             repo_type=REPO_TYPE,
             filename=fname,
             local_dir=LOCAL_DIR,
-            use_auth_token=None  # set token if private
+            use_auth_token=None,  # set token if private
         )
         print(f"Downloaded to {local_path}")
 
-def create_synthetic_data(dataloader, inference, output_json_path, save_every = 5):
+
+def create_synthetic_data(dataloader, inference, output_json_path, save_every=5):
     print("=" * 80)
     print("🚀 Initiating synthetic data creation process...")
     print("=" * 80)
@@ -62,15 +63,17 @@ def create_synthetic_data(dataloader, inference, output_json_path, save_every = 
                 print(f"\033[91mOutput: {output}\033[0m")
             continue
         for sample, parsed_output in zip(batch, parsed_outputs):
-            out.append({
-                "question": sample.question,
-                "answer": sample.answer,
-                "reasoning_traces": parsed_output,
-                "dataset": sample.dataset,
-                "split": sample.split,
-                "img_path": sample.img_path,
-                "bboxs": sample.bboxs,
-            })
+            out.append(
+                {
+                    "question": sample.question,
+                    "answer": sample.answer,
+                    "reasoning_traces": parsed_output,
+                    "dataset": sample.dataset,
+                    "split": sample.split,
+                    "img_path": sample.img_path,
+                    "bboxs": sample.bboxs,
+                }
+            )
         if (batch_idx + 1) % save_every == 0:
             with open(output_json_path, "w") as f:
                 json.dump(out, f)
@@ -89,14 +92,23 @@ def create_synthetic_data(dataloader, inference, output_json_path, save_every = 
 if __name__ == "__main__":
     dataset = VCoTData(
         folder_path="/home/gviveiros/.cache/huggingface/hub/datasets--deepcs233--Visual-CoT/snapshots/223d2d8c1146fda2bb918801b8276c587b78b61c/metadata",
-        shuffle=False
+        shuffle=False,
     )
 
     from torch.utils.data import DataLoader
-    dataloader = DataLoader(dataset, batch_size=8, shuffle=False, num_workers=1, pin_memory=True, persistent_workers=True, collate_fn=lambda x: x)
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=8,
+        shuffle=False,
+        num_workers=1,
+        pin_memory=True,
+        persistent_workers=True,
+        collate_fn=lambda x: x,
+    )
 
     model_id = "Qwen/Qwen3-VL-235B-A22B-Thinking-FP8"
-    #model_id = "Qwen/Qwen3-VL-30B-A3B-Instruct"
+    # model_id = "Qwen/Qwen3-VL-30B-A3B-Instruct"
 
     if "fp8" in model_id.lower():
         print("Using vllm inference")
@@ -114,8 +126,6 @@ if __name__ == "__main__":
     # create synthetic data
     print("Creating synthetic data...")
     create_synthetic_data(dataloader, inference, output_json_path)
-
-
 
     # print("=" * 40)
     # print("Debugging mode")

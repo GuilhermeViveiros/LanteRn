@@ -51,11 +51,14 @@ class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
     latent_mask: Optional[torch.BoolTensor] = None
     latent_hidden_state: Optional[torch.FloatTensor] = None
 
-'''
+
+"""
     Coconut mode
     No additional Head
     Custom implementation of LantErn on Qwen2.5VL model
-'''
+"""
+
+
 def qwen2_5_mixed_modality_forward_lantern(
     self,
     input_ids: Optional[torch.LongTensor] = None,
@@ -75,10 +78,18 @@ def qwen2_5_mixed_modality_forward_lantern(
     rope_deltas: Optional[torch.LongTensor] = None,
     cache_position: Optional[torch.LongTensor] = None,
     second_per_grid_ts: Optional[torch.Tensor] = None,
-    latent_values: Optional[torch.Tensor] = None, # Custom LantErn feature for Training: latent values for the visual reasoning
-    latent_grid_thw: Optional[torch.LongTensor] = None, # Custom LantErn feature for Training: latent grid dim for the visual reasoning
-    latent_embeds: Optional[torch.FloatTensor] = None, # Custom LantErn feature for Inference: latent hidden state for the visual reasoning (either pass this or latent_values)
-    latent_mask: Optional[torch.BoolTensor] = None, # Custom LantErn feature for Inference: latent mask for the visual reasoning
+    latent_values: Optional[
+        torch.Tensor
+    ] = None,  # Custom LantErn feature for Training: latent values for the visual reasoning
+    latent_grid_thw: Optional[
+        torch.LongTensor
+    ] = None,  # Custom LantErn feature for Training: latent grid dim for the visual reasoning
+    latent_embeds: Optional[
+        torch.FloatTensor
+    ] = None,  # Custom LantErn feature for Inference: latent hidden state for the visual reasoning (either pass this or latent_values)
+    latent_mask: Optional[
+        torch.BoolTensor
+    ] = None,  # Custom LantErn feature for Inference: latent mask for the visual reasoning
     **kwargs: Unpack[Any],
 ) -> Union[tuple, Qwen2_5_VLCausalLMOutputWithPast]:
     r"""
@@ -110,7 +121,9 @@ def qwen2_5_mixed_modality_forward_lantern(
         inputs_embeds = inputs_embeds.masked_scatter(image_mask, image_embeds)
 
     # either pass latent_values or latent_hidden_state
-    assert not (latent_values is not None and latent_embeds is not None), "Only one of latent_values or latent_hidden_state can be passed, not both"
+    assert not (
+        latent_values is not None and latent_embeds is not None
+    ), "Only one of latent_values or latent_hidden_state can be passed, not both"
 
     if latent_embeds is not None:
         # RL training: replace the latent tokens hidden state with the latent hidden state (generate -> sft)
@@ -159,7 +172,6 @@ def qwen2_5_mixed_modality_forward_lantern(
         )
 
         if (prefill_compiled_stage or prefill_noncompiled_stage) or self.rope_deltas is None:
-
             position_ids, rope_deltas = self.model.get_rope_index(
                 input_ids,
                 image_grid_thw,
@@ -199,9 +211,7 @@ def qwen2_5_mixed_modality_forward_lantern(
 
     loss = None
     if labels is not None:
-        loss = self.loss_function(
-            logits=logits, labels=labels, vocab_size=self.config.text_config.vocab_size, **kwargs
-        )
+        loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.text_config.vocab_size, **kwargs)
 
     if not return_dict:
         output = (logits,) + outputs[1:]
@@ -213,7 +223,7 @@ def qwen2_5_mixed_modality_forward_lantern(
         past_key_values=outputs.past_key_values,
         hidden_states=hidden_states,
         attentions=outputs.attentions,
-        rope_deltas=getattr(self, 'rope_deltas', None),
+        rope_deltas=getattr(self, "rope_deltas", None),
         inputs_embeds=inputs_embeds,
         latent_mask=latent_mask,
         latent_hidden_state=hidden_states[..., -1, :],

@@ -35,25 +35,20 @@ def accuracy_reward(completions, ground_truth, **kwargs) -> list[float]:
     for text, gt in zip(completions, ground_truth):
         pred = extract_last_answer_from_text(text)
         if pred == "":
-            #print("Pred: ", pred, "GT: ", gt)
-            #print("-"*30)
+            # print("Pred: ", pred, "GT: ", gt)
+            # print("-"*30)
             out.append(0.0)
         else:
             ratio = fuzz.ratio(normalize_answer(pred), normalize_answer(gt))
-            #print("Pred: ", pred, "GT: ", gt, "Ratio: ", ratio)
+            # print("Pred: ", pred, "GT: ", gt, "Ratio: ", ratio)
             ratio = 0 if ratio < 70 else ratio / 100.0
-            #print("-"*30)
+            # print("-"*30)
             out.append(ratio)
     return out
 
 
 @register_reward("structure")
-def structure_reward(
-    completions: list[str],
-    latent_size: int,
-    **kwargs
-    ) -> list[float]:
-
+def structure_reward(completions: list[str], latent_size: int, **kwargs) -> list[float]:
     """
     Reason:
       - Reward is based on the structure of the completion.
@@ -64,11 +59,7 @@ def structure_reward(
 
     """
     # Exact contiguous block in IDs
-    lvr_block = (
-        "<|lvr_start|>"
-        + "<|lvr_sep|>" * latent_size
-        + "<|lvr_end|>"
-    )
+    lvr_block = "<|lvr_start|>" + "<|lvr_sep|>" * latent_size + "<|lvr_end|>"
 
     def _find_subseq(seq: str, pat: str) -> int:
         """
