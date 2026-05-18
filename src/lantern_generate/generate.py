@@ -30,6 +30,8 @@ def generate(
     perturbation: Optional[str] = None,
     **kwargs,
 ):
+    if generation_config is None:
+        generation_config = model.generation_config
     # init values
     pad_token_id = generation_config._pad_token_tensor
     output_attentions = generation_config.output_attentions
