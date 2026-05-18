@@ -27,6 +27,10 @@ This codebase covers two works:
 
 **Models on HuggingFace:** [AGViveiros/lantern-models](https://huggingface.co/collections/AGViveiros/lantern-models)
 
+| Model | Description |
+|-------|-------------|
+| [AGViveiros/LanteRn-3B-Tetris](https://huggingface.co/AGViveiros/LanteRn-3B-Tetris) | 3B model fine-tuned on the Tetris analogy benchmark |
+
 ---
 
 ## Overview
