@@ -4,23 +4,21 @@ import os
 # Third-party libraries
 # ------------------------------------------------------------------
 import torch
+from transformers import HfArgumentParser
+from trl import GRPOTrainer
+
 from datasets import load_dataset
 from datasets.features import Image as HFImage
 from datasets.features import Sequence
-from transformers import HfArgumentParser
-from trl import GRPOTrainer
 
 # ------------------------------------------------r------------------
 # Local application imports
 # ------------------------------------------------------------------
 from src.models import load_model
-
+from src.rl import rewards as rewards_module
 from src.rl.config import GRPOParams, ImageDataset
 from src.rl.prompt import build_system_prompt
 from src.rl.utils import configure_generation_cache, convert_example, freeze_vision
-
-
-from src.rl import rewards as rewards_module
 
 
 def build_reward_funcs(grpo_params: GRPOParams, model):  # noqa: F811

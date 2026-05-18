@@ -1,7 +1,9 @@
-from trl import GRPOConfig
-from typing import Optional, List
 from dataclasses import dataclass, field
-from src.constants import SCRATCH_HADES, RL_DATA_PATH
+from typing import Optional
+
+from trl import GRPOConfig
+
+from src.constants import RL_DATA_PATH, SCRATCH_HADES
 
 
 @dataclass
@@ -18,7 +20,7 @@ class GRPOParams(GRPOConfig):
     # ------------------------------------------------------------------
     output_dir: str = field(default=f"{SCRATCH_HADES}/checkpoints-rl")  # fmt: skip
     run_name: str = field(default="qwen25vl-grpo-lvr-night")
-    report_to: List[str] = field(default_factory=lambda: ["wandb"])
+    report_to: list[str] = field(default_factory=lambda: ["wandb"])
 
     # ------------------------------------------------------------------
     # Precision & compute
@@ -70,8 +72,8 @@ class GRPOParams(GRPOConfig):
     # - reward_names is NOT in GRPOConfig (trainer-side bookkeeping in your code)
     # - reward_weights: depending on TRL version, this may exist on GRPOConfig; if it doesn't, keeping it here is fine
     # ------------------------------------------------------------------
-    reward_names: List[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])  # fmt: skip
-    reward_weights: List[float] = field(default_factory=lambda: [1.0, 1.0])
+    reward_names: list[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])  # fmt: skip
+    reward_weights: list[float] = field(default_factory=lambda: [1.0, 1.0])
 
     def __post_init__(self):
         super().__post_init__() if hasattr(super(), "__post_init__") else None

@@ -33,24 +33,23 @@ Submit via srun:
                > results/latent_retrieval/run.log 2>&1'
 """
 
+import argparse
 import json
 import os
-import argparse
 from functools import partial
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
-from tqdm import tqdm
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 from transformers import AutoProcessor
 
 from evals import get_gt_latent_values, run_batch_inference
 from evals.eval import MCDataset, collate_fn_mc
 from src.models import load_model
 from src.models.utils import apply_latent_compression
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -318,7 +317,7 @@ if __name__ == "__main__":
     oracle_sim     = cosine_sim_matrix(gallery, gallery)
     oracle_metrics = retrieval_metrics(oracle_sim, list(range(N)))
     oracle_metrics.pop("_ranks")
-    print(f"\nOracle (GT → GT gallery):")
+    print("\nOracle (GT → GT gallery):")
     for k, v in oracle_metrics.items():
         print(f"  {k}: {v}")
 
@@ -337,7 +336,7 @@ if __name__ == "__main__":
         pred_metrics.pop("_ranks")
 
         random_r1 = 1.0 / N
-        print(f"\nPredicted latents retrieval:")
+        print("\nPredicted latents retrieval:")
         for k, v in pred_metrics.items():
             print(f"  {k}: {v}")
         print(f"\nRandom baseline R@1: {random_r1:.6f} (1/{N})")
@@ -349,7 +348,7 @@ if __name__ == "__main__":
         cos_per_sample = F.cosine_similarity(queries, gt_for_valid, dim=-1)
         paired_mse     = mse_per_sample.mean().item()
         paired_cos     = cos_per_sample.mean().item()
-        print(f"\nPaired pred↔GT (own sample only):")
+        print("\nPaired pred↔GT (own sample only):")
         print(f"  MSE (mean):    {paired_mse:.6f}")
         print(f"  MSE (std):     {mse_per_sample.std().item():.6f}")
         print(f"  Cosine (mean): {paired_cos:.6f}")

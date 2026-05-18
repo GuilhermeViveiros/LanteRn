@@ -13,8 +13,6 @@ Layout:
 
 from __future__ import annotations
 
-from typing import List, Tuple
-
 from PIL import Image, ImageDraw
 
 from .renderer import _get_font
@@ -22,9 +20,9 @@ from .renderer import _get_font
 
 def build_query_composite(
     img_C: Image.Image,
-    options: List[Image.Image],
-    labels: List[str] = None,
-) -> Tuple[Image.Image, List[List[int]]]:
+    options: list[Image.Image],
+    labels: list[str] = None,
+) -> tuple[Image.Image, list[list[int]]]:
     """
     Build composite showing only the query shape C and the 4 answer options.
 
@@ -78,7 +76,7 @@ def build_query_composite(
 
     # ── Options row ───────────────────────────────────────────────────────────
     opts_x = PAD + (inner_w - opts_row_w) // 2
-    bboxes: List[List[int]] = []
+    bboxes: list[list[int]] = []
     for i, (opt_img, lbl) in enumerate(zip(options, labels)):
         ox  = opts_x + i * (op_w + GAP)
         lt  = f"({lbl})"

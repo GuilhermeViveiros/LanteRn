@@ -1,10 +1,10 @@
-import torch
+import logging
 import os
-from transformers import AutoTokenizer, StoppingCriteriaList, GenerationConfig, LogitsProcessorList
 from dataclasses import dataclass
 from typing import Optional
-import logging
-from itertools import chain
+
+import torch
+from transformers import GenerationConfig, LogitsProcessorList, StoppingCriteriaList
 from transformers.generation.utils import GenerateDecoderOnlyOutput
 
 logger = logging.getLogger("LantErn-Generate")

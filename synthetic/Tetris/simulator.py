@@ -11,10 +11,8 @@ These are imported by analogy_simulator.py.
 from __future__ import annotations
 
 import random
-from typing import Optional
 
 from .pieces import SHAPES, SHAPES_BY_FAMILY
-
 
 # ---------------------------------------------------------------------------
 # Transform constants

@@ -1,11 +1,18 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
+from typing import Optional
+
 from transformers import TrainingArguments as HFTrainingArguments
 from trl import GRPOConfig
+
 from src.constants import (
-    CHECKPOINTS_DIR, SCRATCH_NYX, SCRATCH_HADES,
-    VISCOT_DATA_PATH, RL_DATA_PATH, RL_IMAGE_ROOT,
+    CHECKPOINTS_DIR,
+    RL_DATA_PATH,
+    RL_IMAGE_ROOT,
+    SCRATCH_HADES,
+    SCRATCH_NYX,
+    VISCOT_DATA_PATH,
 )
+
 
 @dataclass
 class ModelParams:
@@ -13,7 +20,7 @@ class ModelParams:
     latent_size: int = field(default=-1) # -1 for dynamic latent size (same as visual tokens)
     use_cache: bool = field(default=True)
     attn_implementation: str = field(default="flash_attention_2")
-    
+
 @dataclass
 class TrainingParams(HFTrainingArguments):
     output_dir: str = field(default=CHECKPOINTS_DIR)
@@ -66,14 +73,14 @@ class GRPOArguments(GRPOConfig):
     # Output / run identity
     # ------------------------------------------------------------------
     output_dir: str = field(default=f"{SCRATCH_NYX}/")
-    report_to: List[str] = field(default_factory=lambda: ["wandb"])
+    report_to: list[str] = field(default_factory=lambda: ["wandb"])
 
     # ------------------------------------------------------------------
     # Precision & compute
     # ------------------------------------------------------------------
     bf16: bool = field(default=True)
     fp16: bool = field(default=False)
-    
+
     # ------------------------------------------------------------------
     # Optimization
     # ------------------------------------------------------------------
@@ -119,15 +126,15 @@ class GRPOArguments(GRPOConfig):
     # ------------------------------------------------------------------
     # Rewards
     # ------------------------------------------------------------------
-    reward_names: List[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])
-    reward_weights: List[float] = field(default_factory=lambda: [1.0, 1.0])
+    reward_names: list[str] = field(default_factory=lambda: ["accuracy", "lvr_presence"])
+    reward_weights: list[float] = field(default_factory=lambda: [1.0, 1.0])
 
 
 @dataclass
 class SFTDataParams:
     data_path: str = field(default=VISCOT_DATA_PATH)
     dummy: bool = field(default=False)
-    split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0))
+    split_percentages: tuple[float, float, float] = field(default=(0.9, 0.1, 0))
     corrupt_image: bool = field(default=False)
     corruption_type: str = field(default="bbox_blackout")
     filter_ids_path: Optional[str] = field(default=None)

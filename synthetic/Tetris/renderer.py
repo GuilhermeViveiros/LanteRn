@@ -4,27 +4,25 @@ Builds individual piece images and composite (reference + options) images.
 """
 
 from __future__ import annotations
+
 import math
-import re
-from typing import List, Tuple, Optional
 
 from PIL import Image, ImageDraw, ImageFont
-
 
 # ---------------------------------------------------------------------------
 # Single-panel renderer
 # ---------------------------------------------------------------------------
 
 def draw_piece_on_grid(
-    cells: List[Tuple[int, int]],
-    color: Tuple[int, int, int],
-    offset: Tuple[int, int] = (0, 0),
+    cells: list[tuple[int, int]],
+    color: tuple[int, int, int],
+    offset: tuple[int, int] = (0, 0),
     grid_rows: int = 8,
     grid_cols: int = 8,
     cell_size: int = 40,
-    bg_color: Tuple[int, int, int] = (28, 28, 32),
-    grid_line_color: Tuple[int, int, int] = (55, 55, 65),
-    border_color: Tuple[int, int, int] = (80, 80, 95),
+    bg_color: tuple[int, int, int] = (28, 28, 32),
+    grid_line_color: tuple[int, int, int] = (55, 55, 65),
+    border_color: tuple[int, int, int] = (80, 80, 95),
     show_grid: bool = True,
 ) -> Image.Image:
     """
@@ -91,12 +89,12 @@ def draw_piece_on_grid(
 # ---------------------------------------------------------------------------
 
 def render_rotation_strip(
-    rotation_steps: List[List[Tuple[int, int]]],
-    color: Tuple[int, int, int],
+    rotation_steps: list[list[tuple[int, int]]],
+    color: tuple[int, int, int],
     clockwise: bool = True,
     angle: int = 90,
     cell_size: int = 40,
-    bg_color: Tuple[int, int, int] = (18, 18, 22),
+    bg_color: tuple[int, int, int] = (18, 18, 22),
     bw: bool = False,
 ) -> Image.Image:
     """
@@ -127,7 +125,8 @@ def render_rotation_strip(
     def _bez(p0, p1, p2, n=70):
         pts = []
         for i in range(n + 1):
-            t = i / n; mt = 1 - t
+            t = i / n
+            mt = 1 - t
             pts.append((int(mt*mt*p0[0]+2*mt*t*p1[0]+t*t*p2[0]),
                         int(mt*mt*p0[1]+2*mt*t*p1[1]+t*t*p2[1])))
         return pts
@@ -139,7 +138,9 @@ def render_rotation_strip(
             dx, dy = pts[-1][0]-pts[-2][0], pts[-1][1]-pts[-2][1]
             L = math.sqrt(dx*dx+dy*dy)
             if L > 1e-6:
-                dx, dy = dx/L, dy/L; px, py = -dy, dx; s = 14
+                dx, dy = dx/L, dy/L
+                px, py = -dy, dx
+                s = 14
                 bx, by = pts[-1][0]-dx*s, pts[-1][1]-dy*s
                 q1 = (int(bx+px*s*.45), int(by+py*s*.45))
                 q2 = (int(bx-px*s*.45), int(by-py*s*.45))
@@ -193,11 +194,11 @@ def render_rotation_strip(
 # ---------------------------------------------------------------------------
 
 def draw_piece_standalone(
-    cells: List[Tuple[int, int]],
-    color: Tuple[int, int, int],
+    cells: list[tuple[int, int]],
+    color: tuple[int, int, int],
     cell_size: int = 40,
     canvas_cells: int = None,
-    bg_color: Tuple[int, int, int] = (18, 18, 22),
+    bg_color: tuple[int, int, int] = (18, 18, 22),
 ) -> Image.Image:
     """
     Render a piece centred in a canvas with no grid or border.
@@ -270,16 +271,16 @@ def _get_font(size: int = 14) -> ImageFont.ImageFont:
     ]:
         try:
             return ImageFont.truetype(font_path, size)
-        except (IOError, OSError):
+        except OSError:
             pass
     return ImageFont.load_default()
 
 
 def build_composite_image(
     reference_img: Image.Image,
-    options: List[Image.Image],
-    labels: List[str] = None,
-) -> Tuple[Image.Image, List[List[int]]]:
+    options: list[Image.Image],
+    labels: list[str] = None,
+) -> tuple[Image.Image, list[list[int]]]:
     """
     Build a composite image with the reference on top (large) and the four
     options in a single row below it:
@@ -358,7 +359,7 @@ def build_composite_image(
     # Center the 4 options row horizontally
     row_start_x = (total_w - (4 * opt_w + 3 * _PAD)) // 2
 
-    bboxes: List[List[int]] = []
+    bboxes: list[list[int]] = []
     for i, (opt_img, label) in enumerate(zip(options, labels)):
         ox = row_start_x + i * (opt_w + _PAD)
 
@@ -382,8 +383,9 @@ def build_composite_image(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    from pieces import SHAPES
     import random
+
+    from pieces import SHAPES
 
     random.seed(0)
     shape = SHAPES[2]  # T-tetromino

@@ -1,15 +1,15 @@
-import os
+import logging
 import re
-from tqdm.auto import tqdm
+from functools import partial
 from typing import Callable
+
 import torch
 import wandb
-from functools import partial
-from transformers import Trainer, AutoProcessor
-from transformers import TrainerCallback
 from torch.utils.data import DataLoader, Dataset
-from src.utils import is_rank0, get_rank
-import logging
+from tqdm.auto import tqdm
+from transformers import AutoProcessor, Trainer, TrainerCallback
+
+from src.utils import is_rank0
 
 logger = logging.getLogger("LantErn-Trainer")
 
@@ -200,7 +200,8 @@ class GenerationAccuracyCallback(TrainerCallback):
         rank       = torch.distributed.get_rank()       if _dist else 0
         world_size = torch.distributed.get_world_size() if _dist else 1
 
-        _C = "\033[96m"; _R = "\033[0m"
+        _C = "\033[96m"
+        _R = "\033[0m"
 
         # Split samples across ranks
         from torch.utils.data import Subset
@@ -276,14 +277,13 @@ class GenerationAccuracyCallback(TrainerCallback):
 
 class VisCoTestLogger(TrainerCallback):
     def __init__(
-        self, 
-        dataset: Dataset, 
-        collate_fn: Callable, 
+        self,
+        dataset: Dataset,
+        collate_fn: Callable,
         processor: AutoProcessor,
         test_steps: int = 1,
         report_to: str = "wandb"
     ):
-        from torch.utils.data import DataLoader
         assert test_steps > 0, "test_steps must be greater than 0"
         self.dataset = dataset
         self.processor = processor
@@ -291,26 +291,9 @@ class VisCoTestLogger(TrainerCallback):
         self.test_steps = test_steps
         self.collate_fn = collate_fn
         self.report_to = report_to
-    
-    def on_step_end(self, args, state, control, metrics=None, **kwargs):
-        return
-        if not is_rank0():
-            return
-        logger.info(f"Testing at step {state.global_step}")
 
-        if state.global_step % self.test_steps == 0: 
-            with torch.no_grad():
-                dataloader = DataLoader(self.dataset, batch_size=1, collate_fn=partial(self.collate_fn, processor=self.processor))
-                results = viscot_test(kwargs["model"], self.processor, dataloader, self.judge, use_gt=False)
-                
-                if self.report_to == "wandb":
-                    wandb.log({
-                        "test/avg_score": results["avg_score"],
-                        "test/accuracy": results["accuracy"],
-                        "test/invalid": results["invalid"],
-                        "test/latent_ratio": results["latent_ratio"],
-                        "step": state.global_step
-                    })
+    def on_step_end(self, args, state, control, metrics=None, **kwargs):
+        pass
 
 class ProgressBarLossLogger(TrainerCallback):
     def __init__(self):
@@ -328,7 +311,7 @@ class ProgressBarLossLogger(TrainerCallback):
             return
 
         logs = state.log_history[-1] if len(state.log_history) > 0 else {}
-        
+
         if self.pbar:
             ce  = logs.get("ce_loss")
             tot = logs.get("total_loss")
@@ -372,8 +355,9 @@ class LantErnSFTrainer(Trainer):
         self.mse_loss = torch.nn.MSELoss()
 
     def _get_train_sampler(self, dataset=None):
-        from src.datasets.family_sampler import FamilyGroupedDataset
         from torch.utils.data import SequentialSampler
+
+        from src.datasets.family_sampler import FamilyGroupedDataset
         # FamilyGroupedDataset pre-orders indices by family chunk — must use
         # SequentialSampler to preserve that ordering.  For all other datasets
         # fall back to the default (RandomSampler / distributed sampler).

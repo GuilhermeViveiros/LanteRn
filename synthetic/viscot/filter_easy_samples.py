@@ -21,17 +21,19 @@ Submit via srun (requires GPU, 32B model needs ~70GB):
                > results/filter_easy.log 2>&1'
 """
 
+import argparse
 import json
 import os
-import argparse
-import torch
-from tqdm import tqdm
 from functools import partial
+
+import torch
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
-from src.utils import extract_mc_answer, center_and_crop_image
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+
+from src.utils import center_and_crop_image, extract_mc_answer
 
 DATA_PATH = "/mnt/scratch-artemis/gviveiros/lantern/oe_to_mc/viscot_mc_test.jsonl"
 MODEL_ID  = "Qwen/Qwen2.5-VL-3B-Instruct"
@@ -52,7 +54,7 @@ class VisCoTDataset(Dataset):
     def __init__(self, data_path):
         self.samples = []
         invalid = 0
-        with open(data_path, "r") as f:
+        with open(data_path) as f:
             for idx, line in enumerate(f):
                 sample = json.loads(line)
                 options = parse_options(sample["options"])
@@ -202,7 +204,7 @@ if __name__ == "__main__":
             remove_hard.append(idx)    # wrong both ways → bbox doesn't help
 
     total = len(results_no_crop)
-    print(f"\n=== Results ===")
+    print("\n=== Results ===")
     print(f"Keep (bbox decisive):        {len(keep_ids):5d} / {total} ({len(keep_ids)/total:.1%})")
     print(f"Remove (easy, no bbox):      {len(remove_easy):5d} / {total} ({len(remove_easy)/total:.1%})")
     print(f"Remove (hard, bbox no help): {len(remove_hard):5d} / {total} ({len(remove_hard)/total:.1%})")

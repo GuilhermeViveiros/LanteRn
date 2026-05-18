@@ -1,5 +1,7 @@
 import os
+
 import torch
+
 
 # TODO: I could vectorize this function to avoid the loop. However since we're still in an experimental stage, the latent tokens can vary in the future, per image, so I'll leave it as is for now
 def apply_latent_compression(
@@ -13,7 +15,7 @@ def apply_latent_compression(
 
     This function is designed to process a batch of latent visual values (e.g., visual features)
     such that each sample's latent image features are compressed down to `latent_size` patch-averaged
-    embeddings. These representations are intended to be used as replacements for the corresponding 
+    embeddings. These representations are intended to be used as replacements for the corresponding
     <|lvr_sep|> tokens in the language model's input sequence.
 
     Args:
@@ -28,7 +30,7 @@ def apply_latent_compression(
     # 1) Compute latent image features once (batched)
     # ---------------------------------------------------------
     latent_image_embeds = self.get_image_features(latent_values, latent_grid_thw)
-    
+
     # ---------------------------------------------------------
     # 2) Process latent image features into exactly `latent_size` tokens
     #    (vectorizable except for variable lens, so minimal loop)
@@ -54,7 +56,7 @@ def apply_latent_compression(
 
     # Stack final latent embeddings:   (batch, latent_size, hidden)
     latent_avg_embeds = torch.stack(processed_latents, dim=0)
-    
+
     return latent_avg_embeds
 
 def get_last_checkpoint(output_dir: str):

@@ -47,17 +47,19 @@ For inspect (no GPU needed):
     python -m synthetic.viscot.filter_training_samples --inspect 10
 """
 
+import argparse
 import json
 import os
-import argparse
+from functools import partial
+
 import torch
 import torch.distributed as dist
-from tqdm import tqdm
-from functools import partial
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader, DistributedSampler
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
+from torch.utils.data import DataLoader, Dataset, DistributedSampler
+from tqdm import tqdm
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+
 from src.utils import center_and_crop_image
 
 DATA_PATH = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
@@ -78,7 +80,7 @@ JUDGE_THRESHOLD = 7  # score >= threshold → correct
 
 class TrainingDataset(Dataset):
     def __init__(self, data_path: str, max_samples: int = None):
-        with open(data_path, "r") as f:
+        with open(data_path) as f:
             raw = json.load(f)
 
         # Apply the same pre-validation as SFTDataset
@@ -92,7 +94,7 @@ class TrainingDataset(Dataset):
                 skipped += 1
                 continue
             # replace img_path str from /mnt/data-artemis/gviveiros/lantern/ to /mnt/scratch-artemis/gviveiros/lantern
-            
+
             item = {**item, "img_path": item["img_path"].replace(
                     "/mnt/data-artemis/gviveiros/lantern/",
                     "/mnt/scratch-artemis/gviveiros/lantern/"

@@ -21,9 +21,10 @@ import torch
 from PIL import Image
 from qwen_vl_utils import process_vision_info
 
+from src.lantern_generate.generate import generate as lantern_generate
+from src.lantern_generate.generate import generate_skip_latent
 from src.models import load_model
 from src.train import set_latent_tokens
-from src.lantern_generate.generate import generate as lantern_generate, generate_skip_latent
 
 LATENT_SIZE = 8
 

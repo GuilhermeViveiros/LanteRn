@@ -1,4 +1,5 @@
 import logging
+
 import torch
 from termcolor import colored
 
@@ -30,7 +31,7 @@ def set_latent_tokens(processor, model, latent_size: int, special_tokens: bool =
     lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
     processor.lvr_start_id, processor.lvr_sep_id, processor.lvr_end_id = lvr_start_id, lvr_sep_id, lvr_end_id
     model.config.lvr_start_id, model.config.lvr_sep_id, model.config.lvr_end_id = lvr_start_id, lvr_sep_id, lvr_end_id
-    
+
 
 def set_requires_grad(parameters, requires_grad):
     for p in parameters:
@@ -40,7 +41,7 @@ def configure_vision_tower(model, freeze_vision_tower: bool = True, freeze_merge
     vision_model_params = model.visual.parameters()
     set_requires_grad(vision_model_params, not freeze_vision_tower)
     logger.info(colored(f"Freezing vision tower: {freeze_vision_tower}", "cyan"))
-    
+
     # Handle merger specifically
     merger_params = model.visual.merger.parameters()
     set_requires_grad(merger_params, not freeze_merger)

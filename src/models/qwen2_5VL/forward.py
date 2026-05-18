@@ -1,12 +1,14 @@
-from typing import Optional, Union, Any, Tuple, List, Dict
 from dataclasses import dataclass
+from typing import Any, Optional, Union
+
 import torch
-from torch.nn import CrossEntropyLoss
 from transformers.cache_utils import Cache
-from transformers.utils import is_torchdynamo_compiling
 from transformers.modeling_outputs import ModelOutput
 from transformers.processing_utils import Unpack
+from transformers.utils import is_torchdynamo_compiling
+
 from src.models.utils import apply_latent_compression
+
 
 @dataclass
 class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
@@ -41,9 +43,9 @@ class Qwen2_5_VLCausalLMOutputWithPast(ModelOutput):
 
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
-    past_key_values: Optional[List[torch.FloatTensor]] = None
-    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-    attentions: Optional[Tuple[torch.FloatTensor]] = None
+    past_key_values: Optional[list[torch.FloatTensor]] = None
+    hidden_states: Optional[tuple[torch.FloatTensor]] = None
+    attentions: Optional[tuple[torch.FloatTensor]] = None
     rope_deltas: Optional[torch.LongTensor] = None
     inputs_embeds: Optional[torch.FloatTensor] = None
     latent_mask: Optional[torch.BoolTensor] = None
@@ -98,7 +100,7 @@ def qwen2_5_mixed_modality_forward_lantern(
 
     if inputs_embeds is None:
         inputs_embeds = self.get_input_embeddings()(input_ids)
-     
+
     if pixel_values is not None:
         image_embeds = self.get_image_features(pixel_values, image_grid_thw)
         image_embeds = torch.cat(image_embeds, dim=0).to(inputs_embeds.device, inputs_embeds.dtype)
@@ -127,7 +129,7 @@ def qwen2_5_mixed_modality_forward_lantern(
                 ).to(inputs_embeds.device, inputs_embeds.dtype)
             else:
                 latent_embeds = latent_values.to(inputs_embeds.device, inputs_embeds.dtype)
-       
+
         # Optimized mask creation: avoid intermediate tensors, use expand_as for efficiency
         # Create mask directly on the correct device to avoid device transfer
         mask = (input_ids == self.config.lvr_sep_id).to(inputs_embeds.device)
@@ -157,7 +159,7 @@ def qwen2_5_mixed_modality_forward_lantern(
         )
 
         if (prefill_compiled_stage or prefill_noncompiled_stage) or self.rope_deltas is None:
-            
+
             position_ids, rope_deltas = self.model.get_rope_index(
                 input_ids,
                 image_grid_thw,
@@ -166,7 +168,7 @@ def qwen2_5_mixed_modality_forward_lantern(
                 attention_mask=attention_mask,
             )
             self.rope_deltas = rope_deltas
-            
+
         else:
             batch_size, seq_length, _ = inputs_embeds.shape
             position_ids = torch.arange(seq_length, device=inputs_embeds.device)
@@ -204,7 +206,7 @@ def qwen2_5_mixed_modality_forward_lantern(
     if not return_dict:
         output = (logits,) + outputs[1:]
         return (loss,) + output if loss is not None else output
-    
+
     return Qwen2_5_VLCausalLMOutputWithPast(
         loss=loss,
         logits=logits,

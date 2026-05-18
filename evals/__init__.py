@@ -1,13 +1,15 @@
 import random
-import torch
-from typing import List
-from PIL import Image
-from transformers import AutoProcessor
 from functools import partial
+from typing import List
+
+import torch
+from PIL import Image
 from qwen_vl_utils import process_vision_info
+from transformers import AutoProcessor
+
+from src.decorators import measure_time
 from src.lantern_generate.generate import generate as lantern_generate
 from src.models.utils import apply_latent_compression
-from src.decorators import measure_time
 
 
 def random_crop_bbox(img: Image.Image, crop_ratio: float = 0.4):
@@ -73,7 +75,7 @@ def run_batch_inference(
         inputs = inputs.to(model.device)
     else:
         inputs = {k: v.to(model.device) if hasattr(v, "to") else v for k, v in inputs.items()}
-    
+
     assert "latent_values" not in inputs, "remove latent values from inputs during inference"
 
     # I'll pass the ground truth latent embeddings to the generate function for debugging purposes
@@ -91,4 +93,3 @@ def run_batch_inference(
         output_attentions=output_attentions,
         return_dict_in_generate=return_dict
     )
-    

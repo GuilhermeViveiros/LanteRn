@@ -1,21 +1,20 @@
-from torch.utils.data import DataLoader, Dataset
-import torch
-from datasets import load_dataset, Features, Value, Sequence, concatenate_datasets
 import copy
 import os
-import numpy as np
-from typing import List
 from dataclasses import dataclass
-from PIL import Image
-from utils.utils import center_and_crop_image
 
+import numpy as np
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+
+from datasets import Features, Sequence, Value, concatenate_datasets, load_dataset
+from utils.utils import center_and_crop_image
 
 IMG_FOLDER_PATH = "/mnt/data-artemis/gviveiros/lantern/"
 
 if not os.path.exists(IMG_FOLDER_PATH):
     raise FileNotFoundError(f"Image folder path {IMG_FOLDER_PATH} does not exist")
 
-def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: int, context_scale: float = 1.2):
+def filter_bbox_assement(bboxs: list[list[float]], img_height: int, img_width: int, context_scale: float = 1.2):
     """
     Filter the bounding box based on the area and context scale.
     Args:
@@ -36,7 +35,7 @@ def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: i
         if max(x1, x2) > img_width or max(y1, y2) > img_height:
             return False
         img_area = img_height * img_width
-        
+
         if not (bbox_area * context_scale > 0.05 * img_area and bbox_area * context_scale < 0.4 * img_area):
             return False
     return True
@@ -45,12 +44,12 @@ def filter_bbox_assement(bboxs: List[List[float]], img_height: int, img_width: i
 @dataclass
 class Sample:
     image: Image.Image
-    img_bboxes: List[Image.Image]
+    img_bboxes: list[Image.Image]
     question: str
     answer: str
     dataset: str
     img_path: str
-    bboxs: List[List[float]]
+    bboxs: list[list[float]]
     split: str
 
     # @staticmethod
@@ -97,10 +96,10 @@ class VCoTData(Dataset):
             "split": Value("string"),
         })
         dataset_list = []
-        
+
         # get parent folder of the folder_path
         self.img_folder_path = IMG_FOLDER_PATH
-        
+
         for file in os.listdir(folder_path):
             if file.endswith(".jsonl"):
                 # if textcap is in the file name, skip it
@@ -123,7 +122,7 @@ class VCoTData(Dataset):
                 dataset = dataset.cast(features)
                 dataset_list.append(dataset)
                 self.dataset_size += len(dataset)
-        
+
         assert len(dataset_list) > 0, f"No datasets found in the folder {folder_path}"
         # concatenate the datasets
         self.dataset = concatenate_datasets(dataset_list)
@@ -145,11 +144,11 @@ class VCoTData(Dataset):
         img = Image.open(img_path)
         # save img
         #img.save("img.jpg")
-        img_bboxes = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]    
+        img_bboxes = [center_and_crop_image(img, bbox) for bbox in data["bboxs"]]
 
         return Sample(
-            image=img, 
-            img_bboxes=img_bboxes, 
+            image=img,
+            img_bboxes=img_bboxes,
             img_path=img_path,
             question=data["question"],
             answer=data["answer"],
@@ -167,17 +166,17 @@ class VCoTData(Dataset):
             for d, size in zip(ds, ds_size):
                 print(f"Dataset: {d} - Size: {size}")
             return list(ds)
-        
+
         sorted_mix = sorted(set(dataset_mix))
         print(f"Dataset mix: {sorted_mix}")
         return list(set(dataset_mix))
 
     def filter(self, filter_fn):
         """Filter the dataset and update internal state.
-        
+
         Args:
             filter_fn: Function that takes a sample and returns True to keep it.
-        
+
         Returns:
             self (for method chaining)
         """
@@ -215,5 +214,5 @@ if __name__ == "__main__":
             print(f"Image {i}: {sample.image.size} at img_path: {sample.img_path}")
         print("--------------------------------")
         break
-        
+
 # LANTERN -> LAteNt visual sTructurE ReasoniNg

@@ -1,62 +1,23 @@
-import os
-import sys
-import torch
-import torch.nn.functional as F
-from typing import Optional, Tuple
-import torch
 from contextlib import nullcontext
 from typing import Any
-from transformers.trainer import (
-    TRAINER_STATE_NAME,
-    PREFIX_CHECKPOINT_DIR,
-)
-from accelerate.utils import gather_object
 
-from transformers.trainer import (
-    ExportableState,
-    SaveStrategy
-)
-
-from src.lantern_generate.generate import (
-    generate as lantern_generate,
-    LantErnGenerateOutput
-)
-
-from transformers.trainer_utils import seed_worker
-from transformers import (
-    AutoTokenizer,
-    AutoProcessor,
-    AutoModelForSequenceClassification,
-    GenerationConfig,
-    PreTrainedModel,
-    Qwen2VLForConditionalGeneration,
-    Qwen2_5_VLForConditionalGeneration,
-    PreTrainedTokenizerBase,
-    Trainer,
-    TrainerCallback,
-    is_wandb_available,
-)
-from transformers.integrations.deepspeed import is_deepspeed_zero3_enabled
-from trl.trainer.utils import selective_log_softmax
+import torch
+from accelerate.utils import gather, gather_object
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from trl import GRPOTrainer
-from trl.trainer.grpo_config import GRPOConfig
-from trl.models import unwrap_model_for_generation
-
-from src.trainer.utils import prepare_latent_embeds
 
 # grpo functions that are not implemented
-from trl.data_utils import (
-    prepare_multimodal_messages,
-    is_conversational,
-    apply_chat_template
-)
-from trl.trainer.utils import nanmin, nanmax, entropy_from_logits, pad
+from trl.data_utils import apply_chat_template, is_conversational, prepare_multimodal_messages
 from trl.extras.profiling import profiling_context
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from trl.models.utils import _ForwardRedirection, disable_gradient_checkpointing
+from trl.models import unwrap_model_for_generation
+from trl.models.utils import disable_gradient_checkpointing
 from trl.trainer.grpo_trainer import nanstd
-from accelerate.utils import gather
-import torch.distributed as dist
+from trl.trainer.utils import entropy_from_logits, nanmax, nanmin, pad, selective_log_softmax
+
+from src.lantern_generate.generate import LantErnGenerateOutput
+from src.lantern_generate.generate import generate as lantern_generate
+from src.trainer.utils import prepare_latent_embeds
+
 
 class LantErnGRPOTrainer(GRPOTrainer):
     def __init__(self, latent_size: int, *args, **kwargs):
@@ -84,7 +45,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 text=prompts, padding=True, padding_side="left", return_tensors="pt"
             )
         generate_inputs = super(GRPOTrainer, self)._prepare_inputs(generate_inputs)
-       
+
         with (
             profiling_context(self, "transformers.generate"),
             unwrap_model_for_generation(
@@ -99,7 +60,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             generate_inputs.to(device)
             # NOTE: here we use the custom generate function to get the latent values and mask (outputs will be a LantErnGenerateOutput object)
             outputs: LantErnGenerateOutput = unwrapped_model.generate(
-                **generate_inputs, 
+                **generate_inputs,
                 generation_config=self.generation_config,
                 disable_compile=True,
                 custom_generate=lantern_generate,
@@ -107,7 +68,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             prompt_completion_ids = outputs.input_ids
             latent_embeds = outputs.latent_embeds
             latent_mask = outputs.latent_mask
-        
+
         # Compute prompt length and extract completion ids
         prompt_ids, prompt_mask = generate_inputs["input_ids"], generate_inputs["attention_mask"]
         prompt_length = prompt_ids.size(1)
@@ -128,10 +89,10 @@ class LantErnGRPOTrainer(GRPOTrainer):
         }  # No extra fields for non-rollout_func paths
 
         return prompt_ids, completion_ids, logprobs, extra_fields
-    
+
     def _calculate_rewards(self, inputs, prompts, completions_text, ground_truth) -> torch.Tensor:
         rewards_per_func = torch.zeros(len(prompts), len(self.reward_funcs), device=self.accelerator.device)
-        
+
         obj_kwargs = {
             "completions": completions_text,
             "ground_truth": ground_truth,
@@ -145,7 +106,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         rewards_per_func = gather(rewards_per_func)  # we need this because GRPO slices over the full reward batch, so we need to gather the rewards from all ranks
 
         return rewards_per_func
-    
+
     def _get_per_token_logps_and_entropies(
         self,
         model,
@@ -163,7 +124,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         latent_embeds=None,
         latent_mask=None,
     ) -> dict[str, torch.Tensor | None]:
-        
+
         """Compute log-probs and (optionally) entropies for each token."""
         batch_size = batch_size or input_ids.size(0)  # Chunk inputs into smaller batches to reduce memory peak
         all_logps = []
@@ -196,7 +157,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             if latent_embeds is not None:
                 # get latent mask and latent embeds for the current batch
                 current_latent_num = latent_mask[start : start + batch_size].sum().item()
-                
+
                 if current_latent_num > 0:
                     model_inputs["latent_mask"] = latent_mask[start : start + batch_size]
                     latent_embeds_batch = prepare_latent_embeds(latent_embeds)
@@ -209,9 +170,9 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 model_inputs["logits_to_keep"] = logits_to_keep + 1
 
             model_inputs["use_cache"] = False  # only used in generation; set False to suppress warnings
-            
+
             logits = model(**model_inputs).logits
-            
+
             # Exclude the last value: it corresponds to the next token pred
             logits = logits[:, :-1, :]  # (B, L-1, H)
             # Only keep the last logits_to_keep. For model that support logits_to_keep, this is a no-op.
@@ -239,7 +200,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         mode = "train" if self.model.training else "eval"
         prompts = [x["prompt"] for x in inputs]
         ground_truth = [x["ground_truth"] for x in inputs]
-        
+
         # TODO: here the check should be over the full batch, not just the first element
         if "images" in inputs[0]:
             images = [example.get("images") for example in inputs]
@@ -259,7 +220,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
                 prepare_multimodal_messages(prompt, image_list)
                 for prompt, image_list in zip(prompts, images, strict=True)
             ]
-        
+
         (
             prompt_ids_list,
             completion_ids_list,
@@ -269,7 +230,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             sampling_per_token_logps_list,
             extra_fields,
         ) = self._generate(prompts)
-        
+
         # Convert lists of token IDs to padded tensors
         prompt_ids = [torch.tensor(ids, device=device) for ids in prompt_ids_list]
         prompt_mask = [torch.ones_like(ids, dtype=torch.long) for ids in prompt_ids]
@@ -299,7 +260,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)  # (B, P+C)
         latent_mask, \
             latent_embeds = extra_fields["latent_mask"], extra_fields["latent_embeds"]
-        
+
 
         logits_to_keep = completion_ids.size(1)  # we only need to compute the logits for the completion tokens
         batch_size = self.args.per_device_train_batch_size if mode == "train" else self.args.per_device_eval_batch_size
@@ -343,7 +304,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
             # When using vLLM, we always compute old_per_token_logps for importance sampling, it was shown that the
             # distribution mismatch between vLLM and the training model can be large and harm the training.
             generate_every = self.args.steps_per_generation * self.num_iterations  # generation frequency
-            
+
             if self.args.gradient_accumulation_steps % generate_every != 0 or (
                 self.use_vllm and self.vllm_importance_sampling_correction
             ):
@@ -421,7 +382,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         # Decode
         prompts_text = self.processing_class.batch_decode(prompt_ids, skip_special_tokens=True)
         completions_text = self.processing_class.batch_decode(completion_ids, skip_special_tokens=False)
-        
+
         # Merge extra_fields from rollout_func into inputs for reward functions
         if extra_fields:
             for i, inp in enumerate(inputs):
@@ -437,7 +398,7 @@ class LantErnGRPOTrainer(GRPOTrainer):
         rewards_per_func = self._calculate_rewards(inputs, prompts, completions_text, ground_truth)
         # Apply weights to each reward function's output and sum
         rewards = (rewards_per_func * self.reward_weights.to(device).unsqueeze(0)).nansum(dim=1)
-        
+
         # Compute grouped-wise rewards
         num_generations = self.num_generations if mode == "train" else self.num_generations_eval
         mean_grouped_rewards = rewards.view(-1, num_generations).mean(dim=1)
@@ -598,12 +559,12 @@ class LantErnGRPOTrainer(GRPOTrainer):
 
         # Compute the loss
         advantages = inputs["advantages"]
-        
+
         # In the base GRPO implementation, advantages are expected to have shape (B,). To support subclasses that
         # provide advantages with shape (B, T) (e.g., MiniLLM), we *conditionally* unsqueeze the tensor.
         if advantages.dim() == 1:
             advantages = advantages.unsqueeze(1)
-        
+
         # When num_iterations == 1 and steps_per_generation <= gradient_accumulation_steps,
         # old_per_token_logps == per_token_logps. In this case we can skip its computation
         # (see _generate_and_score_completions) and instead use per_token_logps.detach().

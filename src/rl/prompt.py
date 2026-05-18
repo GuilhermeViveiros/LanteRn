@@ -1,8 +1,8 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 
 def completion_to_text(
-    completion: Union[str, Dict[str, Any], List[Dict[str, Any]]],
+    completion: Union[str, dict[str, Any], list[dict[str, Any]]],
 ) -> str:
     """
     Reason:
@@ -45,7 +45,7 @@ def _blocks_to_text(content_blocks: Any) -> str:
     return str(content_blocks)
 
 
-def make_prompt_messages(user_text: str, system_prompt: Optional[str] = None) -> List[Dict[str, Any]]:
+def make_prompt_messages(user_text: str, system_prompt: Optional[str] = None) -> list[dict[str, Any]]:
     """
     Reason:
       - This is the TRL multimodal chat format.
@@ -66,7 +66,7 @@ def make_prompt_messages(user_text: str, system_prompt: Optional[str] = None) ->
     if system_prompt is not None:
         raise ValueError("System prompt is not supported yet")
         return [
-            {"role": "system", "content": [{"type": "text", "text": system_prompt}]}, 
+            {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
             prompt
         ]
     else:

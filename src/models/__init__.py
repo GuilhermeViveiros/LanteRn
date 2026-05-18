@@ -1,10 +1,12 @@
-import os
-import transformers
-import torch
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
-from src.models.qwen2_5VL.forward import qwen2_5_mixed_modality_forward_lantern
-from src.lantern_generate.generate import generate as lantern_generate
 import logging
+import os
+
+import torch
+import transformers
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+
+from src.lantern_generate.generate import generate as lantern_generate
+from src.models.qwen2_5VL.forward import qwen2_5_mixed_modality_forward_lantern
 
 logger = logging.getLogger("LantErn-Trainer")
 
@@ -30,7 +32,7 @@ def load_model(
 
 
     transformers.models.qwen2_5_vl.modeling_qwen2_5_vl.Qwen2_5_VLForConditionalGeneration.forward = qwen2_5_mixed_modality_forward_lantern
-    
+
     # If model_path is given, always load from the local folder (including local configs)
     # use flash attention 2 if use_liger_kernel is True
     #kwargs["attn_implementation"] = "flash_attention_2"

@@ -31,15 +31,15 @@ import json
 import logging
 import os
 from functools import partial
-from typing import List, Optional, Tuple
 
 import torch
 from PIL import Image
-from torch.utils.data import Dataset, Sampler, random_split
-from transformers import AutoProcessor
 from qwen_vl_utils import process_vision_info
+from torch.utils.data import Dataset
+from transformers import AutoProcessor
 
 from src.utils import rank0_print
+
 logger = logging.getLogger("LantErn-TetrisDataset")
 
 
@@ -160,7 +160,7 @@ def _mask_image_output_tokens(input_ids: torch.Tensor, image_token: int) -> torc
     return (input_ids == image_token).long()
 
 
-def collate_fn_latent_sft(samples: List[list], processor: AutoProcessor):
+def collate_fn_latent_sft(samples: list[list], processor: AutoProcessor):
     # Extract shape_C_name before popping the latent message
     shape_names = [s[-1].pop("shape_C_name", None) for s in samples]
     latent_visuals = [s.pop(-1) for s in samples]
@@ -251,7 +251,7 @@ def collate_fn_latent_sft(samples: List[list], processor: AutoProcessor):
     return inputs
 
 
-def collate_fn_ntp(samples: List[list], processor: AutoProcessor):
+def collate_fn_ntp(samples: list[list], processor: AutoProcessor):
     """Collate for NTP (use_lvr=False): no latent visual, pure text reasoning."""
     text = processor.apply_chat_template(samples, tokenize=False)
     image_inputs, video_inputs = process_vision_info(samples)
@@ -303,7 +303,7 @@ def collate_fn_ntp(samples: List[list], processor: AutoProcessor):
     return inputs
 
 
-def collate_fn_generate_ntp(samples: List[list], processor: AutoProcessor):
+def collate_fn_generate_ntp(samples: list[list], processor: AutoProcessor):
     """Generate collate for NTP mode: no latent visual, returns (inputs, labels)."""
     user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
     labels       = [s for bs in samples for s in bs if s["role"] == "assistant"]
@@ -321,7 +321,7 @@ def collate_fn_generate_ntp(samples: List[list], processor: AutoProcessor):
     return inputs, labels
 
 
-def collate_fn_generate(samples: List[list], processor: AutoProcessor):
+def collate_fn_generate(samples: list[list], processor: AutoProcessor):
     latent_visuals = [s.pop(-1) for s in samples]
     user_samples   = [[s] for bs in samples for s in bs if s["role"] == "user"]
     labels         = [s for bs in samples for s in bs if s["role"] == "assistant"]

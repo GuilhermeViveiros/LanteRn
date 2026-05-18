@@ -28,31 +28,31 @@ Usage:
                > results/lantern_ablation.log 2>&1'
 """
 
-import os
-import sys
-import json
-import random
 import argparse
+import json
+import os
+import random
 import string
 from functools import partial
 from typing import Optional
 
 import torch
-from tqdm import tqdm
 from PIL import Image
-from datasets import load_dataset
 from qwen_vl_utils import process_vision_info
+from tqdm import tqdm
 
-from src.models import load_model
-from src.train import set_latent_tokens
-from src.models.utils import apply_latent_compression
-from src.lantern_generate.generate import generate as lantern_generate, generate_skip_latent
-from src.utils import extract_mc_answer, center_and_crop_image
+from datasets import load_dataset
 
 # /mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/
 # /mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500/
+from src.constants import SCRATCH_ARTEMIS, VISCOT_MC_TEST_PATH
+from src.lantern_generate.generate import generate as lantern_generate
+from src.lantern_generate.generate import generate_skip_latent
+from src.models import load_model
+from src.models.utils import apply_latent_compression
+from src.train import set_latent_tokens
+from src.utils import center_and_crop_image, extract_mc_answer
 
-from src.constants import VISCOT_MC_TEST_PATH, SCRATCH_ARTEMIS
 VISCOT_TEST_PATH = VISCOT_MC_TEST_PATH
 IMG_ROOT         = SCRATCH_ARTEMIS + "/"
 BLINK_CATEGORIES = ["Object_Localization", "Spatial_Relation"]
@@ -235,7 +235,7 @@ def evaluate_viscot(model, processor, condition: str, out_dir: str, device,
         start = len(results)
         for idx, item in enumerate(tqdm(data[start:], desc=f"VisCoT/{condition}")):
             gt_latent_embeds = None
-            
+
             if condition == "gt" and item.get("bbox"):
                 gt_latent_embeds = get_gt_latent_embeds(
                     model, processor, item["img_path"], item["bbox"], device)
@@ -321,7 +321,7 @@ def evaluate_blink(model, processor, condition: str, out_dir: str, device,
         start = len(results)
         for idx, item in enumerate(tqdm(data[start:], desc=f"Blink/{condition}")):
             gt_latent_embeds = None
-            
+
             if condition == "zeros" or condition == "random":
                 perturbation = condition
             else:

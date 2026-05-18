@@ -1,16 +1,12 @@
 import re
-from typing import Any, Dict, List, Union, Callable
-from fuzzywuzzy import fuzz
-from src.rl.utils import (
-    extract_last_answer_from_text,
-    ANSWER_RE,
-    ANSWER_TERM_RE,
-    THINK_RE
-)
+from typing import Any, Callable, Union
 
+from fuzzywuzzy import fuzz
+
+from src.rl.utils import ANSWER_RE, ANSWER_TERM_RE, THINK_RE, extract_last_answer_from_text
 
 # builder: (model, **kwargs) -> reward_fn
-REWARD_REGISTRY: Dict[str, Callable[..., Callable]] = {}
+REWARD_REGISTRY: dict[str, Callable[..., Callable]] = {}
 
 
 def register_reward(name: str):
@@ -27,7 +23,7 @@ def register_reward(name: str):
 # Reward functions
 # ----------------------------
 @register_reward("accuracy")
-def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
+def accuracy_reward(completions, ground_truth, **kwargs) -> list[float]:
     """
     Reason:
       - Reward is based ONLY on what is inside the last <answer>...</answer>.
@@ -53,10 +49,10 @@ def accuracy_reward(completions, ground_truth, **kwargs) -> List[float]:
 
 @register_reward("structure")
 def structure_reward(
-    completions: List[str],
+    completions: list[str],
     latent_size: int,
     **kwargs
-    ) -> List[float]:
+    ) -> list[float]:
 
     """
     Reason:
@@ -86,10 +82,10 @@ def structure_reward(
     for seq in completions:
         answer_tags = ANSWER_RE.findall(seq or "")
         answer_term_tags = ANSWER_TERM_RE.findall(seq or "")
-    
+
         think_tags = THINK_RE.findall(seq or "")
         lvr_tags = _find_subseq(seq, lvr_block)
-        
+
         # if multiple answer tags return 0
         if len(answer_tags) > 1 or len(answer_term_tags) > 1:
             rewards.append(0.0)
@@ -102,7 +98,7 @@ def structure_reward(
         # if answer and think are present but lvr is not return 0.5
         elif len(answer_tags) == 1 and len(think_tags) == 1 and lvr_tags == 0:
             rewards.append(0.5)
-        
+
         else:
             rewards.append(0.0)
     return rewards
@@ -139,7 +135,7 @@ def _blocks_to_text(content_blocks: Any) -> str:
 
 
 def completion_to_text(
-    completion: Union[str, Dict[str, Any], List[Dict[str, Any]]],
+    completion: Union[str, dict[str, Any], list[dict[str, Any]]],
 ) -> str:
     """
     Reason:

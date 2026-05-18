@@ -32,17 +32,20 @@ import glob
 import os
 import random
 import re
-import torch
 from functools import partial
-from tqdm import tqdm
-from torch.utils.data import DataLoader, Dataset, Subset
 
+import torch
+from torch.utils.data import DataLoader, Dataset, Subset
+from tqdm import tqdm
+
+from evals import run_batch_inference
+from src.datasets.sft_tetris_data import (
+    SFTTetrisDataset,
+    collate_fn_generate,
+    collate_fn_generate_ntp,
+)
 from src.models import load_model
 from src.train import set_latent_tokens
-from src.datasets.sft_tetris_data import (
-    SFTTetrisDataset, collate_fn_generate, collate_fn_generate_ntp,
-)
-from evals import run_batch_inference
 
 
 def build_distractor_map(dataset: SFTTetrisDataset, seed: int = 42) -> dict:

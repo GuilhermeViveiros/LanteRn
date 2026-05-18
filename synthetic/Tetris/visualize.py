@@ -11,10 +11,9 @@ import random
 
 from PIL import Image, ImageDraw
 
-from .pieces import SHAPES
 from .analogy_simulator import generate_analogy_sample
+from .pieces import SHAPES
 from .renderer import _get_font
-
 
 # ---------------------------------------------------------------------------
 # Layout helpers

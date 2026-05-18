@@ -18,19 +18,29 @@ if _slurm_ntasks > 1 or _torchrun_active:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(_local_rank)
 
 import logging
+
 import torch
-from transformers import HfArgumentParser
 from termcolor import colored
-from src.params import (TrainingParams, ModelParams, SFTDataParams)
-from src.datasets.sft_data import make_sft_data_module, collate_fn_generate, SFTDataset
-from src.datasets.sft_tetris_data import make_tetris_data_module, collate_fn_generate as tetris_collate_fn_generate, collate_fn_generate_ntp as tetris_collate_fn_generate_ntp
-from src.datasets.family_sampler import FamilyGroupedDataset
-from src.models import load_model
-from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, VisCoTestLogger, LatentUtilityCallback, GenerationAccuracyCallback
-from src.models.utils import get_last_checkpoint
-from src.train import configure_vision_tower, configure_llm, configure_latent_only, set_latent_tokens
-from src.utils import is_rank0
+from transformers import HfArgumentParser
+
 from src.constants import VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
+from src.datasets.family_sampler import FamilyGroupedDataset
+from src.datasets.sft_data import collate_fn_generate, make_sft_data_module
+from src.datasets.sft_tetris_data import collate_fn_generate as tetris_collate_fn_generate
+from src.datasets.sft_tetris_data import collate_fn_generate_ntp as tetris_collate_fn_generate_ntp
+from src.datasets.sft_tetris_data import make_tetris_data_module
+from src.models import load_model
+from src.models.utils import get_last_checkpoint
+from src.params import ModelParams, SFTDataParams, TrainingParams
+from src.train import configure_latent_only, configure_llm, configure_vision_tower, set_latent_tokens
+from src.trainer.sft_trainer import (
+    GenerationAccuracyCallback,
+    LantErnSFTrainer,
+    LatentUtilityCallback,
+    ProgressBarLossLogger,
+    VisCoTestLogger,
+)
+from src.utils import is_rank0
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -43,7 +53,9 @@ def _save_data_diagnostics(dataset, output_dir: str, n_samples: int = 8):
     Helps verify that corruption is applied correctly and latent crops use clean pixels.
     """
     import random
-    from PIL import Image, ImageDraw, ImageFont
+
+    from PIL import Image, ImageDraw
+
     from src.utils import center_and_crop_image
 
     diag_dir = os.path.join(output_dir, "data_diagnostics")
@@ -117,6 +129,7 @@ def _debug_tetris_batch(data_module: dict, output_dir: str, batch_size: int = 6,
     Label shows shape_name + intermediate_key so duplicate strips are obvious.
     """
     import random
+
     from PIL import Image, ImageDraw
 
     debug_dir = os.path.join(output_dir, "debug")
@@ -201,12 +214,12 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
     else:
         resume_from_checkpoint = False
-        logger.info(colored(f"Starting training from scratch", "cyan"))
-        
+        logger.info(colored("Starting training from scratch", "cyan"))
+
     # set the latent tokens
     assert model_params.latent_size > 0 or model_params.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
     set_latent_tokens(processor, model, model_params.latent_size)
-    
+
 
     # freeze specific components according to the training parameters
     if training_params.freeze_latent_only:
@@ -230,7 +243,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         assert training_params.test_steps > 0, "Test steps must be greater than 0 if test percentage is greater than 0 (data_params.split_percentages[2] > 0)"
     else:
         training_params.test_steps = 0
-    
+
     # Load data
     if data_params.dataset_type == "tetris":
         data_module = make_tetris_data_module(
@@ -267,7 +280,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         generate_collate = collate_fn_generate
         # Pre-training data diagnostics
         _save_data_diagnostics(data_module["train_dataset"], training_params.output_dir, n_samples=8)
-    else: 
+    else:
         raise ValueError(f"Invalid dataset type: {data_params.dataset_type}")
 
 
@@ -319,7 +332,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
     trainer.train(
         resume_from_checkpoint=resume_from_checkpoint
     )
-    # save processor 
+    # save processor
     processor.save_pretrained(training_params.output_dir)
 
     logger.info("Training completed")

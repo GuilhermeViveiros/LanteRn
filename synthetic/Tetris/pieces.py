@@ -5,9 +5,8 @@ Includes all 7 tetrominoes, all 12 pentominoes, and 10 selected hexominoes.
 Each shape has its unique rotations pre-computed (duplicates removed via canonical form).
 """
 
-from typing import List, Tuple
 
-Cells = List[Tuple[int, int]]
+Cells = list[tuple[int, int]]
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +25,7 @@ def _rotate_90cw(cells: Cells) -> Cells:
     return list(_normalize([(c, -r) for r, c in cells]))
 
 
-def get_unique_rotations(base_cells: Cells) -> List[Cells]:
+def get_unique_rotations(base_cells: Cells) -> list[Cells]:
     """Return all unique rotations of a shape (1, 2, or 4)."""
     rotations = []
     seen: set = set()
@@ -111,7 +110,7 @@ _SHAPE_DEFS = [
 # Build the public shape library
 # ---------------------------------------------------------------------------
 
-SHAPES: List[dict] = []
+SHAPES: list[dict] = []
 
 for name, family, base_cells, color in _SHAPE_DEFS:
     rotations = get_unique_rotations(base_cells)
@@ -144,7 +143,7 @@ _HELD_OUT_DEFS = [
     ("H_R",    "hexomino", [(0,0),(0,1),(1,0),(1,1),(2,1),(3,1)], ( 80, 120, 240)),
 ]
 
-HELD_OUT_SHAPES: List[dict] = []
+HELD_OUT_SHAPES: list[dict] = []
 for _name, _family, _base, _color in _HELD_OUT_DEFS:
     _rots = get_unique_rotations(_base)
     HELD_OUT_SHAPES.append({
@@ -168,7 +167,7 @@ _HARDER_C_DEFS = [
     ("G_F",     "heptomino", [(0,1),(0,2),(1,0),(1,1),(2,1),(2,2),(3,2)],         (220,  80, 160)),
 ]
 
-HARDER_C_SHAPES: List[dict] = []
+HARDER_C_SHAPES: list[dict] = []
 for _name, _family, _base, _color in _HARDER_C_DEFS:
     _rots = get_unique_rotations(_base)
     # Only keep shapes with ≥2 unique rotations (needed as valid shape_C targets)
@@ -180,14 +179,14 @@ for _name, _family, _base, _color in _HARDER_C_DEFS:
 HARDER_C_SHAPE_NAMES: set = {s["name"] for s in HARDER_C_SHAPES}
 
 
-def get_bounding_box(cells: Cells) -> Tuple[int, int, int, int]:
+def get_bounding_box(cells: Cells) -> tuple[int, int, int, int]:
     """Return (min_r, min_c, max_r, max_c) for a cell list."""
     rows = [r for r, c in cells]
     cols = [c for r, c in cells]
     return min(rows), min(cols), max(rows), max(cols)
 
 
-def fits_in_grid(cells: Cells, offset: Tuple[int, int], grid_rows: int, grid_cols: int) -> bool:
+def fits_in_grid(cells: Cells, offset: tuple[int, int], grid_rows: int, grid_cols: int) -> bool:
     """Check whether cells + offset stays within the grid."""
     dr, dc = offset
     for r, c in cells:
@@ -196,7 +195,7 @@ def fits_in_grid(cells: Cells, offset: Tuple[int, int], grid_rows: int, grid_col
     return True
 
 
-def valid_offsets(cells: Cells, grid_rows: int, grid_cols: int) -> List[Tuple[int, int]]:
+def valid_offsets(cells: Cells, grid_rows: int, grid_cols: int) -> list[tuple[int, int]]:
     """Return all (dr, dc) offsets that keep the piece fully inside the grid."""
     min_r, min_c, max_r, max_c = get_bounding_box(cells)
     h = max_r - min_r + 1

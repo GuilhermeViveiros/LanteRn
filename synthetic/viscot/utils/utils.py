@@ -1,8 +1,8 @@
-import numpy as np
-from typing import List, Tuple
+import re
+
 from Levenshtein import ratio
 from PIL import Image
-import re
+
 
 def similarity_score(x: str, y: str):
     """
@@ -23,28 +23,28 @@ def parse_output(x: str):
     <think>
     Optional sentence
     <Visual Reasoning></Visual Reasoning>
-    Sentence 
+    Sentence
     <think>
     <answer> text </answer>
     Args:
         x: The output of the model.
     Returns:
-        # we will return a dictionary with the think before <Visual Reasoning>, think before 
-        {        
+        # we will return a dictionary with the think before <Visual Reasoning>, think before
+        {
             "pre_visual_text_think": string, # all the thinking that is before the first <Visual Reasoning>
             "post_visual_text_think": List[string], # all the thinking that between the first and last </Visual Reasoning>
             "text_think": string, # all the thinking that is between think when there is no <Visual Reasoning>
             "answer": string # the answer
         }
     """
-    
+
     outputs = {
         "pre_visual_text_think": None,
         "post_visual_text_think": [],
         "text_think": None,
         "answer": None
     }
-    
+
     x = x.strip()
     # replace any occurrence of <tool_call> with <think>
     x = re.sub(r'<tool_call>', '<think>', x)
@@ -88,7 +88,7 @@ def parse_output(x: str):
         post_visual_reasoning_text = x[start_idx:next_visual_reasoning_start].strip()
         outputs["post_visual_text_think"].append(post_visual_reasoning_text)
         start_idx = x.find('</Visual Reasoning>', start_idx) + len('</Visual Reasoning>')
-    
+
     # now extract the final post_visual_reasoning_text between the last </Visual Reasoning> and <answer>
     post_visual_reasoning_text = x[start_idx:think_end].strip()
     outputs["pre_visual_text_think"] = pre_visual_reasoning_text
@@ -110,8 +110,8 @@ def parse_output(x: str):
 
 def center_and_crop_image(
     img: Image.Image,
-    bbox: List[float],
-    output_shape: Tuple[int, int] = None,
+    bbox: list[float],
+    output_shape: tuple[int, int] = None,
     context_scale: float = 1.2
 ) -> Image.Image:
     """
@@ -169,4 +169,3 @@ if __name__ == "__main__":
         print("--------------------------------")
 
     print(similarity_score("girl in yellow shirt", "what about the girl in yellow shirt? asdjkloasjkldas das daosindas das"))
-   

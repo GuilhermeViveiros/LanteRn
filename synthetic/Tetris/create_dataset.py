@@ -21,12 +21,12 @@ import argparse
 import json
 import os
 import random
+
 from tqdm import tqdm
 
-from .pieces import SHAPES, HELD_OUT_SHAPES, HARDER_C_SHAPES
 from .analogy_simulator import generate_analogy_sample
+from .pieces import HARDER_C_SHAPES, HELD_OUT_SHAPES, SHAPES
 from .reasoning import fill_reasoning_traces
-
 
 # ---------------------------------------------------------------------------
 # Question template
@@ -325,7 +325,7 @@ def main():
 
     print(f"Total unique configs: {len(configs)}")
     print(f"  Train configs: {n_train}  |  Eval configs: {n_eval}")
-    print(f"  Zero overlap guaranteed between train and eval.")
+    print("  Zero overlap guaranteed between train and eval.")
 
     # ── Generate eval samples ─────────────────────────────────────────────────
     eval_records = []

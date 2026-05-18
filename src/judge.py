@@ -1,8 +1,9 @@
-from typing import List
-import torch
-import numpy as np
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor, AutoModelForCausalLM
 import logging
+
+import numpy as np
+import torch
+from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
+
 logger = logging.getLogger("LantErn-Judge")
 
 class LLMJudge:
@@ -25,7 +26,7 @@ class LLMJudge:
         )
 
     @torch.no_grad()
-    def judge(self, predicted_text: List[str], ground_truth_text: List[str]) -> List[float]:
+    def judge(self, predicted_text: list[str], ground_truth_text: list[str]) -> list[float]:
         messages = []
         # Combine messages for batch processing
         for predicted, ground_truth in zip(predicted_text, ground_truth_text):
@@ -41,13 +42,13 @@ class LLMJudge:
                     ),
                 },
             ])
-        
+
         # Preparation for batch inference
         texts = [
             self.processor.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
             for msg in messages
         ]
-        
+
         inputs = self.processor(
             text=texts,
             images=None,
@@ -58,7 +59,7 @@ class LLMJudge:
 
         # Batch Inference
         generated_ids = self.model.generate(
-            **inputs, 
+            **inputs,
             max_new_tokens=128,
             use_cache=True,
             tokenizer=self.processor.tokenizer
@@ -67,13 +68,13 @@ class LLMJudge:
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
         output_texts = self.processor.batch_decode(
-            generated_ids_trimmed, 
+            generated_ids_trimmed,
             skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
-        
+
         # convert output texts to floats
         scores = np.array([float(t) for t in output_texts])
-        
+
         return scores
 
 if __name__ == "__main__":
@@ -87,7 +88,7 @@ if __name__ == "__main__":
             "in las vegas All-In is a good one.",
             "It's a dog"
         ]
-    
+
     )
 
     # judge.judge("it's a good idea.", "wow you're smart, that's a good idea.")

@@ -1,19 +1,22 @@
-from utils.prepare_vcot_data import VCoTData
-from functools import partial
-from tqdm import tqdm
-import os
-from utils.context import system_prompt
-import numpy as np
-from utils.inference.transformer_inference import load_model as load_model_transformer, run_inference as run_inference_transformer, batch_inference as batch_inference_transformer
-from utils.inference.vllm_inference import load_model as load_model_vllm, run_inference as run_inference_vllm, batch_inference as batch_inference_vllm
-from utils.utils import parse_output
 import json
+import os
+from functools import partial
+
+from tqdm import tqdm
+
+from utils.context import system_prompt
+from utils.inference.transformer_inference import batch_inference as batch_inference_transformer
+from utils.inference.transformer_inference import load_model as load_model_transformer
+from utils.inference.vllm_inference import batch_inference as batch_inference_vllm
+from utils.inference.vllm_inference import load_model as load_model_vllm
+from utils.prepare_vcot_data import VCoTData
+from utils.utils import parse_output
 
 
 def download_data():
     import os
-    import tarfile
-    from huggingface_hub import hf_hub_download, snapshot_download
+
+    from huggingface_hub import hf_hub_download
 
     # 1. Configuration
     REPO_ID      = "deepcs233/Visual-CoT"      # the dataset repo id on HF
@@ -76,7 +79,7 @@ def create_synthetic_data(dataloader, inference, output_json_path, save_every = 
     # Ensure final save
     with open(output_json_path, "w") as f:
         json.dump(out, f)
-    
+
     print(f"💾 Saved {len(out)} samples to {output_json_path}")
     print("=" * 80)
     print("🎉 Synthetic data creation completed successfully!")
@@ -103,7 +106,7 @@ if __name__ == "__main__":
         print("Using transformer inference")
         model, processor = load_model_transformer(model_id=model_id)
         inference = partial(batch_inference_transformer, model=model, processor=processor, system_prompt=system_prompt)
-    
+
     output_json_path = "/mnt/data-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
     if os.path.exists(output_json_path):
         os.remove(output_json_path)

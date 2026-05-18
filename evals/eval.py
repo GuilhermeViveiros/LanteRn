@@ -1,24 +1,24 @@
+import argparse
 import csv
 import json
 import logging
+import os
+import random
 import string
 from functools import partial
-from tqdm import tqdm
-import random
+
 import numpy as np
-import os
 import torch
-import argparse
-from typing import List
 from PIL import Image
-from datasets import load_dataset
-from torch.utils.data import Dataset, DataLoader
-from transformers import AutoProcessor
-from src.utils import center_and_crop_image
-from evals import run_batch_inference, get_gt_latent_values
 from qwen_vl_utils import process_vision_info
-from src.utils import extract_mc_answer
-from src.constants import VISCOT_MC_TEST_PATH, VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+from transformers import AutoProcessor
+
+from datasets import load_dataset
+from evals import get_gt_latent_values, run_batch_inference
+from src.constants import VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK, VISCOT_MC_TEST_PATH
+from src.utils import center_and_crop_image, extract_mc_answer
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ BLINK_CATEGORIES = ["Object_Localization", "Spatial_Relation"]
 
 class MCDataset(Dataset):
     # mcdataset is a multiple choice dataset that aggregates different datasets into a single one
-    def __init__(self, datasets: List[str], use_lvr: bool = True, bbox_ablation: str = None, corrupt_image: bool = False):
+    def __init__(self, datasets: list[str], use_lvr: bool = True, bbox_ablation: str = None, corrupt_image: bool = False):
         # categories that to be represented in each dataset
         self.data = []
         self.use_lvr = use_lvr
@@ -36,7 +36,7 @@ class MCDataset(Dataset):
             if dataset == "viscot":
                 # load the viscot test dataset
                 #with open("/mnt/home/gviveiros/LantErn/oe_to_mc.jsonl", "r") as f:
-                with open(VISCOT_MC_TEST_PATH, "r") as f:
+                with open(VISCOT_MC_TEST_PATH) as f:
                     invalid_options = 0
                     for line in f:
                         sample = json.loads(line)
@@ -54,7 +54,7 @@ class MCDataset(Dataset):
                             if len(options) != 4: # wrong format, return None
                                 return None
                             else:
-                                # to remove 
+                                # to remove
                                 options = [option.replace(option.split(" ")[0]+" ", "") for option in options]
                                 # check if any option is None
                                 if any(option is None for option in options):
@@ -67,8 +67,8 @@ class MCDataset(Dataset):
                             continue
 
 
-                        
-                        sample["question"] = sample["question"] + "\nOptions:\n" + "\n".join([f"{option}" for option in sample["options"]])                        
+
+                        sample["question"] = sample["question"] + "\nOptions:\n" + "\n".join([f"{option}" for option in sample["options"]])
                         sample["options"] = options
                         # To support distributed training and avoid too many open files,
                         # store image paths here; open images only in __getitem__.
@@ -79,7 +79,7 @@ class MCDataset(Dataset):
                         sample["image"] = [img_path]  # store path, open later
                         self.data.append(sample)
                     print(f"Invalid options: {invalid_options}")
-                    
+
             elif dataset == "vstar":
                 # load the vstar test dataset
                 vstar_dataset = load_dataset("lmms-lab/vstar-bench")["test"]
@@ -96,7 +96,7 @@ class MCDataset(Dataset):
                         "category": sample["category"],
                         "dataset": "vstar",
                     })
-                
+
             elif dataset == "blink":
                 for cfg in BLINK_CATEGORIES:
                     ds = load_dataset("BLINK-Benchmark/BLINK", cfg)["val"]
@@ -205,9 +205,9 @@ def collate_fn_mc(samples, processor: AutoProcessor):
     inputs = processor.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True
     )
-    
+
     image_inputs, _ = process_vision_info(messages)
-    
+
     inputs = processor(
         text=inputs,
         images=image_inputs,
@@ -287,33 +287,32 @@ if __name__ == "__main__":
 
     # load the model
     from src.models import load_model
-    from src.train import set_latent_tokens
-    model, processor = load_model(args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)  
+    model, processor = load_model(args.model_ref, device_map="cuda", compute_dtype=torch.bfloat16, use_cache=True)
     processor.tokenizer.add_tokens("<|lvr_start|>", special_tokens=False)
     processor.tokenizer.add_tokens("<|lvr_sep|>", special_tokens=False)
-    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False) 
-    padding_side='left'   
+    processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=False)
+    padding_side='left'
     processor.tokenizer.padding_side = padding_side
     # check if the latent size is set
     if not hasattr(model.config, "latent_size"):
         logger.info("Warning!!!! Latent size is not set, using 4")
         model.config.latent_size = 4
-    
+
     print(f"model.config.latent_size: {model.config.latent_size}")
-    
+
     model.config.lvr_start_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_start|>")
     model.config.lvr_end_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_end|>")
     model.config.lvr_sep_id = processor.tokenizer.convert_tokens_to_ids("<|lvr_sep|>")
 
     processor.tokenizer.padding_side = "left"
-    
+
 
     # check if the latent size is set
     if args.lvr:
         if not hasattr(model.config, "latent_size"):
             raise ValueError("Warning!!!! Latent size is not set")
         # set_latent_tokens(processor, model, model.config.latent_size)
-    
+
 
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=partial(collate_fn_mc, processor=processor))
     bboxs_list = []
@@ -330,7 +329,7 @@ if __name__ == "__main__":
             batch["latent_values"] = gt_latent_values
             batch["latent_grid_thw"] = gt_latent_grid_thw
         batch.to(model.device)
-        
+
         # generate ids
         generated_ids = run_batch_inference(model, batch, use_gt=args.use_gt, use_lvr=args.lvr, return_dict=False)
         # generated_ids = output.input_ids if args.lvr else output
@@ -348,7 +347,7 @@ if __name__ == "__main__":
 
 
 
-        
+
         print("-"*100)
         print("Options: ", options)
         print("Decoded Output: ", decoded_output)

@@ -1,19 +1,22 @@
 """
 Dataset for supervised fine-tuning (SFT)
 """
-from typing import Optional, Tuple
-from functools import partial
-import torch
 import json
-from PIL import Image, ImageDraw
-from torch.utils.data import Dataset, random_split
-from typing import List
-from src.utils import center_and_crop_image
-from src.constants import VISCOT_DATA_PATH, TEXTVQA_BAD_SAMPLE, VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
-from transformers import AutoProcessor
-from qwen_vl_utils import process_vision_info
-# import logger 
+
+# import logger
 import logging
+from functools import partial
+from typing import Optional
+
+import torch
+from PIL import Image, ImageDraw
+from qwen_vl_utils import process_vision_info
+from torch.utils.data import Dataset, random_split
+from transformers import AutoProcessor
+
+from src.constants import TEXTVQA_BAD_SAMPLE, VISCOT_DATA_PATH, VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
+from src.utils import center_and_crop_image
+
 logger = logging.getLogger("LantErn-Dataset")
 
 class SFTDataset(Dataset):
@@ -27,18 +30,18 @@ class SFTDataset(Dataset):
         filter_ids_path: Optional[str] = None,
         use_lvr: bool = True,
     ):
-        super(SFTDataset, self).__init__()
+        super().__init__()
         self.processor = processor
         self.corrupt_image = corrupt_image
         self.corruption_type = corruption_type
         self.use_lvr = use_lvr
-        with open(data_path, "r") as f:
+        with open(data_path) as f:
             raw = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
         for data in raw: # MINOR BUGG: ignore this sample for now
             if data["img_path"] == TEXTVQA_BAD_SAMPLE:
                 raw.remove(data)
-        
+
         filter_ids = None
         if filter_ids_path is not None:
             with open(filter_ids_path) as f:
@@ -72,12 +75,12 @@ class SFTDataset(Dataset):
         pre_visual_latent_reasoning = reasoning_traces.get("pre_visual_text_think", None)
         post_visual_latent_reasoning = reasoning_traces.get("post_visual_text_think", None)
         text_only_reasoning = reasoning_traces.get("text_think", None)
-        
+
         # Validate reasoning traces
         if text_only_reasoning is None:
             assert post_visual_latent_reasoning is not None or pre_visual_latent_reasoning is not None, \
                 "If text_reasoning is not None, post_visual_latent_reasoning or pre_visual_latent_reasoning must be not None"
-            
+
         # Extract the image and process bboxes
         img_path = data["img_path"].replace(VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK)
         img = Image.open(img_path)
@@ -123,10 +126,10 @@ class SFTDataset(Dataset):
                     latent_visuals.append(img_bbox)
                 assistant_content += "<|lvr_start|><|lvr_sep|><|lvr_end|>"
                 assistant_content += post_visual_latent_reasoning
-        
+
         # Add the final answer
         assistant_content += "</think>" + "<answer>" + answer + "</answer>"
-        
+
         return [
             {"role": "user","content": user_content},
             {"role": "assistant","content": [{"type": "text", "text": assistant_content}]},
@@ -153,20 +156,20 @@ def mask_image_output_tokens(
     mask = (input_ids == image_token)
     return mask * 1
 
-def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
+def collate_fn_generate(samples: list[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     user_samples = [[s] for bs in samples for s in bs if s["role"] == "user"]
     labels = [s for bs in samples for s in bs if s["role"] == "assistant"]
     labels = [l["content"][0]["text"].split("<answer>")[-1].replace("</answer>","") for l in labels]
-   
+
     image_inputs, video_inputs = process_vision_info(user_samples)
     text = processor.apply_chat_template(
         user_samples,
         tokenize=False,
         add_generation_prompt=True
     )
-    
+
     inputs = processor(
         text=text,
         images=image_inputs,
@@ -194,12 +197,12 @@ def collate_fn_generate(samples: List[dict], processor: AutoProcessor):
 
     return (inputs, labels)
 
-def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
+def collate_fn_sft(samples: list[dict], processor: AutoProcessor):
     # pop the last dict from the samples
     latent_visuals = [s.pop(-1) for s in samples]
     text = processor.apply_chat_template(samples, tokenize=False)
     image_inputs, video_inputs = process_vision_info(samples)
-    
+
     nb_latent_visuals = sum(len(l["content"]) for l in latent_visuals)
     # replace the <|lvr_sep|> token with the number of latent tokens
     if nb_latent_visuals > 0:
@@ -222,7 +225,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
             num_latent_tokens = [g // merge_length for g in grid_prods]
         else:
             num_latent_tokens = [processor.latent_size] * len(latent_grid_thw)
-        
+
         # Replace <|lvr_sep|> efficiently
         lvr_sep = "<|lvr_sep|>"
         for idx, latent_tokens in enumerate(num_latent_tokens):
@@ -248,7 +251,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     # think and answer mut not be a special token
     assistant_start_tokens = processor.tokenizer.encode("<|im_start|>assistant\n", add_special_tokens=False)
     assistant_end_tokens = processor.tokenizer.encode("<|im_end|>", add_special_tokens=False)
-    
+
 
 
     def find_subsequence(seq: torch.Tensor, subseq: list) -> int:
@@ -267,9 +270,9 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
 
     # Process batch
     for i, ids in enumerate(inputs["input_ids"].tolist()):
-        
+
         ts = find_subsequence(ids, assistant_start_tokens)
-        te = ts + find_subsequence(ids[ts:], assistant_end_tokens)    
+        te = ts + find_subsequence(ids[ts:], assistant_end_tokens)
         assert ts != -1 and te != -1, "Markers missing in tokenization"
 
         start_pos = ts + len(assistant_start_tokens)
@@ -287,7 +290,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
     return inputs
 
 
-def collate_fn_sft_ntp(samples: List[dict], processor: AutoProcessor):
+def collate_fn_sft_ntp(samples: list[dict], processor: AutoProcessor):
     """Collate for text-only (NTP) mode: keeps <|lvr_start|>/<|lvr_sep|>/<|lvr_end|>
     scaffold but expands <|lvr_sep|> to latent_size copies decoded as regular text
     tokens (CE targets). No visual embedding injection, no MSE loss."""
@@ -338,13 +341,13 @@ def collate_fn_sft_ntp(samples: List[dict], processor: AutoProcessor):
     inputs["labels"] = labels
 
     return inputs
-    
+
 def make_sft_data_module(
     processor,
     data_path: str,
     dummy: bool = False,
     generate: bool = False,
-    split_percentages: Tuple[float, float, float] = (0.8, 0.2, 0.0),
+    split_percentages: tuple[float, float, float] = (0.8, 0.2, 0.0),
     seed: int = 42,
     corrupt_image: bool = False,
     corruption_type: str = "bbox_blackout",
@@ -363,7 +366,7 @@ def make_sft_data_module(
     # test and val may be empty if the split percentages are 0
     assert sum(split_percentages) == 1, "Split percentages must sum to 1"
     assert split_percentages[0] > 0, "Train percentage must be greater than 0"
-    
+
     train_percentage, \
         eval_percentage, \
             test_percentage = split_percentages
@@ -371,7 +374,7 @@ def make_sft_data_module(
     train_size = int(train_percentage * len(sft_dataset))
     eval_size = int(eval_percentage * len(sft_dataset))
     test_size = int(test_percentage * len(sft_dataset))
-    
+
     if test_size+eval_size+train_size < len(sft_dataset):
         eval_size += len(sft_dataset) - (test_size+eval_size+train_size) # add the remaining samples to the test_size
 
@@ -390,7 +393,7 @@ def make_sft_data_module(
     out = {
         "train_dataset": train_dataset,
         "data_collator": partial(collate_fn, processor=processor)
-    }   
+    }
     if eval_size > 0:
         out["eval_dataset"] = eval_dataset
     if test_size > 0:
@@ -414,7 +417,7 @@ if __name__ == "__main__":
     processor.tokenizer.add_tokens("<|lvr_end|>", special_tokens=True)
 
     data_module = make_sft_data_module(
-        processor=processor, 
+        processor=processor,
         data_path=data_path
     )
 
@@ -428,7 +431,7 @@ if __name__ == "__main__":
     sizes = []
     for batch in tqdm(dataloader):
         sizes.append(batch["input_ids"].shape[1])
-    
+
     # log some stats about the sizes, the quantiles, the mean, the std, the max, the min
     import numpy as np
     logger.info(f"Sizes: {sizes}")

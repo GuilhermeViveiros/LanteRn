@@ -19,14 +19,15 @@ Composite image layout:
 from __future__ import annotations
 
 import random
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Optional
 
 from PIL import Image, ImageDraw
 
 from .pieces import (
-    SHAPES, SHAPES_BY_FAMILY,
-    fits_in_grid, valid_offsets,
-    _normalize, _rotate_90cw,
+    SHAPES,
+    _normalize,
+    fits_in_grid,
+    valid_offsets,
 )
 
 # Palette of visually distinct colors used to randomize option panel colors.
@@ -58,19 +59,19 @@ _OPTION_COLOR_PALETTE = [
     (100, 130, 230),   # periwinkle
     (230, 100, 180),   # hot pink
 ]
-from .renderer import draw_piece_on_grid, draw_piece_standalone, render_rotation_strip, _get_font, _PAD, _LABEL_HEIGHT, _SECTION_LABEL_HEIGHT
+from .renderer import _get_font, draw_piece_on_grid, draw_piece_standalone, render_rotation_strip
 from .simulator import (
-    ROTATION_ANGLES, TRANSFORM_DESCRIPTIONS,
+    ROTATION_ANGLES,
+    TRANSFORM_DESCRIPTIONS,
     _apply_offset,
     _pick_similar_shape,
 )
-
 
 # ---------------------------------------------------------------------------
 # Perturbation helpers
 # ---------------------------------------------------------------------------
 
-def _adjacent_cells(cells: list) -> List[Tuple[int, int]]:
+def _adjacent_cells(cells: list) -> list[tuple[int, int]]:
     """Return all orthogonally adjacent cells that are NOT already in the shape."""
     occupied = set(cells)
     adj = set()
@@ -150,9 +151,9 @@ def build_analogy_composite(
     img_A: Image.Image,
     img_B: Image.Image,
     img_C: Image.Image,
-    options: List[Image.Image],
-    labels: List[str] = None,
-) -> Tuple[Image.Image, List[List[int]]]:
+    options: list[Image.Image],
+    labels: list[str] = None,
+) -> tuple[Image.Image, list[list[int]]]:
     """
     Layout:
 
@@ -249,7 +250,7 @@ def build_analogy_composite(
     # ── Options row: (a) (b) (c) (d) with labels above ───────────────────────
     # 3/8 of remaining slack → sits slightly right of a pure left-align
     opts_x = PAD + (inner_w - opts_row_w) * 3 // 8
-    bboxes: List[List[int]] = []
+    bboxes: list[list[int]] = []
     for i, (opt_img, lbl) in enumerate(zip(options, labels)):
         ox = opts_x + i * (op_w + GAP)
         lt = f"({lbl})"
@@ -280,7 +281,7 @@ def generate_analogy_sample(
     rot_step_override: Optional[int] = None,
     bw_intermediate: bool = False,
     randomize_option_colors: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Generate one analogy sample:  A : B :: C : ?
 
@@ -607,8 +608,8 @@ def generate_analogy_batch(
     grid_cols: int = 8,
     cell_size: int = 32,
     seed: Optional[int] = None,
-    transform_types: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
+    transform_types: Optional[list[str]] = None,
+) -> list[dict[str, Any]]:
     if transform_types is None:
         transform_types = ["rotation", "translation", "combined"]
     # Exclude shapes with only 1 rotation from being shape_A: their A→B pair

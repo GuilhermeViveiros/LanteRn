@@ -1,5 +1,6 @@
 import time
 
+
 # decorator that measures the time of the function
 def measure_time(func):
     def wrapper(*args, **kwargs):

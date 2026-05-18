@@ -1,24 +1,24 @@
 """
 Dataset for supervised fine-tuning (SFT)
 """
-from torch.utils.data import Dataset, DataLoader
-import torch    
-from transformers import AutoProcessor, Qwen3VLMoeForConditionalGeneration
 import json
+
+# import logger
+import logging
 import os
 from functools import partial
-from PIL import Image
-from typing import List, Tuple
-from qwen_vl_utils import process_vision_info
 
-# import logger 
-import logging
+import torch
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from transformers import AutoProcessor, Qwen3VLMoeForConditionalGeneration
+
 logger = logging.getLogger("LantErn-OE-to-MC")
 
 def center_and_crop_image(
     img: Image.Image,
-    bbox: List[float],
-    output_shape: Tuple[int, int] = None,
+    bbox: list[float],
+    output_shape: tuple[int, int] = None,
     context_scale: float = 1.2
 ) -> Image.Image:
     """
@@ -57,7 +57,7 @@ def center_and_crop_image(
     # Only resize if user explicitly wants an output shape
     if output_shape is not None:
         cropped = cropped.resize(output_shape)
-    
+
     cropped.parent_filename = img.filename
 
     # save cropped image
@@ -72,9 +72,9 @@ class SFTDataset(Dataset):
         dummy: bool = False,
         latent_size: int = 4,
     ):
-        super(SFTDataset, self).__init__()
+        super().__init__()
         self.latent_size = latent_size
-        with open(data_path, "r") as f:
+        with open(data_path) as f:
             self.dataset = json.load(f)
         # remove sample textvqa/34084d4c3c347b83.jpg
         for data in self.dataset: # MINOR BUGG: ignore this sample for now
@@ -86,8 +86,8 @@ class SFTDataset(Dataset):
             if len(data["bboxs"]) > 1:
                 return False
             return True
-    
-        
+
+
         logger.info(f"Number of examples of VisCoT data: {len(self.dataset)}")
         # remove cases where the image is too large and bboxs are more than 1
         self.dataset = [data for data, idx in zip(self.dataset, range(len(self.dataset))) if pre_validation(data, idx)]
@@ -100,7 +100,7 @@ class SFTDataset(Dataset):
             #import random
             #self.dataset = random.sample(self.dataset, min(5000, len(self.dataset)))
             self.dataset = self.dataset[:1000]
-        
+
         #self.dataset = self.dataset[:100]
 
     def __len__(self):
@@ -116,24 +116,24 @@ class SFTDataset(Dataset):
         pre_visual_latent_reasoning = reasoning_traces.get("pre_visual_text_think", None)
         post_visual_latent_reasoning = reasoning_traces.get("post_visual_text_think", None)
         text_only_reasoning = reasoning_traces.get("text_think", None)
-        
+
         # Validate reasoning traces
         if text_only_reasoning is None:
             assert post_visual_latent_reasoning is not None or pre_visual_latent_reasoning is not None, \
                 "If text_reasoning is not None, post_visual_latent_reasoning or pre_visual_latent_reasoning must be not None"
-            
+
         # Extract the image and process bboxes
         # img = Image.open(data["img_path"])
-    
+
         return {
             "question": question,
             "answer": data["answer"],
             "img_path": data["img_path"],
             "bboxs": data["bboxs"],
         }
-        
 
-def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
+
+def collate_fn_sft(samples: list[dict], processor: AutoProcessor):
     SYSTEM_PROMPT = (
     "You're a helpful assistant. Your job is to convert open ended questions into "
     "multiple choice questions.\n"
@@ -163,7 +163,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
                 {"type": "text", "text": "Answer = " + sample["answer"]}
             ]},
         ])
-    
+
     # Preparation for inference
     inputs = processor.apply_chat_template(
         messages,
@@ -178,7 +178,7 @@ def collate_fn_sft(samples: List[dict], processor: AutoProcessor):
 if __name__ == "__main__":
     # load the visual model
     model_id = "Qwen/Qwen3-VL-30B-A3B-Instruct"
-   
+
     processor = AutoProcessor.from_pretrained(
         model_id,
         min_pixels=128 * 28 * 28,
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     )
     processor.padding_side = "left"
     processor.tokenizer.padding_side = "left"
-    
+
     from tqdm import tqdm
     data_path="/mnt/scratch-artemis/gviveiros/lantern/LantErn_VisCot_data.json"
     sft_dataset = SFTDataset(data_path, latent_size=4)
@@ -199,12 +199,12 @@ if __name__ == "__main__":
     train_size = int(train_percentage * len(sft_dataset))
     eval_size = int(eval_percentage * len(sft_dataset))
     test_size = int(test_percentage * len(sft_dataset))
-    
+
     if test_size+eval_size+train_size < len(sft_dataset):
         eval_size += len(sft_dataset) - (test_size+eval_size+train_size) # add the remaining samples to the test_size
 
     logger.info(f"Total size: {len(sft_dataset)}, train: {train_size}, eval: {eval_size}, test: {test_size}")
-    
+
     from torch.utils.data import random_split
     _, eval_dataset, test_dataset = random_split(sft_dataset, [train_size, eval_size, test_size], generator=torch.Generator().manual_seed(seed))
 
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     # check the current sample saved and start from the next sample
     idx = 0
     if os.path.exists("oe_to_mc.jsonl"):
-        with open("oe_to_mc.jsonl", "r") as f:
+        with open("oe_to_mc.jsonl") as f:
             for line in f:
                 idx += 1
                 #current_sample = json.loads(line)
@@ -233,14 +233,14 @@ if __name__ == "__main__":
         if step < idx:
             continue
         inputs = inputs.to(model.device)
-        
+
         # Inference: Generation of the output
         generated_ids = model.generate(
-            **inputs, 
+            **inputs,
             max_new_tokens=128,
             use_cache=True,
         )
-        
+
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
@@ -265,7 +265,7 @@ if __name__ == "__main__":
                 print(f"Error processing sample {step}: {e}")
                 continue
         step += len(questions)
-        
+
         # save progress every 500 samples
         if step % 200 == 0:
             with open("oe_to_mc.jsonl", "a") as f:

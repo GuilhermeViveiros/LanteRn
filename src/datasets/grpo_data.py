@@ -1,13 +1,15 @@
 """
 Dataset for supervised fine-tuning (SFT)
 """
+import logging
 import os
 from functools import partial
 from typing import Optional
+
 from torch.utils.data import Dataset
+
 from datasets import load_dataset
 from src.rl.utils import convert_example
-import logging
 
 logger = logging.getLogger("LantErn-GRPO-Dataset")
 
@@ -19,7 +21,7 @@ class GRPODataset(Dataset):
             data_files=data_path,
             split="train"
         )
-        
+
         if dummy:
             logger.info(f"Using dummy dataset with {len(ds)} examples")
             ds = ds.select(range(1000))
@@ -35,7 +37,7 @@ class GRPODataset(Dataset):
         ds = ds.map(
             lambda ex: convert_example(ex, system_prompt), remove_columns=ds.column_names
         )
-        
+
         # add the dataset
         self.ds = ds
 

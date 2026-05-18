@@ -14,10 +14,10 @@ Reasoning flow:
 """
 
 from __future__ import annotations
-import re
-import random
-from typing import Dict, Any, Optional
 
+import random
+import re
+from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -139,9 +139,9 @@ _TEXT_THINK_TEMPLATES = [
 # ---------------------------------------------------------------------------
 
 def fill_reasoning_traces(
-    sample: Dict[str, Any],
+    sample: dict[str, Any],
     rng: Optional[random.Random] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Return a filled reasoning_traces dict for one analogy sample,
     picking templates randomly from the 15 available phrasings.

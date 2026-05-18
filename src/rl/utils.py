@@ -1,8 +1,7 @@
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from src.rl.prompt import make_prompt_messages
-
 
 ANSWER_RE = re.compile(r"<answer>\s*(.*?)\s*</answer>", flags=re.DOTALL | re.IGNORECASE)
 ANSWER_TERM_RE = re.compile(r"</answer>", flags=re.DOTALL | re.IGNORECASE)
@@ -46,7 +45,7 @@ def extract_last_answer_from_text(text: str) -> str:
     return matches[-1].strip() if matches else ""
 
 
-def convert_example(example: Dict[str, Any], system_prompt: Optional[str] = None) -> Dict[str, Any]:
+def convert_example(example: dict[str, Any], system_prompt: Optional[str] = None) -> dict[str, Any]:
     """
     Reason:
       - Convert your JSON example into GRPO-friendly columns:

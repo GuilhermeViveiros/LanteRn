@@ -1,21 +1,18 @@
-import os
 import logging
+
 import torch
-from functools import partial
-from datasets import load_dataset
-from torch.utils.data import DataLoader
-from transformers import HfArgumentParser
 from termcolor import colored
-from src.params import (GRPOArguments, ModelParams, RLDataParams)
+from transformers import HfArgumentParser
+
 from src.datasets.grpo_data import GRPODataset
 from src.models import load_model
 from src.models.utils import get_last_checkpoint
-from src.train import configure_vision_tower, configure_llm
-from src.trainer.grpo_trainer import LantErnGRPOTrainer
-from src.train import set_latent_tokens
+from src.params import GRPOArguments, ModelParams, RLDataParams
 
 # custom rl utils
 from src.rl.prompt import build_system_prompt
+from src.train import configure_llm, configure_vision_tower, set_latent_tokens
+from src.trainer.grpo_trainer import LantErnGRPOTrainer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -46,7 +43,7 @@ def build_reward_funcs(grpo_params: GRPOArguments, model):  # noqa: F811
 def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RLDataParams):
     global local_rank
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
-    logger.info(colored(f"🚀 Training LantErn RL stage: GRPO ", "green"))
+    logger.info(colored("🚀 Training LantErn RL stage: GRPO ", "green"))
     logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
@@ -64,18 +61,18 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
 
     processor.tokenizer.bos_token_id = model.config.bos_token_id
     processor.tokenizer.eos_token_id = model.config.eos_token_id
-    
+
     logger.info(colored(f"Loading reference model from {grpo_params.model_path}", "cyan"))
-    
+
     # set the latent tokens
     assert model.config.latent_size > 0 or model.config.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
     set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
-    
+
     resume_from_checkpoint = get_last_checkpoint(grpo_params.output_dir)
     if resume_from_checkpoint is not None:
         logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
     else:
-        logger.info(colored(f"Starting training from scratch", "cyan"))
+        logger.info(colored("Starting training from scratch", "cyan"))
     # freeze specific components according to the training parameters
     configure_vision_tower(model, freeze_vision_tower=grpo_params.freeze_vision_tower, freeze_merger=grpo_params.freeze_merger)
     configure_llm(model, freeze_llm=grpo_params.freeze_llm)
@@ -97,7 +94,7 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     # prepare rewards
     reward_funcs = build_reward_funcs(grpo_params, model)
 
-    
+
     # Train
     trainer = LantErnGRPOTrainer(
         model=model,
