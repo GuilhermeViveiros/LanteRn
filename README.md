@@ -3,7 +3,7 @@
 > **⚠️ Beta — work in progress.** This repository is the shared codebase for two ongoing research papers. APIs and training pipelines may change without notice.
 
 <p align="center">
-  <img src="imgs/lantern_fig.png" alt="LantErn Architecture" width="700"/>
+  <img src="imgs/lantern_fig.png" alt="LantErn Architecture" width="500"/>
 </p>
 
 ---
