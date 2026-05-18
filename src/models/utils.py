@@ -36,7 +36,7 @@ def apply_latent_compression(
           features are grouped and averaged such that the final output per sample matches `latent_size`.
         - Excess features are dropped (from the end) to ensure divisibility, to minimize feature skew.
     """
-    
+
     # ---------------------------------------------------------
     # 1) Compute latent image features once (batched)
     # ---------------------------------------------------------
