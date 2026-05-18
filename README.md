@@ -10,7 +10,7 @@
 
 ## Updates
 
-**April 2026** — LantErn accepted at the [ICLR 2026 Workshop: Multimodal Intelligence](https://multimodal-intelligence.github.io/) 🎉 See you in Brazil 🇧🇷
+**April 2026** — LantErn accepted at the [ICLR 2026 Workshop: Multimodal Intelligence](https://multimodal-intelligence.github.io/) 🇧🇷 🎉🎉
 
 ---
 

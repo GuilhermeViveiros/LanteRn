@@ -6,12 +6,8 @@ Supports all three released checkpoints:
   - AGViveiros/LanteRn-3B-RL         (GRPO reinforcement learning)
   - AGViveiros/LanteRn-3B-Tetris     (Tetris analogy SFT)
 
-Requirements:
-    pip install -e .        (from the LantErn repo root)
-
 Usage:
     python examples/inference.py --model AGViveiros/LanteRn-3B-Tetris --image path/to/img.jpg
-    python examples/inference.py --model AGViveiros/LanteRn-3B-RL --image path/to/img.jpg --no-lvr
 """
 
 import argparse
@@ -20,10 +16,8 @@ import torch
 from PIL import Image
 from qwen_vl_utils import process_vision_info
 
+from src.lantern_generate.generate import generate as lantern_generate
 from src.models import load_model
-from src.train import set_latent_tokens
-
-LATENT_SIZE = 8
 
 
 def build_inputs(processor, image: Image.Image, question: str):
@@ -46,13 +40,11 @@ def run(
     model_ref: str,
     image_path: str,
     question: str,
-    use_lvr: bool = True,
     max_new_tokens: int = 512,
     device: str = "cuda",
 ):
     # ── Load ──────────────────────────────────────────────────────────────────
     model, processor = load_model(model_ref, compute_dtype=torch.bfloat16, use_cache=True)
-    set_latent_tokens(processor, model, latent_size=LATENT_SIZE)
     model.eval().to(device)
     processor.tokenizer.padding_side = "left"
 
@@ -66,8 +58,7 @@ def run(
         **inputs,
         max_new_tokens=max_new_tokens,
         do_sample=False,
-        custom_generate="AGViveiros/LanteRn-Generate" if use_lvr else None,
-        trust_remote_code=True,
+        custom_generate=lantern_generate,
         use_cache=True,
         return_dict_in_generate=True,
         output_attentions=False,
@@ -80,7 +71,7 @@ def run(
         text = text.replace(tok, "")
     text = text.strip()
 
-    used_lvr = output.latent_embeds is not None
+    used_lvr = hasattr(output, "latent_embeds") and output.latent_embeds is not None
     n_latent_blocks = int((generated_ids == model.config.lvr_start_id).sum())
 
     print(f"\n{'─'*60}")
@@ -95,10 +86,14 @@ def run(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    _default_img = "/e/project1/jureap131/gviveiros/lantern/analogy_data/images/000000.png"
+    _default_q = (
+        "Image (A) is to image (B) as image (C) is to which of the following options?\n"
+        "Options:\n(a) Option a\n(b) Option b\n(c) Option c\n(d) Option d"
+    )
     parser.add_argument("--model", default="AGViveiros/LanteRn-3B-Tetris", help="HF repo ID or local checkpoint path")
-    parser.add_argument("--image", required=True, help="Path to input image")
-    parser.add_argument("--question", default="What is the answer? Think step by step.")
-    parser.add_argument("--no-lvr", action="store_true", help="Disable latent visual reasoning")
+    parser.add_argument("--image", default=_default_img, help="Path to input image")
+    parser.add_argument("--question", default=_default_q)
     parser.add_argument("--max-new-tokens", type=int, default=512)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
@@ -107,7 +102,6 @@ if __name__ == "__main__":
         model_ref=args.model,
         image_path=args.image,
         question=args.question,
-        use_lvr=not args.no_lvr,
         max_new_tokens=args.max_new_tokens,
         device=args.device,
     )

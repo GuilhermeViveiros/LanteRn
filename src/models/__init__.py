@@ -39,7 +39,7 @@ def load_model(model_ref=None, compute_dtype: torch.dtype = torch.float16, use_c
     logger.info(f"Loading model from {model_ref} with compute dtype {compute_dtype} and kwargs: {kwargs}")
 
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        model_ref, torch_dtype=compute_dtype, use_cache=use_cache, **kwargs
+        model_ref, dtype=compute_dtype, use_cache=use_cache, **kwargs
     )
 
     min_pixels = 256 * 28 * 28  # TODO: Add this variables in the params.py file
