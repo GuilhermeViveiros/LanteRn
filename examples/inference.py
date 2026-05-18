@@ -2,27 +2,24 @@
 LantErn inference template.
 
 Supports all three released checkpoints:
-  - LanteRn/LanteRn-3B-SFT          (VisCoT supervised fine-tuning)
-  - LanteRn/LanteRn-3B-RL           (GRPO reinforcement learning)
-  - AGViveiros/LanteRn-3B-Tetris    (Tetris analogy SFT)
+  - AGViveiros/LanteRn-3B-SFT        (VisCoT supervised fine-tuning)
+  - AGViveiros/LanteRn-3B-RL         (GRPO reinforcement learning)
+  - AGViveiros/LanteRn-3B-Tetris     (Tetris analogy SFT)
 
 Requirements:
     pip install -e .        (from the LantErn repo root)
 
 Usage:
     python examples/inference.py --model AGViveiros/LanteRn-3B-Tetris --image path/to/img.jpg
-    python examples/inference.py --model LanteRn/LanteRn-3B-RL --image path/to/img.jpg --no-lvr
+    python examples/inference.py --model AGViveiros/LanteRn-3B-RL --image path/to/img.jpg --no-lvr
 """
 
 import argparse
-from functools import partial
 
 import torch
 from PIL import Image
 from qwen_vl_utils import process_vision_info
 
-from src.lantern_generate.generate import generate as lantern_generate
-from src.lantern_generate.generate import generate_skip_latent
 from src.models import load_model
 from src.train import set_latent_tokens
 
@@ -65,13 +62,12 @@ def run(
     prompt_len = inputs["input_ids"].shape[1]
 
     # ── Generate ──────────────────────────────────────────────────────────────
-    custom_gen = partial(lantern_generate) if use_lvr else partial(generate_skip_latent)
-
     output = model.generate(
         **inputs,
         max_new_tokens=max_new_tokens,
         do_sample=False,
-        custom_generate=custom_gen,
+        custom_generate="AGViveiros/LanteRn-Generate" if use_lvr else None,
+        trust_remote_code=True,
         use_cache=True,
         return_dict_in_generate=True,
         output_attentions=False,
