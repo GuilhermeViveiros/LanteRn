@@ -205,10 +205,10 @@ def build_analogy_composite(
     # ── canvas height ─────────────────────────────────────────────────────────
     inline_row_h = max(th, c_h)
     total_h = (PAD
-               + sa_h + PAD              # top row (A → B)
-               + SEP + PAD               # separator
-               + inline_row_h + PAD      # inline "As [C] is rotated to"
-               + LBL + op_h + PAD)       # options row
+               + sa_h + 4               # top row (A → B) — small gap before line
+               + SEP + PAD + 10         # separator + generous space below
+               + inline_row_h + PAD     # inline "As [C] is rotated to"
+               + LBL + op_h + PAD)      # options row
 
     canvas = Image.new("RGB", (total_w, total_h), bg)
     draw   = ImageDraw.Draw(canvas)
@@ -221,34 +221,34 @@ def build_analogy_composite(
     tx = row_x + sa_w + GAP
     draw.text((tx, cy + (sa_h - th) // 2), rot_text, fill=text_color, font=font_text)
     canvas.paste(img_B, (tx + tw + GAP, cy))
-    cy += sa_h + PAD
+    cy += sa_h + 4   # small gap — line sits close to A-B row
 
     # ── Separator ────────────────────────────────────────────────────────────
     draw.rectangle([PAD, cy, total_w - PAD, cy + SEP - 1], fill=sep_color)
-    cy += SEP + PAD
+    cy += SEP + PAD + 10   # generous space below the line before C
 
     # ── Inline row: "As"  [C image]  "is rotated to" ─────────────────────────
     pre_text  = "As"
     post_text = "is rotated to"
     pre_w  = int(font_text.getlength(pre_text))  if hasattr(font_text, "getlength") else 30
     post_w = int(font_text.getlength(post_text)) if hasattr(font_text, "getlength") else 130
-    img_gap = 14   # gap between text and image
+    img_gap = 20   # gap between text and C image
 
-    inline_row_w = pre_w + img_gap + c_w + img_gap + post_w
-    row_x3 = PAD + (inner_w - inline_row_w) // 2
     row_h3 = max(th, c_h)   # row height = tallest element
 
-    # "As"
-    draw.text((row_x3, cy + (row_h3 - th) // 2), pre_text, fill=text_color, font=font_text)
-    # C image centred vertically
-    canvas.paste(img_C, (row_x3 + pre_w + img_gap, cy + (row_h3 - c_h) // 2))
-    # "is rotated to"
-    draw.text((row_x3 + pre_w + img_gap + c_w + img_gap, cy + (row_h3 - th) // 2),
-              post_text, fill=text_color, font=font_text)
+    # C image pinned to canvas centre
+    c_x = PAD + (inner_w - c_w) // 2
+    canvas.paste(img_C, (c_x, cy + (row_h3 - c_h) // 2))
+    # "As" pushed further left: extra 20px beyond the tight gap
+    as_x = max(PAD, c_x - img_gap - pre_w - 20)
+    draw.text((as_x, cy + (row_h3 - th) // 2), pre_text, fill=text_color, font=font_text)
+    # "is rotated to" right of C
+    draw.text((c_x + c_w + img_gap, cy + (row_h3 - th) // 2), post_text, fill=text_color, font=font_text)
     cy += row_h3 + PAD
 
     # ── Options row: (a) (b) (c) (d) with labels above ───────────────────────
-    opts_x = PAD + (inner_w - opts_row_w) // 2
+    # 3/8 of remaining slack → sits slightly right of a pure left-align
+    opts_x = PAD + (inner_w - opts_row_w) * 3 // 8
     bboxes: List[List[int]] = []
     for i, (opt_img, lbl) in enumerate(zip(options, labels)):
         ox = opts_x + i * (op_w + GAP)

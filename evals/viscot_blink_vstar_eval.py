@@ -46,7 +46,7 @@ from qwen_vl_utils import process_vision_info
 from src.models import load_model
 from src.train import set_latent_tokens
 from src.models.utils import apply_latent_compression
-from src.lantern_generate.generate import generate as lantern_generate
+from src.lantern_generate.generate import generate as lantern_generate, generate_skip_latent
 from src.utils import extract_mc_answer, center_and_crop_image
 
 # /mnt/scratch-artemis/gviveiros/lantern/checkpoints/sft_mse_lt_8_lambda_0.1/checkpoint-1062/
@@ -161,15 +161,19 @@ def run_inference(model, processor, images, question: str, condition: str,
     inputs       = processor(text=[text], images=image_inputs, padding=True,
                              return_tensors="pt").to(device)
 
-    use_lvr = condition != "no_lvr"
     prompt_len = inputs["input_ids"].shape[1]
+
+    if condition in ("no_lvr", "empty_latent"):
+        custom_gen = partial(generate_skip_latent)
+    else:
+        custom_gen = partial(lantern_generate, gt_latent_embeds=gt_latent_embeds,
+                             perturbation=perturbation)
 
     output_ids = model.generate(
         **inputs,
         max_new_tokens=max_new_tokens,
         do_sample=False,
-        custom_generate=partial(lantern_generate, gt_latent_embeds=gt_latent_embeds) if use_lvr else None,
-        perturbation=perturbation,
+        custom_generate=custom_gen,
         use_cache=True,
         return_dict_in_generate=False,
         output_attentions=False,
@@ -196,9 +200,9 @@ def load_viscot(path: str, img_root: str, max_samples: Optional[int] = None) -> 
             options = s.get("options", [])
             if len(options) != 4:
                 continue
-            img_path = s.get("img_path", s.get("image", "")).replace(
-                "/mnt/data-artemis/gviveiros/lantern/", img_root
-            )
+            img_path = s.get("img_path", s.get("image", ""))
+            img_path = img_path.replace("/mnt/data-artemis/gviveiros/lantern/", img_root)
+            img_path = img_path.replace("/mnt/scratch-artemis/gviveiros/lantern/", img_root)
             bbox = s.get("bbox") or s.get("bboxs")
             if isinstance(bbox, list) and isinstance(bbox[0], list):
                 bbox = bbox[0]
@@ -216,7 +220,7 @@ def load_viscot(path: str, img_root: str, max_samples: Optional[int] = None) -> 
 
 def evaluate_viscot(model, processor, condition: str, out_dir: str, device,
                     viscot_path: str = VISCOT_TEST_PATH, img_root: str = IMG_ROOT,
-                    max_samples: Optional[int] = None) -> dict:
+                    max_samples: Optional[int] = None, corrupt_image: bool = False) -> dict:
     if condition == "gt" and False:  # gt is valid for viscot
         pass
 
@@ -236,15 +240,23 @@ def evaluate_viscot(model, processor, condition: str, out_dir: str, device,
                 gt_latent_embeds = get_gt_latent_embeds(
                     model, processor, item["img_path"], item["bbox"], device)
             elif condition == "random_bbox" and item.get("bbox"):
+                next_item = data[(start + idx + 1) % len(data)]
                 gt_latent_embeds = get_random_bbox_latent_embeds(
-                    model, processor, item["img_path"], item["bbox"], device)
-            #import pdb; pdb.set_trace()
+                    model, processor, next_item["img_path"], item["bbox"], device)
             if condition == "random" or condition == "zeros":
                 perturbation = condition
             else:
                 perturbation = None
 
-            response  = run_inference(model, processor, item["img_path"],
+            main_img = item["img_path"]
+            if corrupt_image and item.get("bbox"):
+                from PIL import ImageDraw
+                main_img = Image.open(main_img).convert("RGB")
+                draw = ImageDraw.Draw(main_img)
+                bbox = item["bbox"]
+                draw.rectangle([bbox[0], bbox[1], bbox[2], bbox[3]], fill=(0, 0, 0))
+
+            response  = run_inference(model, processor, main_img,
                                       item["question"], condition, device,
                                       gt_latent_embeds=gt_latent_embeds, perturbation=perturbation)
             pred = extract_mc_answer(response, item["options"])
@@ -316,9 +328,11 @@ def evaluate_blink(model, processor, condition: str, out_dir: str, device,
                 perturbation = None
 
             if condition == "random_bbox":
-                first_img = item["images"][0]
+                # use next item's image so the crop never comes from the query image
+                next_item = data[(start + idx + 1) % len(data)]
+                source_img = next_item["images"][0]
                 gt_latent_embeds = get_random_crop_latent_embeds(
-                    model, processor, first_img, device)
+                    model, processor, source_img, device)
 
             response = run_inference(model, processor, item["images"],
                                      item["question"], condition, device,
@@ -391,9 +405,11 @@ def evaluate_vstar(model, processor, condition: str, out_dir: str, device,
             else:
                 perturbation = None
             if condition == "random_bbox":
-                pil_img = img if isinstance(img, Image.Image) else Image.fromarray(img)
+                # use next item's image so the crop never comes from the query image
+                next_ds_item = ds[(start + idx + 1) % len(ds)]
+                source_pil = next_ds_item["image"] if isinstance(next_ds_item["image"], Image.Image) else Image.fromarray(next_ds_item["image"])
                 gt_latent_embeds = get_random_crop_latent_embeds(
-                    model, processor, pil_img, device)
+                    model, processor, source_pil, device)
 
             response = run_inference(model, processor, img, question,
                                      condition, device, gt_latent_embeds=gt_latent_embeds, perturbation=perturbation)
@@ -439,7 +455,7 @@ def main():
     parser.add_argument("--latent_size", type=int, default=LATENT_SIZE)
     parser.add_argument("--conditions",  type=str, nargs="+",
         default=["own", "no_lvr", "zeros", "random", "gt", "random_bbox"],
-        choices=["own", "no_lvr", "zeros", "random", "gt", "random_bbox"])
+        choices=["own", "no_lvr", "zeros", "random", "gt", "random_bbox", "empty_latent"])
     parser.add_argument("--benchmarks",  type=str, nargs="+",
         default=["viscot", "blink", "vstar"],
         choices=["viscot", "blink", "vstar"])
@@ -448,6 +464,8 @@ def main():
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument("--viscot_path",    type=str, default=VISCOT_TEST_PATH)
     parser.add_argument("--img_root",       type=str, default=IMG_ROOT)
+    parser.add_argument("--corrupt_image",  action="store_true",
+        help="Black out bbox region in the main image (mirrors corrupt_bbox_blackout training)")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -479,6 +497,7 @@ def main():
                 viscot_path=args.viscot_path,
                 img_root=args.img_root,
                 max_samples=args.max_samples,
+                corrupt_image=args.corrupt_image,
             )
 
         if "blink" in args.benchmarks:

@@ -30,6 +30,7 @@ from src.trainer.sft_trainer import LantErnSFTrainer, ProgressBarLossLogger, Vis
 from src.models.utils import get_last_checkpoint
 from src.train import configure_vision_tower, configure_llm, configure_latent_only, set_latent_tokens
 from src.utils import is_rank0
+from src.constants import VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("LantErn-Trainer")
@@ -58,7 +59,7 @@ def _save_data_diagnostics(dataset, output_dir: str, n_samples: int = 8):
         if not data.get("bboxs"):
             continue
 
-        img_orig = Image.open(data["img_path"]).convert("RGB")
+        img_orig = Image.open(data["img_path"].replace(VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK)).convert("RGB")
         bbox = data["bboxs"][0]
 
         # Corrupted main image (same logic as __getitem__)
@@ -252,9 +253,6 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
                 seed=training_params.seed,
             )
         generate_collate = tetris_collate_fn_generate if data_params.use_lvr else tetris_collate_fn_generate_ntp
-        if is_rank0() and data_params.use_lvr:
-            _debug_tetris_batch(data_module, "debug",
-                                batch_size=training_params.per_device_train_batch_size)
     elif data_params.dataset_type == "viscot":
         data_module = make_sft_data_module(
             processor=processor,
@@ -264,6 +262,7 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
             corrupt_image=data_params.corrupt_image,
             corruption_type=data_params.corruption_type,
             filter_ids_path=data_params.filter_ids_path,
+            use_lvr=data_params.use_lvr,
         )
         generate_collate = collate_fn_generate
         # Pre-training data diagnostics
@@ -272,11 +271,10 @@ def train(training_params: TrainingParams, model_params: ModelParams, data_param
         raise ValueError(f"Invalid dataset type: {data_params.dataset_type}")
 
 
-    if is_rank0() and data_params.dataset_type == "tetris":
+    if is_rank0() and data_params.dataset_type == "tetris" and data_params.use_lvr:
         _debug_tetris_batch(data_module, training_params.output_dir,
                             batch_size=training_params.per_device_train_batch_size)
 
-    import pdb; pdb.set_trace()
     callbacks = [ProgressBarLossLogger()]
     if data_params.dataset_type == "tetris" and "eval_dataset" in data_module:
         if data_params.use_lvr:

@@ -9,6 +9,7 @@ from termcolor import colored
 from src.params import (GRPOArguments, ModelParams, RLDataParams)
 from src.datasets.grpo_data import GRPODataset
 from src.models import load_model
+from src.models.utils import get_last_checkpoint
 from src.train import configure_vision_tower, configure_llm
 from src.trainer.grpo_trainer import LantErnGRPOTrainer
 from src.train import set_latent_tokens
@@ -46,7 +47,6 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     global local_rank
     logger.info(f"Training model {model_params.model_id} with data from {data_params.data_path}")
     logger.info(colored(f"🚀 Training LantErn RL stage: GRPO ", "green"))
-    #logger.info(colored(f"Training parameters: {grpo_params}", "cyan"))
     logger.info(colored(f"🚀 Model parameters: {model_params}", "cyan"))
     logger.info(colored(f"Data parameters: {data_params}", "cyan"))
 
@@ -71,18 +71,7 @@ def train(grpo_params: GRPOArguments, model_params: ModelParams, data_params: RL
     assert model.config.latent_size > 0 or model.config.latent_size == -1, "Latent size must be -1 for dynamic latent size or a positive integer"
     set_latent_tokens(processor, model, model.config.latent_size, special_tokens=False)
     
-    
-    # import ipdb; ipdb.set_trace()
-    # processor.tokenizer.convert_tokens_to_ids("<|im_end|>")
-    # processor.tokenizer.vocab_size
-    # 151668
-    #processor.tokenizer.eos_token_id = model.config.eos_token_id
-    #processor.tokenizer.pad_token_id = model.config.pad_token_id
-    #processor.tokenizer.bos_token_id = model.config.bos_token_id
-    
-
-    resume_from_checkpoint = "/mnt/scratch-artemis/gviveiros/lantern/checkpoints/grpo_lt_8_lambda_0.1/checkpoint-1500"
-    # get_last_checkpoint(grpo_params.output_dir)
+    resume_from_checkpoint = get_last_checkpoint(grpo_params.output_dir)
     if resume_from_checkpoint is not None:
         logger.info(colored(f"Resuming training from checkpoint: {resume_from_checkpoint}", "cyan"))
     else:

@@ -215,3 +215,5 @@ ref_logs/*
 diagnose*
 test.py
 wb.sh
+results/
+experiments/

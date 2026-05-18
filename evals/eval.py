@@ -1,5 +1,7 @@
 import csv
 import json
+import logging
+import string
 from functools import partial
 from tqdm import tqdm
 import random
@@ -14,10 +16,13 @@ from torch.utils.data import Dataset, DataLoader
 from transformers import AutoProcessor
 from src.utils import center_and_crop_image
 from evals import run_batch_inference, get_gt_latent_values
-from evals.blink_eval import BlinkDataset
 from qwen_vl_utils import process_vision_info
 from src.utils import extract_mc_answer
 from src.constants import VISCOT_MC_TEST_PATH, VISCOT_IMAGE_ROOT, VISCOT_IMAGE_ROOT_FALLBACK
+
+logger = logging.getLogger(__name__)
+
+BLINK_CATEGORIES = ["Object_Localization", "Spatial_Relation"]
 
 class MCDataset(Dataset):
     # mcdataset is a multiple choice dataset that aggregates different datasets into a single one
@@ -93,18 +98,21 @@ class MCDataset(Dataset):
                     })
                 
             elif dataset == "blink":
-                blink_dataset = BlinkDataset()
-                for sample in blink_dataset:
-                    imgs = sample["image"]
-                    # if not list, convert to list
-                    if not isinstance(imgs, list):
-                        imgs = [imgs]
-                    # append data to the dataset
-                    self.data.append({
-                        "question": sample["question"],
-                        "image": imgs,
-                        "label": sample["label"]
-                    })
+                for cfg in BLINK_CATEGORIES:
+                    ds = load_dataset("BLINK-Benchmark/BLINK", cfg)["val"]
+                    for item in ds:
+                        letters = string.ascii_uppercase
+                        options = [c for c in item["choices"]]
+                        option_str = "".join(f"{l}. {c}\n" for l, c in zip(letters, options))
+                        ans = item["answer"][1].upper() if len(item["answer"]) > 1 else item["answer"][0].upper()
+                        imgs = [item[k] for k in ["image_1", "image_2", "image_3", "image_4"]
+                                if k in item and item[k] is not None]
+                        self.data.append({
+                            "question": item["question"] + "\nOptions:\n" + option_str,
+                            "image": imgs,
+                            "label": ans,
+                            "category": cfg,
+                        })
             else:
                 raise ValueError(f"Dataset {dataset} not supported")
 

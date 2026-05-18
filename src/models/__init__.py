@@ -41,13 +41,9 @@ def load_model(
         model_ref,
         torch_dtype=compute_dtype,
         use_cache=use_cache,
-        #attn_implementation="eager",
-        #output_attentions=True,
         **kwargs
     )
 
-    # replace this sample method with our own
-    #processor = AutoProcessor.from_pretrained(model_ref, **kwargs)
     min_pixels = 256 * 28 * 28 # TODO: Add this variables in the params.py file
     max_pixels = 3500 * 28 * 28 # TODO: Add this variables in the params.py file
 
@@ -77,7 +73,4 @@ def load_model(
             local_files_only=True,
             **proc_kwargs
         )
-    #else:
-    #    raise ValueError(f"Only Qwen2.5-VL-3B-Instruct is currently supported (got {model_ref})")
-
     return model, processor

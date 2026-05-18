@@ -6,9 +6,9 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --job-name=sft_tetris_ablation1_gray
-#SBATCH --output=logs/sft_tetris_ablation1_gray.out
-#SBATCH --error=logs/sft_tetris_ablation1_gray.err
+#SBATCH --job-name=sft_tetris_gray_small_lt1
+#SBATCH --output=logs/sft_tetris_gray_small_lt1.out
+#SBATCH --error=logs/sft_tetris_gray_small_lt1.err
 
 # model configs
 MODEL_ID="$HOME/.cache/huggingface/hub/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/66285546d2b821cf421d4f5eb2576359d3770cd3"
@@ -22,7 +22,11 @@ DATA_PATH="/e/project1/jureap131/gviveiros/lantern/analogy_data/train.json"
 GPUS_PER_NODE=4
 GLOBAL_BATCH_SIZE=192
 BATCH_PER_DEVICE=6
-NUM_DEVICES=$(( SLURM_NNODES * GPUS_PER_NODE ))
+if [[ -z "${SLURM_NNODES}" ]]; then
+  NUM_DEVICES=1
+else
+  NUM_DEVICES=$(( SLURM_NNODES * GPUS_PER_NODE ))
+fi
 echo "Nodes: $SLURM_NNODES, GPUs per node: $GPUS_PER_NODE, total devices: $NUM_DEVICES"
 
 GRAD_ACCUM_STEPS=$((GLOBAL_BATCH_SIZE / (BATCH_PER_DEVICE * NUM_DEVICES)))
@@ -35,10 +39,10 @@ echo "Gradient accumulation steps: $GRAD_ACCUM_STEPS"
 LR=1e-5
 
 # LantErn-related params
-LAMBDA_LANTERN=0.1
-LATENT_SIZE=8
+LAMBDA_LANTERN=0.05
+LATENT_SIZE=1
 LATENT_LOSS_TYPE="mse"   # mse | infonce | cosine
-RUN_NAME="ablation1_gray_${LATENT_LOSS_TYPE}_lt${LATENT_SIZE}_lambda${LAMBDA_LANTERN}"
+RUN_NAME="sft_tetris_gray_small_lt1"
 
 export OMP_NUM_THREADS=1
 source /e/project1/jureap126/gviveiros/envs/swift/bin/activate
@@ -59,17 +63,18 @@ deepspeed $REPO/src/train/train_sft.py \
     --gradient_accumulation_steps $GRAD_ACCUM_STEPS \
     --output_dir /e/project1/jureap131/gviveiros/lantern/checkpoints/$RUN_NAME \
     --dummy False \
+    --max_train_samples 4000 \
+    --resume_from_checkpoint False \
     --learning_rate $LR \
     --gamma $LAMBDA_LANTERN \
     --report_to wandb \
     --dataset_type tetris \
     --data_path $DATA_PATH \
     --eval_strategy steps \
-    --eval_steps 100 \
+    --eval_steps 80 \
     --per_device_eval_batch_size 6 \
     --eval_accumulation_steps 2 \
     --latent_loss_type $LATENT_LOSS_TYPE \
-    --grayscale_intermediate True \
     --wandb_project LantErn-Tetris
     #--temperature 0.07
 

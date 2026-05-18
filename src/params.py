@@ -24,8 +24,6 @@ class TrainingParams(HFTrainingArguments):
     lr_scheduler_type: str = field(default="cosine")
     warmup_ratio: float = field(default=0.05)
     gamma: float = field(default=0.1) # weight for the latent similarity loss (InfoNCE / cosine / MSE)
-    gamma_mse: float = field(default=0.0, metadata={"help": "Extra MSE weight used only when latent_loss_type='mse+infonce'. "
-                                                             "Total loss = ce + gamma*nce + gamma_mse*mse"})
     latent_loss_type: str = field(default="mse", metadata={"help": "Latent supervision loss type. One of: mse | infonce | cosine | mse+infonce"})
     temperature: float = field(default=0.07, metadata={"help": "Softmax temperature for InfoNCE loss (ignored for mse/cosine)"})
     scheduled_sampling_prob: float = field(default=0.0, metadata={"help": "Max fraction of latent tokens replaced with model's own predictions. Ramps from 0 to this value between scheduled_sampling_warmup and end of training."})
@@ -53,9 +51,6 @@ class TrainingParams(HFTrainingArguments):
     seed: int = field(default=42)
     resume_from_checkpoint: bool = field(default=False)
     #use_liger_kernel: bool = field(default=True) # LantErn does not support liger kernel
-    #use_liger_kernel: bool = field(default=True)
-    # per_device_train_batch_size: int = field(default=8)
-    # gradient_accumulation_steps: int = field(default=1)
 
 @dataclass
 class GRPOArguments(GRPOConfig):
@@ -90,8 +85,7 @@ class GRPOArguments(GRPOConfig):
     # Batching
     # ------------------------------------------------------------------
     per_device_train_batch_size: int = field(default=1)
-    gradient_accumulation_steps: int = field(default=1) #steps_per_generation
-    #steps_per_generation: int = field(default=1)
+    gradient_accumulation_steps: int = field(default=1)
 
     # ------------------------------------------------------------------
     # Training schedule
@@ -99,7 +93,6 @@ class GRPOArguments(GRPOConfig):
     num_train_epochs: int = field(default=1)
     save_steps: int = field(default=300)
     max_steps: int = field(default=-1) # -1 for no max steps
-    num_train_epochs: int = field(default=1)
 
     # ------------------------------------------------------------------
     # Generation / decoding
@@ -134,7 +127,6 @@ class GRPOArguments(GRPOConfig):
 class SFTDataParams:
     data_path: str = field(default=VISCOT_DATA_PATH)
     dummy: bool = field(default=False)
-    #split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0.0))
     split_percentages: Tuple[float, float, float] = field(default=(0.9, 0.1, 0))
     corrupt_image: bool = field(default=False)
     corruption_type: str = field(default="bbox_blackout")

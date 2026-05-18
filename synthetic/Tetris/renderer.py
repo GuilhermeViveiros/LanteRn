@@ -120,7 +120,9 @@ def render_rotation_strip(
     arrow_color = (80, 80, 80)    if bw else (140, 170, 200)
     text_color  = (40, 40, 40)    if bw else (190, 200, 215)
     font        = _get_font(15)
-    pw, ph      = imgs[0].width, imgs[0].height
+    # Use max dimensions across all panels so no piece gets clipped
+    pw = max(im.width  for im in imgs)
+    ph = max(im.height for im in imgs)
 
     def _bez(p0, p1, p2, n=70):
         pts = []
@@ -157,10 +159,14 @@ def render_rotation_strip(
         y0 = PAD + BEND
         cy = y0 + ph // 2
 
+        def _paste(im, x):
+            # vertically centre each panel within the tallest slot
+            canvas.paste(im, (x, y0 + (ph - im.height) // 2))
+
         if clockwise:
             # panels left to right: imgs[0], imgs[1], imgs[2] (if 180°)
             for i, im in enumerate(imgs):
-                canvas.paste(im, (PAD + i * (pw + GAP), y0))
+                _paste(im, PAD + i * (pw + GAP))
             for i in range(n_panels - 1):
                 x_left  = PAD + i * (pw + GAP) + pw
                 x_right = PAD + (i + 1) * (pw + GAP)
@@ -171,8 +177,8 @@ def render_rotation_strip(
                 _draw_arrow(draw, pts, "90\u00b0 right", p1[0], PAD + 2)
         else:
             # CCW: result on left, source on right
-            canvas.paste(imgs[1], (PAD,            y0))
-            canvas.paste(imgs[0], (PAD + pw + GAP, y0))
+            _paste(imgs[1], PAD)
+            _paste(imgs[0], PAD + pw + GAP)
             p0 = (PAD + pw + GAP, cy)
             p2 = (PAD + pw,       cy)
             p1 = ((p0[0]+p2[0])//2, y0 - BEND//2)
@@ -190,30 +196,41 @@ def draw_piece_standalone(
     cells: List[Tuple[int, int]],
     color: Tuple[int, int, int],
     cell_size: int = 40,
-    canvas_cells: int = 5,
+    canvas_cells: int = None,
     bg_color: Tuple[int, int, int] = (18, 18, 22),
 ) -> Image.Image:
     """
-    Render a piece centred in a fixed square canvas with no grid or border.
+    Render a piece centred in a canvas with no grid or border.
 
     Args:
         cells:        Normalized (row, col) coordinates.
         color:        RGB fill color.
         cell_size:    Pixels per cell.
-        canvas_cells: Canvas side length in cells (piece is centred within).
+        canvas_cells: Canvas side length in cells. If None (default), the canvas
+                      is sized dynamically to fit the piece with 2 cells of padding
+                      on each side — prevents clipping for large/wide pieces.
         bg_color:     Background color.
     """
-    size = canvas_cells * cell_size
-    img  = Image.new("RGB", (size, size), bg_color)
-    draw = ImageDraw.Draw(img)
-
     rows = [r for r, c in cells]
     cols = [c for r, c in cells]
     span_r = max(rows) - min(rows) + 1
     span_c = max(cols) - min(cols) + 1
 
-    start_r = (canvas_cells - span_r) // 2 - min(rows)
-    start_c = (canvas_cells - span_c) // 2 - min(cols)
+    if canvas_cells is None:
+        pad  = 2
+        side = max(span_r, span_c) + 2 * pad   # square: same for all rotations of a piece
+        canvas_w = side * cell_size
+        canvas_h = side * cell_size
+        start_r  = (side - span_r) // 2 - min(rows)
+        start_c  = (side - span_c) // 2 - min(cols)
+    else:
+        canvas_w = canvas_cells * cell_size
+        canvas_h = canvas_cells * cell_size
+        start_r  = (canvas_cells - span_r) // 2 - min(rows)
+        start_c  = (canvas_cells - span_c) // 2 - min(cols)
+
+    img  = Image.new("RGB", (canvas_w, canvas_h), bg_color)
+    draw = ImageDraw.Draw(img)
 
     highlight = tuple(min(255, v + 60) for v in color)
     shadow    = tuple(max(0,   v - 60) for v in color)

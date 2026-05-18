@@ -99,8 +99,10 @@ class LatentUtilityCallback(TrainerCallback):
 
         # Each condition is assigned to one rank; ranks >= len(conditions) sit idle.
         conditions = [
-            ("latent_utility/gt",  dict(use_gt=True,  perturbation=None)),
-            ("latent_utility/own", dict(use_gt=False, perturbation=None)),
+            ("latent_utility/gt",     dict(use_gt=True,  perturbation=None)),
+            ("latent_utility/own",    dict(use_gt=False, perturbation=None)),
+            ("latent_utility/zeros",  dict(use_gt=True,  perturbation="zeros")),
+            ("latent_utility/random", dict(use_gt=True,  perturbation="random")),
         ]
 
         _C = "\033[96m"   # cyan
@@ -158,26 +160,6 @@ class LatentUtilityCallback(TrainerCallback):
 
                 results["train/global_step"] = state.global_step
                 wandb.log(results)
-                # # Build generation table
-                # cond_preds   = {conditions[i][0].split("/")[-1]: gen_gather[i]["preds"]
-                #                 for i in range(len(conditions))}
-                # prompts = gen_gather[0]["prompts"]
-                # gts     = gen_gather[0]["gts"]
-                # n = min(len(gts), len(prompts), min(len(v) for v in cond_preds.values()))
-                # if n > 0:
-                #     columns = [
-                #         "sample", "prompt", "true_label",
-                #         "pred_gt",  "ans_gt",
-                #         "pred_own", "ans_own",
-                #     ]
-                #     table = wandb.Table(columns=columns)
-                #     for j in range(n):
-                #         table.add_data(
-                #             j, prompts[j], gts[j],
-                #             cond_preds["gt"][j],  self._extract_answer(cond_preds["gt"][j]),
-                #             cond_preds["own"][j], self._extract_answer(cond_preds["own"][j]),
-                #         )
-                #     wandb.log({"generations/generations": table})
 
 class GenerationAccuracyCallback(TrainerCallback):
     """
@@ -309,16 +291,6 @@ class VisCoTestLogger(TrainerCallback):
         self.test_steps = test_steps
         self.collate_fn = collate_fn
         self.report_to = report_to
-        # if is_rank0():
-        #     # get rank 0 device
-        #     # 🎯 CRITICAL STEP: Use no_init_weights to isolate model loading
-        #     # This prevents DeepSpeed/Accelerate's memory initialization hooks 
-        #     # from interfering with the judge model's weight loading.
-           
-        #     self.judge = LLMJudge(
-        #         model_id="Qwen/Qwen2.5-VL-3B-Instruct",
-        #         device=get_rank()
-        #     )
     
     def on_step_end(self, args, state, control, metrics=None, **kwargs):
         return

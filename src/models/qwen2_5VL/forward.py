@@ -97,7 +97,6 @@ def qwen2_5_mixed_modality_forward_lantern(
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
     if inputs_embeds is None:
-        #import pdb; pdb.set_trace()
         inputs_embeds = self.get_input_embeddings()(input_ids)
      
     if pixel_values is not None:
@@ -116,7 +115,6 @@ def qwen2_5_mixed_modality_forward_lantern(
         inputs_embeds[latent_mask] = latent_embeds.to(inputs_embeds.device, inputs_embeds.dtype)
 
     if latent_values is not None:
-        #import pdb; pdb.set_trace()
         # compute the ground truth latent embeddings
         with torch.no_grad():
             if self.config.latent_size != -1:

@@ -48,12 +48,9 @@ class LLMJudge:
             for msg in messages
         ]
         
-        # process vision info
-        #image_inputs, video_inputs = process_vision_info(messages)
         inputs = self.processor(
             text=texts,
             images=None,
-            #videos=video_inputs,
             padding=True,
             return_tensors="pt",
         )
@@ -80,7 +77,6 @@ class LLMJudge:
         return scores
 
 if __name__ == "__main__":
-    #judge = LLMJudge(model_id="Qwen/Qwen3-4B-Thinking-2507")
     judge = LLMJudge(model_id="Qwen/Qwen2.5-VL-3B-Instruct")
     answer = judge.judge(
         [

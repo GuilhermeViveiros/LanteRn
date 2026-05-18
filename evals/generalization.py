@@ -62,6 +62,28 @@ def build_distractor_map(dataset: SFTTetrisDataset, seed: int = 42) -> dict:
     return dict(zip(indices, shuffled))
 
 
+def build_same_shape_diff_rotation_map(dataset: SFTTetrisDataset, seed: int = 42) -> dict:
+    """
+    For each sample i, find sample j with same shape_C_name but different transform_description.
+    Tests whether a wrong-rotation latent from the same shape confuses the model.
+    Accuracy is still measured against i's original correct answer.
+    """
+    rng = random.Random(seed)
+    by_shape = {}
+    for i, s in enumerate(dataset.dataset):
+        by_shape.setdefault(s["shape_C_name"], []).append(i)
+
+    distractor_map = {}
+    for i, s in enumerate(dataset.dataset):
+        shape     = s["shape_C_name"]
+        transform = s["transform_description"]
+        candidates = [j for j in by_shape.get(shape, [])
+                      if j != i and dataset.dataset[j]["transform_description"] != transform]
+        if candidates:
+            distractor_map[i] = rng.choice(candidates)
+    return distractor_map
+
+
 def build_latent_consistent_map(dataset: SFTTetrisDataset, seed: int = 42) -> tuple[dict, dict]:
     """
     For each sample index i, find another sample j such that:
@@ -202,6 +224,7 @@ def evaluate_latent_consistent(model, processor, dataset, expected_answer: dict,
 
 def load_and_eval(checkpoint: str, args, eval_ds, held_out_ds,
                   distractor_eval_ds, distractor_held_ds,
+                  ss_distractor_eval_ds, ss_distractor_held_ds,
                   lc_eval_ds, lc_eval_expected_answer,
                   lc_held_ds, lc_expected_answer):
     print(f"\n── {os.path.basename(checkpoint)} ──")
@@ -217,6 +240,8 @@ def load_and_eval(checkpoint: str, args, eval_ds, held_out_ds,
                                  use_gt=False, use_lvr=True, desc="eval own")
         eval_distract = evaluate(model, processor, distractor_eval_ds, args.n_samples, args.batch_size,
                                  use_gt=True,  use_lvr=True, desc="eval distractor")
+        eval_ss       = evaluate(model, processor, ss_distractor_eval_ds, args.n_samples, args.batch_size,
+                                 use_gt=True,  use_lvr=True, desc="eval same-shape")
         eval_lc       = evaluate_latent_consistent(model, processor, lc_eval_ds,
                                                    lc_eval_expected_answer,
                                                    args.n_samples, args.batch_size,
@@ -227,19 +252,21 @@ def load_and_eval(checkpoint: str, args, eval_ds, held_out_ds,
                                  use_gt=False, use_lvr=True, desc="held own")
         held_distract = evaluate(model, processor, distractor_held_ds, args.n_samples, args.batch_size,
                                  use_gt=True,  use_lvr=True, desc="held distractor")
+        held_ss       = evaluate(model, processor, ss_distractor_held_ds, args.n_samples, args.batch_size,
+                                 use_gt=True,  use_lvr=True, desc="held same-shape")
         held_lc       = evaluate_latent_consistent(model, processor, lc_held_ds,
                                                    lc_expected_answer,
                                                    args.n_samples, args.batch_size,
                                                    desc="held latent-consistent")
         result = (os.path.basename(checkpoint),
-                  eval_acc, eval_own, eval_distract, eval_lc,
-                  held_gt, held_own, held_distract, held_lc)
+                  eval_acc, eval_own, eval_distract, eval_ss, eval_lc,
+                  held_gt, held_own, held_distract, held_ss, held_lc)
     else:
         eval_acc = evaluate(model, processor, eval_ds,     args.n_samples, args.batch_size,
                             use_gt=False, use_lvr=False, desc="eval NTP")
         held_acc = evaluate(model, processor, held_out_ds, args.n_samples, args.batch_size,
                             use_gt=False, use_lvr=False, desc="held NTP")
-        result = (os.path.basename(checkpoint), eval_acc, None, None, None, held_acc, None, None, None)
+        result = (os.path.basename(checkpoint), eval_acc, None, None, None, None, held_acc, None, None, None, None)
 
     del model
     torch.cuda.empty_cache()
@@ -303,12 +330,17 @@ def main():
 
     # Build distractor datasets
     distractor_eval_ds = distractor_held_ds = None
+    ss_distractor_eval_ds = ss_distractor_held_ds = None
     lc_eval_ds = lc_eval_expected_answer = None
     lc_held_ds = lc_expected_answer = None
     if args.use_lvr:
         eval_distractor_map  = build_distractor_map(eval_ds)
         distractor_eval_ds   = DistractorDataset(eval_ds, eval_distractor_map)
         print(f"Eval distractor : {len(eval_distractor_map)} entries (random intermediate, seed=42)")
+
+        ss_eval_map = build_same_shape_diff_rotation_map(eval_ds)
+        ss_distractor_eval_ds = DistractorDataset(eval_ds, ss_eval_map)
+        print(f"Eval same-shape : {len(ss_eval_map)} entries (same shape, diff rotation, seed=42)")
 
         lc_eval_map, lc_eval_expected_answer = build_latent_consistent_map(eval_ds)
         lc_eval_ds = DistractorDataset(eval_ds, lc_eval_map)
@@ -317,6 +349,10 @@ def main():
         held_distractor_map  = build_distractor_map(held_out_ds)
         distractor_held_ds   = DistractorDataset(held_out_ds, held_distractor_map)
         print(f"Held distractor : {len(held_distractor_map)} entries (random intermediate, seed=42)")
+
+        ss_held_map = build_same_shape_diff_rotation_map(held_out_ds)
+        ss_distractor_held_ds = DistractorDataset(held_out_ds, ss_held_map)
+        print(f"Held same-shape : {len(ss_held_map)} entries (same shape, diff rotation, seed=42)")
 
         lc_map, lc_expected_answer = build_latent_consistent_map(held_out_ds)
         lc_held_ds = DistractorDataset(held_out_ds, lc_map)
@@ -328,28 +364,31 @@ def main():
     for ckpt in ckpts:
         results.append(load_and_eval(ckpt, args, eval_ds, held_out_ds,
                                      distractor_eval_ds, distractor_held_ds,
+                                     ss_distractor_eval_ds, ss_distractor_held_ds,
                                      lc_eval_ds, lc_eval_expected_answer,
                                      lc_held_ds, lc_expected_answer))
 
     # Print table
-    print("\n" + "=" * 120)
+    print("\n" + "=" * 140)
     if args.use_lvr:
-        print(f"{'checkpoint':<25} {'eval_gt':>8} {'eval_own':>9} {'eval_dist':>10} {'eval_lc':>8} "
-              f"{'held_gt':>8} {'held_own':>9} {'held_dist':>10} {'held_lc':>8}")
-        print("-" * 120)
-        for name, eval_acc, eval_own, eval_dist, eval_lc, held_gt, held_own, held_dist, held_lc in results:
-            print(f"{name:<25} {eval_acc:>7.1%} {eval_own:>9.1%} {eval_dist:>10.1%} {eval_lc:>8.1%} "
-                  f"{held_gt:>8.1%} {held_own:>9.1%} {held_dist:>10.1%} {held_lc:>8.1%}")
-        print("=" * 120)
+        print(f"{'checkpoint':<25} {'eval_gt':>8} {'eval_own':>9} {'eval_dist':>10} {'eval_ss':>8} {'eval_lc':>8} "
+              f"{'held_gt':>8} {'held_own':>9} {'held_dist':>10} {'held_ss':>8} {'held_lc':>8}")
+        print("-" * 140)
+        for name, eval_acc, eval_own, eval_dist, eval_ss, eval_lc, held_gt, held_own, held_dist, held_ss, held_lc in results:
+            print(f"{name:<25} {eval_acc:>7.1%} {eval_own:>9.1%} {eval_dist:>10.1%} {eval_ss:>8.1%} {eval_lc:>8.1%} "
+                  f"{held_gt:>8.1%} {held_own:>9.1%} {held_dist:>10.1%} {held_ss:>8.1%} {held_lc:>8.1%}")
+        print("=" * 140)
         print("eval_own   = in-distribution accuracy with model's own latents")
-        print("eval_dist  = in-distribution accuracy with random distractor latent")
+        print("eval_dist  = in-distribution accuracy with random distractor latent (any shape/rotation)")
+        print("eval_ss    = in-distribution accuracy with same-shape different-rotation distractor")
         print("eval_lc    = in-distribution latent-consistent accuracy (chance=25%)")
         print("held_dist  = OOD accuracy with random distractor latent")
+        print("held_ss    = OOD accuracy with same-shape different-rotation distractor")
         print("held_lc    = OOD latent-consistent accuracy (chance=25%)")
     else:
         print(f"{'checkpoint':<25} {'eval':>8} {'held_out':>10}")
         print("-" * 45)
-        for name, eval_acc, _, _, _, held_acc, _, _, _ in results:
+        for name, eval_acc, _, _, _, _, held_acc, _, _, _, _ in results:
             print(f"{name:<25} {eval_acc:>7.1%} {held_acc:>10.1%}")
         print("=" * 45)
 

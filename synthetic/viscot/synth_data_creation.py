@@ -136,5 +136,4 @@ if __name__ == "__main__":
     #         print("Lantern: ", output)
     #         print("--------------------------------")
     #         print("Lantern parsed: ", parse_output(output[0]))
-    #         #import pdb; pdb.set_trace()
     #         print("--------------------------------")
