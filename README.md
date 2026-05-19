@@ -29,6 +29,8 @@ This codebase covers two works:
 
 | Model | Description |
 |-------|-------------|
+| [AGViveiros/LanteRn-3B-SFT](https://huggingface.co/AGViveiros/LanteRn-3B-SFT) | 3B model SFT on VisCoT visual question answering with reasoning traces |
+| [AGViveiros/LanteRn-3B-RL](https://huggingface.co/AGViveiros/LanteRn-3B-RL) | 3B model GRPO fine-tuned from SFT checkpoint |
 | [AGViveiros/LanteRn-3B-Tetris](https://huggingface.co/AGViveiros/LanteRn-3B-Tetris) | 3B model fine-tuned on the Tetris analogy benchmark |
 
 ---
