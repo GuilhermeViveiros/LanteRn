@@ -22,7 +22,7 @@ This codebase covers two works:
 [![arXiv](https://img.shields.io/badge/arXiv-2603.25629-b31b1b.svg)](https://arxiv.org/abs/2603.25629)
 > Introduces Latent Visual Reasoning (LVR) tokens — compressed visual embeddings interleaved with text during reasoning. Extends Qwen2.5-VL with SFT and GRPO training to emit non-verbalized visual representations.
 
-**2. What's Holding Back Latent Visual Reasoning?** *(in proceedings — link coming soon)*
+**2. What's Holding Back Latent Visual Reasoning?** [![arXiv](https://img.shields.io/badge/arXiv-2605.18445-b31b1b.svg)](https://arxiv.org/abs/2605.18445)
 > Follow-up work using the Tetris synthetic analogy benchmark to diagnose what prevents LVR from working. Isolates representation failure from interface/routing failure via controlled experiments.
 
 **Models on HuggingFace:** [AGViveiros/lantern-models](https://huggingface.co/collections/AGViveiros/lantern-models)
