@@ -6,6 +6,14 @@
   <img src="imgs/lantern_fig.png" alt="LantErn Architecture" width="200"/>
 </p>
 
+<p align="center">
+  <a href="https://guilhermeviveiros.github.io/LanteRn.io/"><img src="https://img.shields.io/badge/Project-Page-f2a77b.svg" alt="Project page"/></a>
+  <a href="https://arxiv.org/abs/2605.18445"><img src="https://img.shields.io/badge/arXiv-2605.18445-b31b1b.svg" alt="arXiv 2605.18445"/></a>
+  <a href="https://arxiv.org/abs/2603.25629"><img src="https://img.shields.io/badge/arXiv-2603.25629-b31b1b.svg" alt="arXiv 2603.25629"/></a>
+</p>
+
+**Project page:** https://guilhermeviveiros.github.io/LanteRn.io/
+
 ---
 
 ## Updates
